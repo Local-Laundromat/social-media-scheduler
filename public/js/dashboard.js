@@ -293,6 +293,8 @@ function switchTab(tabName) {
     loadStats();
   } else if (tabName === 'calendar') {
     loadCalendar();
+  } else if (tabName === 'analytics') {
+    loadAnalytics();
   }
 }
 
@@ -1370,3 +1372,258 @@ async function deletePost(postId) {
     alert('Failed to delete post');
   }
 }
+
+// ===== ANALYTICS DASHBOARD =====
+
+// Load analytics when tab is switched
+async function loadAnalytics() {
+  const token = localStorage.getItem('auth_token');
+  const timeRange = document.getElementById('analyticsTimeRange').value;
+
+  try {
+    // Fetch all posts
+    const response = await fetch(`/api/users/${currentUser.id}/posts`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    const data = await response.json();
+    let posts = data.posts || [];
+
+    // Filter by time range
+    if (timeRange !== 'all') {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - parseInt(timeRange));
+      posts = posts.filter(post => new Date(post.created_at) >= cutoffDate);
+    }
+
+    // Calculate metrics
+    const totalPosts = posts.length;
+    const successfulPosts = posts.filter(p => p.status === 'posted').length;
+    const pendingPosts = posts.filter(p => p.status === 'pending').length;
+    const failedPosts = posts.filter(p => p.status === 'failed').length;
+    const successRate = totalPosts > 0 ? Math.round((successfulPosts / totalPosts) * 100) : 0;
+
+    // Platform breakdown
+    const platformCounts = { facebook: 0, instagram: 0, tiktok: 0 };
+    posts.forEach(post => {
+      const platforms = JSON.parse(post.platforms || '[]');
+      platforms.forEach(platform => {
+        if (platformCounts[platform] !== undefined) {
+          platformCounts[platform]++;
+        }
+      });
+    });
+
+    const totalPlatformPosts = Object.values(platformCounts).reduce((a, b) => a + b, 0);
+    const mostActivePlatform = Object.entries(platformCounts)
+      .sort((a, b) => b[1] - a[1])[0];
+
+    // Update key metrics
+    document.getElementById('analyticsTotal').textContent = totalPosts;
+    document.getElementById('analyticsSuccessful').textContent = successfulPosts;
+    document.getElementById('analyticsSuccessRate').textContent = `${successRate}%`;
+    document.getElementById('analyticsMostActive').textContent = 
+      mostActivePlatform ? mostActivePlatform[0].charAt(0).toUpperCase() + mostActivePlatform[0].slice(1) : '-';
+
+    // Update platform breakdown
+    document.getElementById('analyticsFacebook').textContent = platformCounts.facebook;
+    document.getElementById('analyticsInstagram').textContent = platformCounts.instagram;
+    document.getElementById('analyticsTikTok').textContent = platformCounts.tiktok;
+
+    if (totalPlatformPosts > 0) {
+      document.getElementById('analyticsFacebookRate').textContent = 
+        `${Math.round((platformCounts.facebook / totalPlatformPosts) * 100)}% of total posts`;
+      document.getElementById('analyticsInstagramRate').textContent = 
+        `${Math.round((platformCounts.instagram / totalPlatformPosts) * 100)}% of total posts`;
+      document.getElementById('analyticsTikTokRate').textContent = 
+        `${Math.round((platformCounts.tiktok / totalPlatformPosts) * 100)}% of total posts`;
+    }
+
+    // Update status counts
+    document.getElementById('analyticsPostedCount').textContent = successfulPosts;
+    document.getElementById('analyticsPendingCount').textContent = pendingPosts;
+    document.getElementById('analyticsFailedCount').textContent = failedPosts;
+
+    // Posting patterns
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayCounts = [0, 0, 0, 0, 0, 0, 0];
+    const hourCounts = new Array(24).fill(0);
+
+    posts.forEach(post => {
+      if (post.scheduled_time) {
+        const date = new Date(post.scheduled_time);
+        dayCounts[date.getDay()]++;
+        hourCounts[date.getHours()]++;
+      }
+    });
+
+    const mostActiveDay = dayCounts.indexOf(Math.max(...dayCounts));
+    const mostActiveHour = hourCounts.indexOf(Math.max(...hourCounts));
+    
+    document.getElementById('analyticsMostActiveDay').textContent = 
+      dayCounts[mostActiveDay] > 0 ? dayNames[mostActiveDay] : '-';
+    document.getElementById('analyticsMostActiveHour').textContent = 
+      hourCounts[mostActiveHour] > 0 ? `${mostActiveHour}:00` : '-';
+
+    // Calculate average posts per day
+    const daysInRange = timeRange === 'all' ? 30 : parseInt(timeRange);
+    const avgPerDay = (totalPosts / daysInRange).toFixed(1);
+    document.getElementById('analyticsAvgPerDay').textContent = avgPerDay;
+
+    // Render charts
+    renderStatusChart(successfulPosts, pendingPosts, failedPosts);
+    renderActivityChart(posts, parseInt(timeRange === 'all' ? 30 : timeRange));
+
+  } catch (error) {
+    console.error('Failed to load analytics:', error);
+  }
+}
+
+// Render status distribution chart (simple bar chart)
+function renderStatusChart(posted, pending, failed) {
+  const canvas = document.getElementById('statusChart');
+  const ctx = canvas.getContext('2d');
+  
+  const total = posted + pending + failed;
+  if (total === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '14px Inter';
+    ctx.fillStyle = '#6b7280';
+    ctx.textAlign = 'center';
+    ctx.fillText('No data to display', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  const postedPercent = (posted / total) * 100;
+  const pendingPercent = (pending / total) * 100;
+  const failedPercent = (failed / total) * 100;
+
+  // Set canvas size
+  canvas.width = canvas.offsetWidth;
+  canvas.height = 200;
+
+  const barHeight = 40;
+  const y = (canvas.height - barHeight) / 2;
+
+  // Posted (green)
+  ctx.fillStyle = '#10b981';
+  ctx.fillRect(0, y, (postedPercent / 100) * canvas.width, barHeight);
+
+  // Pending (yellow)
+  ctx.fillStyle = '#fbbf24';
+  const pendingX = (postedPercent / 100) * canvas.width;
+  ctx.fillRect(pendingX, y, (pendingPercent / 100) * canvas.width, barHeight);
+
+  // Failed (red)
+  ctx.fillStyle = '#ef4444';
+  const failedX = pendingX + (pendingPercent / 100) * canvas.width;
+  ctx.fillRect(failedX, y, (failedPercent / 100) * canvas.width, barHeight);
+
+  // Add labels
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 14px Inter';
+  ctx.textAlign = 'center';
+  
+  if (postedPercent > 10) {
+    ctx.fillText(`${Math.round(postedPercent)}%`, (postedPercent / 200) * canvas.width, y + 25);
+  }
+  if (pendingPercent > 10) {
+    ctx.fillText(`${Math.round(pendingPercent)}%`, pendingX + (pendingPercent / 200) * canvas.width, y + 25);
+  }
+  if (failedPercent > 10) {
+    ctx.fillText(`${Math.round(failedPercent)}%`, failedX + (failedPercent / 200) * canvas.width, y + 25);
+  }
+}
+
+// Render activity chart (line chart)
+function renderActivityChart(posts, days) {
+  const canvas = document.getElementById('activityChart');
+  const ctx = canvas.getContext('2d');
+
+  // Set canvas size
+  canvas.width = canvas.offsetWidth;
+  canvas.height = 250;
+
+  const padding = 40;
+  const chartWidth = canvas.width - padding * 2;
+  const chartHeight = canvas.height - padding * 2;
+
+  // Group posts by day
+  const dayCounts = new Array(days).fill(0);
+  const today = new Date();
+  
+  posts.forEach(post => {
+    const postDate = new Date(post.created_at);
+    const daysAgo = Math.floor((today - postDate) / (1000 * 60 * 60 * 24));
+    if (daysAgo >= 0 && daysAgo < days) {
+      dayCounts[days - 1 - daysAgo]++;
+    }
+  });
+
+  const maxCount = Math.max(...dayCounts, 1);
+
+  // Clear canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Draw grid lines
+  ctx.strokeStyle = '#e5e7eb';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = padding + (i * chartHeight / 5);
+    ctx.beginPath();
+    ctx.moveTo(padding, y);
+    ctx.lineTo(canvas.width - padding, y);
+    ctx.stroke();
+  }
+
+  // Draw Y-axis labels
+  ctx.fillStyle = '#6b7280';
+  ctx.font = '12px Inter';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 5; i++) {
+    const value = Math.round(maxCount - (i * maxCount / 5));
+    const y = padding + (i * chartHeight / 5);
+    ctx.fillText(value.toString(), padding - 10, y + 4);
+  }
+
+  // Draw line chart
+  ctx.strokeStyle = '#facc15';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+
+  dayCounts.forEach((count, index) => {
+    const x = padding + (index * chartWidth / (days - 1));
+    const y = padding + chartHeight - (count / maxCount * chartHeight);
+    
+    if (index === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+
+  ctx.stroke();
+
+  // Draw points
+  ctx.fillStyle = '#ca8a04';
+  dayCounts.forEach((count, index) => {
+    const x = padding + (index * chartWidth / (days - 1));
+    const y = padding + chartHeight - (count / maxCount * chartHeight);
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Draw X-axis labels (show every few days)
+  ctx.fillStyle = '#6b7280';
+  ctx.font = '11px Inter';
+  ctx.textAlign = 'center';
+  const labelInterval = Math.ceil(days / 7);
+  for (let i = 0; i < days; i += labelInterval) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - (days - 1 - i));
+    const x = padding + (i * chartWidth / (days - 1));
+    ctx.fillText(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), x, canvas.height - 15);
+  }
+}
+

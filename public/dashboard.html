@@ -597,6 +597,7 @@
           <div class="tab active" onclick="switchTab('create')">Create Post</div>
           <div class="tab" onclick="switchTab('bulk')">Bulk Upload</div>
           <div class="tab" onclick="switchTab('calendar')">Calendar</div>
+          <div class="tab" onclick="switchTab('analytics')">Analytics</div>
           <div class="tab" onclick="switchTab('posts')">My Posts</div>
           <div class="tab" onclick="switchTab('settings')">Settings</div>
         </div>
@@ -864,6 +865,132 @@
               </div>
               <div id="modalPostContent">
                 <!-- Post details will be populated here -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Analytics Tab -->
+        <div id="analyticsTab" class="tab-content">
+          <h3>Analytics Dashboard</h3>
+          <p style="color: #6b7280; margin-bottom: 24px;">Track your posting performance across all platforms</p>
+
+          <!-- Time Range Selector -->
+          <div style="margin-bottom: 24px;">
+            <label style="font-weight: 600; margin-right: 12px;">Time Range:</label>
+            <select id="analyticsTimeRange" onchange="loadAnalytics()" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db;">
+              <option value="7">Last 7 days</option>
+              <option value="30" selected>Last 30 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="all">All time</option>
+            </select>
+          </div>
+
+          <!-- Key Metrics Grid -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px;">
+            <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 20px; border-radius: 12px; color: white;">
+              <div style="font-size: 32px; font-weight: 700; margin-bottom: 4px;" id="analyticsTotal">0</div>
+              <div style="font-size: 14px; opacity: 0.9;">Total Posts</div>
+            </div>
+            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; border-radius: 12px; color: white;">
+              <div style="font-size: 32px; font-weight: 700; margin-bottom: 4px;" id="analyticsSuccessful">0</div>
+              <div style="font-size: 14px; opacity: 0.9;">Successfully Posted</div>
+            </div>
+            <div style="background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); padding: 20px; border-radius: 12px; color: white;">
+              <div style="font-size: 32px; font-weight: 700; margin-bottom: 4px;" id="analyticsSuccessRate">0%</div>
+              <div style="font-size: 14px; opacity: 0.9;">Success Rate</div>
+            </div>
+            <div style="background: linear-gradient(135deg, #ec4899 0%, #db2777 100%); padding: 20px; border-radius: 12px; color: white;">
+              <div style="font-size: 32px; font-weight: 700; margin-bottom: 4px;" id="analyticsMostActive">-</div>
+              <div style="font-size: 14px; opacity: 0.9;">Most Active Platform</div>
+            </div>
+          </div>
+
+          <!-- Platform Breakdown -->
+          <div style="background: white; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 24px;">
+            <h4 style="margin-bottom: 16px;">Posts by Platform</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
+              <div style="padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                  <span style="font-size: 24px;">📘</span>
+                  <span style="font-weight: 600;">Facebook</span>
+                </div>
+                <div style="font-size: 28px; font-weight: 700; color: #3b82f6; margin-bottom: 4px;" id="analyticsFacebook">0</div>
+                <div style="font-size: 13px; color: #6b7280;" id="analyticsFacebookRate">0% of total posts</div>
+              </div>
+              <div style="padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                  <span style="font-size: 24px;">📷</span>
+                  <span style="font-weight: 600;">Instagram</span>
+                </div>
+                <div style="font-size: 28px; font-weight: 700; color: #ec4899; margin-bottom: 4px;" id="analyticsInstagram">0</div>
+                <div style="font-size: 13px; color: #6b7280;" id="analyticsInstagramRate">0% of total posts</div>
+              </div>
+              <div style="padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                  <span style="font-size: 24px;">🎵</span>
+                  <span style="font-weight: 600;">TikTok</span>
+                </div>
+                <div style="font-size: 28px; font-weight: 700; color: #000000; margin-bottom: 4px;" id="analyticsTikTok">0</div>
+                <div style="font-size: 13px; color: #6b7280;" id="analyticsTikTokRate">0% of total posts</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Status Breakdown Chart -->
+          <div style="background: white; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 24px;">
+            <h4 style="margin-bottom: 16px;">Post Status Distribution</h4>
+            <div style="display: flex; gap: 24px; align-items: center; flex-wrap: wrap;">
+              <div style="flex: 1; min-width: 250px;">
+                <canvas id="statusChart" style="max-height: 200px;"></canvas>
+              </div>
+              <div style="display: grid; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <div style="width: 40px; height: 40px; border-radius: 50%; background: #10b981; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 14px;" id="analyticsPostedCount">0</div>
+                  <div>
+                    <div style="font-weight: 600;">Posted</div>
+                    <div style="font-size: 13px; color: #6b7280;">Successfully published</div>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <div style="width: 40px; height: 40px; border-radius: 50%; background: #fbbf24; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 14px;" id="analyticsPendingCount">0</div>
+                  <div>
+                    <div style="font-weight: 600;">Pending</div>
+                    <div style="font-size: 13px; color: #6b7280;">Scheduled for future</div>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <div style="width: 40px; height: 40px; border-radius: 50%; background: #ef4444; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 14px;" id="analyticsFailedCount">0</div>
+                  <div>
+                    <div style="font-weight: 600;">Failed</div>
+                    <div style="font-size: 13px; color: #6b7280;">Need attention</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Posting Activity Chart -->
+          <div style="background: white; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 24px;">
+            <h4 style="margin-bottom: 16px;">Posting Activity Over Time</h4>
+            <canvas id="activityChart" style="max-height: 250px;"></canvas>
+          </div>
+
+          <!-- Best Performing Times -->
+          <div style="background: white; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <h4 style="margin-bottom: 16px;">Posting Patterns</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+              <div>
+                <div style="font-size: 13px; color: #6b7280; margin-bottom: 4px;">Most Active Day</div>
+                <div style="font-size: 20px; font-weight: 700; color: #1f2937;" id="analyticsMostActiveDay">-</div>
+              </div>
+              <div>
+                <div style="font-size: 13px; color: #6b7280; margin-bottom: 4px;">Most Active Hour</div>
+                <div style="font-size: 20px; font-weight: 700; color: #1f2937;" id="analyticsMostActiveHour">-</div>
+              </div>
+              <div>
+                <div style="font-size: 13px; color: #6b7280; margin-bottom: 4px;">Average Posts/Day</div>
+                <div style="font-size: 20px; font-weight: 700; color: #1f2937;" id="analyticsAvgPerDay">0</div>
               </div>
             </div>
           </div>
