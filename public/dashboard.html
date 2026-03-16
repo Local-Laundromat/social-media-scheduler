@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Social Media Scheduler</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #f9fafb;
+      color: #1f2937;
+    }
+
+    .topbar {
+      background: white;
+      padding: 16px 24px;
+      color: #1f2937;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .topbar h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #1f2937;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .user-menu {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      padding: 8px 12px;
+      border-radius: 8px;
+      transition: background 0.2s;
+      color: #1f2937;
+    }
+
+    .user-menu:hover {
+      background: #f3f4f6;
+    }
+
+    .btn-logout {
+      background: #f3f4f6;
+      border: 1px solid #e5e7eb;
+      color: #1f2937;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .btn-logout:hover {
+      background: #e5e7eb;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .welcome-card {
+      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+      padding: 24px;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 12px rgba(250, 204, 21, 0.3);
+    }
+
+    .welcome-card h2 {
+      font-size: 24px;
+      margin-bottom: 8px;
+      color: #1f2937;
+    }
+
+    .welcome-card p {
+      color: #374151;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .stat-card .stat-value {
+      font-size: 32px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 4px;
+    }
+
+    .stat-card .stat-label {
+      color: #6b7280;
+      font-size: 14px;
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: 350px 1fr;
+      gap: 24px;
+    }
+
+    .sidebar-section {
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      height: fit-content;
+    }
+
+    .sidebar-section h3 {
+      font-size: 18px;
+      margin-bottom: 16px;
+    }
+
+    .connection-item {
+      padding: 16px;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      transition: border-color 0.3s;
+    }
+
+    .connection-item.connected {
+      border-color: #10b981;
+      background: #f0fdf4;
+    }
+
+    .connection-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .connection-name {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+    }
+
+    .connection-icon {
+      font-size: 24px;
+    }
+
+    .status-badge {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .status-badge.connected {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .status-badge.disconnected {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .connection-details {
+      font-size: 13px;
+      color: #6b7280;
+      margin-bottom: 12px;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+      color: #1f2937;
+      box-shadow: 0 2px 8px rgba(250, 204, 21, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(250, 204, 21, 0.5);
+    }
+
+    .btn-secondary {
+      background: #6b7280;
+      color: white;
+    }
+
+    .btn-danger {
+      background: #ef4444;
+      color: white;
+    }
+
+    .content-section {
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .content-section h3 {
+      font-size: 18px;
+      margin-bottom: 16px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      border-bottom: 2px solid #e5e7eb;
+    }
+
+    .tab {
+      padding: 12px 20px;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+      font-weight: 500;
+      color: #6b7280;
+    }
+
+    .tab.active {
+      color: #ca8a04;
+      border-bottom-color: #ca8a04;
+    }
+
+    .tab:hover {
+      color: #ca8a04;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .upload-zone {
+      border: 2px dashed #d1d5db;
+      border-radius: 8px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-bottom: 20px;
+    }
+
+    .upload-zone:hover {
+      border-color: #facc15;
+      background: #fefce8;
+    }
+
+    .upload-zone.dragover {
+      border-color: #ca8a04;
+      background: #fef9c3;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 8px;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .form-group textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    .checkbox-group {
+      display: flex;
+      gap: 16px;
+    }
+
+    .checkbox-group label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: normal;
+    }
+
+    .post-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .post-item {
+      display: flex;
+      gap: 16px;
+      padding: 16px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      transition: box-shadow 0.2s;
+    }
+
+    .post-item:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .post-image {
+      width: 80px;
+      height: 80px;
+      border-radius: 6px;
+      object-fit: cover;
+      background: #f3f4f6;
+    }
+
+    .post-info {
+      flex: 1;
+    }
+
+    .post-caption {
+      font-size: 14px;
+      color: #1f2937;
+      margin-bottom: 8px;
+      line-height: 1.5;
+    }
+
+    .post-meta {
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    .post-status {
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      align-self: flex-start;
+    }
+
+    .post-status.pending {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .post-status.posted {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .post-status.failed {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .ai-caption-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 12px;
+    }
+
+    .ai-caption-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #6b7280;
+    }
+
+    .spinner {
+      border: 3px solid #f3f4f6;
+      border-top: 3px solid #facc15;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #6b7280;
+    }
+
+    .empty-state-icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .settings-section {
+      margin-bottom: 24px;
+    }
+
+    .settings-section h4 {
+      font-size: 16px;
+      margin-bottom: 12px;
+      color: #1f2937;
+    }
+
+    .api-key-display {
+      background: #f3f4f6;
+      padding: 12px;
+      border-radius: 6px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      word-break: break-all;
+      margin-bottom: 8px;
+    }
+
+    .copy-btn {
+      padding: 8px 16px;
+      background: #374151;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .copy-btn:hover {
+      background: #1f2937;
+    }
+
+    @media (max-width: 768px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>📱 Social Media Scheduler</h1>
+    <div class="topbar-right">
+      <div class="user-menu" id="userMenu">
+        <span id="userName">Loading...</span>
+      </div>
+      <button class="btn-logout" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="welcome-card">
+      <h2>Welcome back, <span id="welcomeName">...</span>!</h2>
+      <p id="welcomeSubtitle">Manage your social media posts</p>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="statTotal">0</div>
+        <div class="stat-label">Total Posts</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statPending">0</div>
+        <div class="stat-label">Pending</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statPosted">0</div>
+        <div class="stat-label">Posted</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statFailed">0</div>
+        <div class="stat-label">Failed</div>
+      </div>
+    </div>
+
+    <div class="main-grid">
+      <!-- Sidebar -->
+      <div class="sidebar-section">
+        <h3>Connect Accounts</h3>
+
+        <!-- Facebook -->
+        <div class="connection-item" id="facebookConnection">
+          <div class="connection-header">
+            <div class="connection-name">
+              <span class="connection-icon">📘</span>
+              <span>Facebook</span>
+            </div>
+            <span class="status-badge disconnected" id="facebookStatus">Not Connected</span>
+          </div>
+          <div class="connection-details" id="facebookDetails">
+            Connect your Facebook Business Page
+          </div>
+          <button class="btn btn-primary" id="facebookBtn" onclick="connectFacebook()">
+            Connect Facebook
+          </button>
+        </div>
+
+        <!-- Instagram -->
+        <div class="connection-item" id="instagramConnection">
+          <div class="connection-header">
+            <div class="connection-name">
+              <span class="connection-icon">📷</span>
+              <span>Instagram</span>
+            </div>
+            <span class="status-badge disconnected" id="instagramStatus">Not Connected</span>
+          </div>
+          <div class="connection-details" id="instagramDetails">
+            Connect your Instagram Business Account
+          </div>
+          <button class="btn btn-primary" id="instagramBtn" onclick="connectInstagram()">
+            Connect Instagram
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div class="content-section">
+        <div class="tabs">
+          <div class="tab active" onclick="switchTab('create')">Create Post</div>
+          <div class="tab" onclick="switchTab('bulk')">Bulk Upload</div>
+          <div class="tab" onclick="switchTab('posts')">My Posts</div>
+          <div class="tab" onclick="switchTab('settings')">Settings</div>
+        </div>
+
+        <!-- Create Post Tab -->
+        <div id="createTab" class="tab-content active">
+          <h3>Create New Post</h3>
+
+          <form id="createPostForm" onsubmit="createPost(event)">
+            <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+              <div id="uploadPlaceholder">
+                <div style="font-size: 48px; margin-bottom: 12px;">📤</div>
+                <div style="font-size: 16px; font-weight: 600; margin-bottom: 4px;">Click to upload or drag and drop</div>
+                <div style="font-size: 13px; color: #6b7280;">PNG, JPG, MP4 up to 100MB</div>
+              </div>
+              <div id="uploadPreview" style="display: none;">
+                <img id="previewImage" style="max-width: 200px; max-height: 200px; border-radius: 8px;">
+              </div>
+            </div>
+            <input type="file" id="fileInput" accept="image/*,video/*" style="display: none;" onchange="handleFileSelect(event)">
+
+            <div class="form-group">
+              <label>Caption</label>
+              <button type="button" class="ai-caption-btn" onclick="generateAICaption()">
+                ✨ Generate with AI
+              </button>
+              <textarea id="caption" placeholder="Write your caption here..."></textarea>
+            </div>
+
+            <div class="form-group">
+              <label>Platforms</label>
+              <div class="checkbox-group">
+                <label>
+                  <input type="checkbox" name="platform" value="facebook" checked> Facebook
+                </label>
+                <label>
+                  <input type="checkbox" name="platform" value="instagram" checked> Instagram
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Schedule</label>
+              <select id="scheduleType" onchange="toggleScheduleTime()">
+                <option value="now">Post immediately</option>
+                <option value="later">Schedule for later</option>
+              </select>
+            </div>
+
+            <div class="form-group" id="scheduleTimeGroup" style="display: none;">
+              <label>Date & Time</label>
+              <input type="datetime-local" id="scheduledTime">
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="max-width: 200px;">
+              Create Post
+            </button>
+          </form>
+        </div>
+
+        <!-- Bulk Upload Tab -->
+        <div id="bulkTab" class="tab-content">
+          <h3>Bulk Upload</h3>
+          <p style="color: #6b7280; margin-bottom: 24px;">Upload multiple files and schedule them with smart posting patterns</p>
+
+          <!-- Bulk Upload Zone -->
+          <div class="upload-zone" id="bulkUploadZone" onclick="document.getElementById('bulkFileInput').click()">
+            <div id="bulkUploadPlaceholder">
+              <div style="font-size: 48px; margin-bottom: 12px;">📁</div>
+              <div style="font-size: 16px; font-weight: 600; margin-bottom: 4px;">Click to upload multiple files or drag and drop</div>
+              <div style="font-size: 13px; color: #6b7280;">Upload up to 50 images/videos at once</div>
+            </div>
+            <div id="bulkFilesPreview" style="display: none;">
+              <div style="font-size: 24px; margin-bottom: 8px;">✅</div>
+              <div id="bulkFileCount" style="font-weight: 600; margin-bottom: 4px;">0 files selected</div>
+              <div style="font-size: 13px; color: #6b7280;">Click to change files</div>
+            </div>
+          </div>
+          <input type="file" id="bulkFileInput" accept="image/*,video/*" multiple style="display: none;" onchange="handleBulkFileSelect(event)">
+
+          <!-- Scheduling Pattern -->
+          <div class="form-group">
+            <label>Scheduling Pattern</label>
+            <select id="schedulePattern" onchange="toggleSchedulePattern()">
+              <option value="manual">Manual - Review each post individually</option>
+              <option value="auto-daily">Auto - Daily at specific time</option>
+              <option value="auto-weekly">Auto - Specific days of week</option>
+              <option value="auto-spacing">Auto - Evenly spaced intervals</option>
+            </select>
+          </div>
+
+          <!-- Auto Daily Pattern -->
+          <div id="patternDaily" class="form-group" style="display: none;">
+            <label>Post Time</label>
+            <input type="time" id="dailyTime" value="09:00">
+            <p style="color: #6b7280; font-size: 13px; margin-top: 8px;">Posts will be scheduled once per day at this time</p>
+          </div>
+
+          <!-- Auto Weekly Pattern -->
+          <div id="patternWeekly" class="form-group" style="display: none;">
+            <label>Days of Week</label>
+            <div class="checkbox-group" style="flex-wrap: wrap; gap: 12px;">
+              <label><input type="checkbox" name="weekday" value="1" checked> Monday</label>
+              <label><input type="checkbox" name="weekday" value="2" checked> Tuesday</label>
+              <label><input type="checkbox" name="weekday" value="3"> Wednesday</label>
+              <label><input type="checkbox" name="weekday" value="4" checked> Thursday</label>
+              <label><input type="checkbox" name="weekday" value="5" checked> Friday</label>
+              <label><input type="checkbox" name="weekday" value="6"> Saturday</label>
+              <label><input type="checkbox" name="weekday" value="0"> Sunday</label>
+            </div>
+            <label style="margin-top: 16px;">Post Time</label>
+            <input type="time" id="weeklyTime" value="09:00">
+            <p style="color: #6b7280; font-size: 13px; margin-top: 8px;">Posts will be scheduled on selected days at this time</p>
+          </div>
+
+          <!-- Auto Spacing Pattern -->
+          <div id="patternSpacing" class="form-group" style="display: none;">
+            <label>Post Every</label>
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <input type="number" id="spacingValue" value="2" min="1" max="24" style="max-width: 100px;">
+              <select id="spacingUnit" style="max-width: 150px;">
+                <option value="hours">Hours</option>
+                <option value="days" selected>Days</option>
+              </select>
+            </div>
+            <label style="margin-top: 16px;">Start Time</label>
+            <input type="datetime-local" id="spacingStartTime">
+            <p style="color: #6b7280; font-size: 13px; margin-top: 8px;">Posts will be evenly spaced starting from this time</p>
+          </div>
+
+          <!-- Common Settings -->
+          <div class="form-group">
+            <label>Platforms</label>
+            <div class="checkbox-group">
+              <label>
+                <input type="checkbox" name="bulkPlatform" value="facebook" checked> Facebook
+              </label>
+              <label>
+                <input type="checkbox" name="bulkPlatform" value="instagram" checked> Instagram
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Default Caption (Optional)</label>
+            <textarea id="bulkCaption" placeholder="This caption will be used for all posts. You can edit individually later."></textarea>
+          </div>
+
+          <button type="button" class="btn btn-primary" style="max-width: 250px;" onclick="processBulkUpload()">
+            Continue to Review Posts
+          </button>
+        </div>
+
+        <!-- Posts Tab -->
+        <div id="postsTab" class="tab-content">
+          <h3>My Posts</h3>
+          <div id="postsList">
+            <div class="loading">
+              <div class="spinner"></div>
+              Loading posts...
+            </div>
+          </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="settingsTab" class="tab-content">
+          <h3>Settings</h3>
+
+          <div class="settings-section">
+            <h4>API Key</h4>
+            <p style="color: #6b7280; font-size: 13px; margin-bottom: 12px;">
+              Use this API key to integrate with OmniBroker or Sun Production
+            </p>
+            <div class="api-key-display" id="apiKeyDisplay">Loading...</div>
+            <button class="copy-btn" onclick="copyApiKey()">Copy API Key</button>
+          </div>
+
+          <div class="settings-section">
+            <h4>Webhook URL (Optional)</h4>
+            <p style="color: #6b7280; font-size: 13px; margin-bottom: 12px;">
+              Get notified when posts are published
+            </p>
+            <input type="text" id="webhookUrl" placeholder="https://your-app.com/webhook" style="margin-bottom: 12px;">
+            <button class="btn btn-primary" style="max-width: 200px;" onclick="saveWebhook()">Save Webhook</button>
+          </div>
+
+          <div class="settings-section">
+            <h4>Account Information</h4>
+            <div class="form-group">
+              <label>Email</label>
+              <input type="email" id="settingsEmail" readonly>
+            </div>
+            <div class="form-group">
+              <label>Name</label>
+              <input type="text" id="settingsName">
+            </div>
+            <div class="form-group">
+              <label>Company</label>
+              <input type="text" id="settingsCompany">
+            </div>
+            <button class="btn btn-primary" style="max-width: 200px;" onclick="saveProfile()">Save Changes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>
