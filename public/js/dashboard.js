@@ -45,6 +45,7 @@ function initializeDashboard() {
   // Update connection status
   updateConnectionStatus('facebook', currentUser.facebook_connected, currentUser.facebook_page_name);
   updateConnectionStatus('instagram', currentUser.instagram_connected, currentUser.instagram_username);
+  updateConnectionStatus('tiktok', currentUser.tiktok_connected, currentUser.tiktok_username);
 
   // Load stats and posts
   loadStats();
@@ -73,10 +74,29 @@ function updateConnectionStatus(platform, connected, accountName) {
     card.classList.remove('connected');
     status.className = 'status-badge disconnected';
     status.textContent = 'Not Connected';
-    details.textContent = `Connect your ${platform === 'facebook' ? 'Facebook Business Page' : 'Instagram Business Account'}`;
+
+    let detailsText = '';
+    let btnText = '';
+    let connectFunc = null;
+
+    if (platform === 'facebook') {
+      detailsText = 'Connect your Facebook Business Page';
+      btnText = 'Connect Facebook';
+      connectFunc = connectFacebook;
+    } else if (platform === 'instagram') {
+      detailsText = 'Connect your Instagram Business Account';
+      btnText = 'Connect Instagram';
+      connectFunc = connectInstagram;
+    } else if (platform === 'tiktok') {
+      detailsText = 'Connect your TikTok Business Account';
+      btnText = 'Connect TikTok';
+      connectFunc = connectTikTok;
+    }
+
+    details.textContent = detailsText;
     btn.className = 'btn btn-primary';
-    btn.textContent = `Connect ${platform === 'facebook' ? 'Facebook' : 'Instagram'}`;
-    btn.onclick = platform === 'facebook' ? connectFacebook : connectInstagram;
+    btn.textContent = btnText;
+    btn.onclick = connectFunc;
   }
 }
 
@@ -122,6 +142,27 @@ function connectInstagram() {
   }, 500);
 }
 
+// Connect TikTok
+function connectTikTok() {
+  const width = 600;
+  const height = 700;
+  const left = (screen.width - width) / 2;
+  const top = (screen.height - height) / 2;
+
+  const popup = window.open(
+    `/auth/tiktok?user_id=${currentUser.id}&app=direct&name=${encodeURIComponent(currentUser.name || '')}`,
+    'TikTok Login',
+    `width=${width},height=${height},left=${left},top=${top}`
+  );
+
+  const checkPopup = setInterval(() => {
+    if (popup.closed) {
+      clearInterval(checkPopup);
+      reloadUserData();
+    }
+  }, 500);
+}
+
 // Disconnect platform
 async function disconnect(platform) {
   if (!confirm(`Are you sure you want to disconnect ${platform}?`)) {
@@ -156,6 +197,7 @@ async function reloadUserData() {
 
     updateConnectionStatus('facebook', currentUser.facebook_connected, currentUser.facebook_page_name);
     updateConnectionStatus('instagram', currentUser.instagram_connected, currentUser.instagram_username);
+    updateConnectionStatus('tiktok', currentUser.tiktok_connected, currentUser.tiktok_username);
   } catch (error) {
     console.error('Failed to reload user data:', error);
   }
