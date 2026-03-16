@@ -619,9 +619,20 @@
 
             <div class="form-group">
               <label>Caption</label>
-              <button type="button" class="ai-caption-btn" onclick="generateAICaption()">
-                ✨ Generate with AI
-              </button>
+              <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+                <button type="button" class="ai-caption-btn" onclick="generateAICaption()">
+                  ✨ Generate with AI
+                </button>
+                <button type="button" class="ai-caption-btn" onclick="generateHashtags()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                  #️⃣ Add Hashtags
+                </button>
+                <button type="button" class="ai-caption-btn" onclick="translateCaption()" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                  🌍 Translate
+                </button>
+                <button type="button" class="ai-caption-btn" onclick="optimizeCaption()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                  ⚡ Optimize
+                </button>
+              </div>
               <textarea id="caption" placeholder="Write your caption here..."></textarea>
             </div>
 

@@ -174,4 +174,216 @@ router.post('/generate-template-caption', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/generate-hashtags - Generate relevant hashtags for content
+ */
+router.post('/generate-hashtags', async (req, res) => {
+  const { caption, industry, platforms } = req.body;
+
+  if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'not-configured') {
+    // Provide generic hashtag suggestions
+    const genericTags = [
+      '#socialmedia',
+      '#marketing',
+      '#business',
+      '#entrepreneur',
+      '#digitalmarketing',
+      '#contentcreator',
+      '#smallbusiness',
+      '#branding'
+    ];
+
+    return res.json({
+      success: true,
+      hashtags: genericTags.slice(0, 10),
+      note: 'Generic hashtags (OpenAI not configured)'
+    });
+  }
+
+  try {
+    const platformsStr = Array.isArray(platforms) ? platforms.join(', ') : platforms || 'social media';
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a social media hashtag expert. Generate relevant, trending hashtags that will maximize reach and engagement. Consider platform-specific best practices.`
+        },
+        {
+          role: 'user',
+          content: `Generate 15-20 relevant hashtags for this content:
+
+Caption: "${caption}"
+${industry ? `Industry: ${industry}` : ''}
+Platforms: ${platformsStr}
+
+Provide a mix of:
+- High-traffic popular hashtags (100k+ posts)
+- Medium-traffic niche hashtags (10k-100k posts)
+- Low-competition specific hashtags (<10k posts)
+
+Return ONLY the hashtags as a comma-separated list, no explanations.`
+        }
+      ],
+      max_tokens: 200,
+      temperature: 0.7
+    });
+
+    const hashtagsText = response.choices[0].message.content.trim();
+    const hashtags = hashtagsText
+      .split(/[,\n]/)
+      .map(tag => tag.trim())
+      .filter(tag => tag.startsWith('#'))
+      .slice(0, 20);
+
+    res.json({
+      success: true,
+      hashtags,
+      breakdown: {
+        popular: hashtags.slice(0, 5),
+        niche: hashtags.slice(5, 12),
+        specific: hashtags.slice(12)
+      }
+    });
+
+  } catch (error) {
+    console.error('Hashtag generation error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate hashtags',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/translate-caption - Translate caption to another language
+ */
+router.post('/translate-caption', async (req, res) => {
+  const { caption, targetLanguage, tone } = req.body;
+
+  if (!caption || !targetLanguage) {
+    return res.status(400).json({
+      success: false,
+      error: 'Caption and target language are required'
+    });
+  }
+
+  if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'not-configured') {
+    return res.json({
+      success: false,
+      error: 'OpenAI API key not configured'
+    });
+  }
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a professional translator specializing in social media content. Maintain the ${tone || 'original'} tone and preserve emojis and hashtags.`
+        },
+        {
+          role: 'user',
+          content: `Translate this social media caption to ${targetLanguage}. Keep emojis and adapt hashtags appropriately:
+
+"${caption}"
+
+Provide ONLY the translated caption, no explanations.`
+        }
+      ],
+      max_tokens: 300,
+      temperature: 0.5
+    });
+
+    const translatedCaption = response.choices[0].message.content.trim();
+
+    res.json({
+      success: true,
+      originalCaption: caption,
+      translatedCaption,
+      targetLanguage
+    });
+
+  } catch (error) {
+    console.error('Translation error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to translate caption',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/optimize-caption - Optimize caption for specific platform
+ */
+router.post('/optimize-caption', async (req, res) => {
+  const { caption, platform, goal } = req.body;
+
+  if (!caption || !platform) {
+    return res.status(400).json({
+      success: false,
+      error: 'Caption and platform are required'
+    });
+  }
+
+  if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'not-configured') {
+    return res.json({
+      success: false,
+      error: 'OpenAI API key not configured'
+    });
+  }
+
+  try {
+    const platformGuidelines = {
+      facebook: 'Optimize for Facebook: friendly tone, longer text (up to 500 chars), encourage comments and shares',
+      instagram: 'Optimize for Instagram: Visual storytelling, 150-300 chars, strong first line, strategic line breaks, emoji-heavy',
+      tiktok: 'Optimize for TikTok: Short, punchy, trendy language, max 150 chars, lots of hashtags, call-to-action'
+    };
+
+    const guideline = platformGuidelines[platform.toLowerCase()] || platformGuidelines.instagram;
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a social media optimization expert. ${guideline}${goal ? ` Goal: ${goal}` : ''}`
+        },
+        {
+          role: 'user',
+          content: `Optimize this caption for ${platform}:
+
+"${caption}"
+
+Provide ONLY the optimized caption, no explanations.`
+        }
+      ],
+      max_tokens: 300,
+      temperature: 0.7
+    });
+
+    const optimizedCaption = response.choices[0].message.content.trim();
+
+    res.json({
+      success: true,
+      originalCaption: caption,
+      optimizedCaption,
+      platform,
+      improvements: `Optimized for ${platform} best practices${goal ? ` with focus on ${goal}` : ''}`
+    });
+
+  } catch (error) {
+    console.error('Optimization error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to optimize caption',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;

@@ -982,3 +982,155 @@ async function createPostsFromCSV(posts) {
     `;
   }
 }
+
+// ===== ENHANCED AI FEATURES =====
+
+// Generate hashtags for caption
+async function generateHashtags() {
+  const captionField = document.getElementById("caption");
+  const caption = captionField.value;
+
+  if (\!caption || caption.trim().length === 0) {
+    alert("Please write a caption first");
+    return;
+  }
+
+  const token = localStorage.getItem("auth_token");
+  const platforms = Array.from(document.querySelectorAll("input[name=\"platform\"]:checked"))
+    .map(cb => cb.value);
+
+  try {
+    const response = await fetch("/api/generate-hashtags", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        caption,
+        industry: currentUser.company || "",
+        platforms
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success && data.hashtags) {
+      const currentCaption = captionField.value.trim();
+      const hashtagsStr = "
+
+" + data.hashtags.slice(0, 15).join(" ");
+      captionField.value = currentCaption + hashtagsStr;
+      alert(`Added ${data.hashtags.length} relevant hashtags\!`);
+    } else {
+      alert(data.note || "Failed to generate hashtags");
+    }
+  } catch (error) {
+    console.error("Hashtag generation error:", error);
+    alert("Failed to generate hashtags. Please try again.");
+  }
+}
+
+// Translate caption
+async function translateCaption() {
+  const captionField = document.getElementById("caption");
+  const caption = captionField.value;
+
+  if (\!caption || caption.trim().length === 0) {
+    alert("Please write a caption first");
+    return;
+  }
+
+  const targetLanguage = prompt("Translate to which language?
+(e.g., Spanish, French, German, Japanese)");
+  if (\!targetLanguage) return;
+
+  const token = localStorage.getItem("auth_token");
+
+  try {
+    const response = await fetch("/api/translate-caption", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        caption,
+        targetLanguage
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      captionField.value = data.translatedCaption;
+      alert(`Caption translated to ${targetLanguage}\!`);
+    } else {
+      alert(data.error || "Translation failed");
+    }
+  } catch (error) {
+    console.error("Translation error:", error);
+    alert("Failed to translate caption. Please try again.");
+  }
+}
+
+// Optimize caption for platform
+async function optimizeCaption() {
+  const captionField = document.getElementById("caption");
+  const caption = captionField.value;
+
+  if (\!caption || caption.trim().length === 0) {
+    alert("Please write a caption first");
+    return;
+  }
+
+  const platforms = Array.from(document.querySelectorAll("input[name=\"platform\"]:checked"))
+    .map(cb => cb.value);
+
+  if (platforms.length === 0) {
+    alert("Please select at least one platform to optimize for");
+    return;
+  }
+
+  let targetPlatform = platforms[0];
+  if (platforms.length > 1) {
+    targetPlatform = prompt(`Optimize for which platform?
+Options: ${platforms.join(", ")}`, platforms[0]);
+    if (\!targetPlatform) return;
+  }
+
+  const token = localStorage.getItem("auth_token");
+
+  try {
+    const response = await fetch("/api/optimize-caption", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        caption,
+        platform: targetPlatform,
+        goal: "engagement"
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      if (confirm(`Optimized for ${targetPlatform}\!
+
+"${data.optimizedCaption}"
+
+Replace your caption with this?`)) {
+        captionField.value = data.optimizedCaption;
+      }
+    } else {
+      alert(data.error || "Optimization failed");
+    }
+  } catch (error) {
+    console.error("Optimization error:", error);
+    alert("Failed to optimize caption. Please try again.");
+  }
+}
+
