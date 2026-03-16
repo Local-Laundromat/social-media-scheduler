@@ -773,3 +773,212 @@ async function processBulkUpload() {
     alert('Failed to process bulk upload. Please try again.');
   }
 }
+
+// ===== CSV IMPORT FUNCTIONALITY =====
+
+let csvFile = null;
+
+// Toggle upload method (files vs CSV)
+function toggleUploadMethod() {
+  const method = document.getElementById('uploadMethod').value;
+  const csvSection = document.getElementById('csvImportSection');
+  const filesSection = document.getElementById('filesUploadSection');
+
+  if (method === 'csv') {
+    csvSection.style.display = 'block';
+    filesSection.style.display = 'none';
+  } else {
+    csvSection.style.display = 'none';
+    filesSection.style.display = 'block';
+  }
+}
+
+// Handle CSV file selection
+function handleCSVSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  csvFile = file;
+
+  // Update UI
+  const placeholder = document.getElementById('csvUploadPlaceholder');
+  const preview = document.getElementById('csvFilePreview');
+  const fileName = document.getElementById('csvFileName');
+
+  fileName.textContent = file.name;
+  placeholder.style.display = 'none';
+  preview.style.display = 'block';
+}
+
+// Process CSV import
+async function processCSVImport() {
+  if (!csvFile) {
+    alert('Please select a CSV file');
+    return;
+  }
+
+  const token = localStorage.getItem('auth_token');
+  const resultsDiv = document.getElementById('csvImportResults');
+
+  try {
+    resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Parsing CSV file...</div>';
+    resultsDiv.style.display = 'block';
+
+    // Upload and parse CSV
+    const formData = new FormData();
+    formData.append('csv', csvFile);
+
+    const response = await fetch('/api/csv/upload', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      // Show validation errors
+      if (data.errors && data.errors.length > 0) {
+        resultsDiv.innerHTML = `
+          <div style="background: #fee2e2; padding: 16px; border-radius: 8px;">
+            <h4 style="color: #991b1b; margin-bottom: 12px;">⚠️ CSV Validation Errors</h4>
+            <ul style="margin-left: 20px; color: #991b1b;">
+              ${data.errors.map(err => `<li>${err}</li>`).join('')}
+            </ul>
+            ${data.validPosts > 0 ? `<p style="margin-top: 12px; color: #78350f;">${data.validPosts} valid posts found.</p>` : ''}
+          </div>
+        `;
+        return;
+      }
+      throw new Error(data.error || 'Failed to parse CSV');
+    }
+
+    const posts = data.posts;
+
+    // Show success and posts preview
+    resultsDiv.innerHTML = `
+      <div style="background: #d1fae5; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+        <h4 style="color: #065f46; margin-bottom: 8px;">✅ Successfully parsed ${posts.length} posts</h4>
+        <p style="font-size: 13px; color: #065f46;">Review the posts below and click "Create All Posts" to schedule them.</p>
+      </div>
+
+      <div style="max-height: 400px; overflow-y: auto; margin-bottom: 20px;">
+        ${posts.map((post, index) => `
+          <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+            <div style="font-weight: 600; margin-bottom: 4px;">${index + 1}. ${post.filename}</div>
+            <div style="font-size: 13px; color: #6b7280; margin-bottom: 4px;">
+              <strong>Caption:</strong> ${post.caption || '(none)'}
+            </div>
+            <div style="font-size: 13px; color: #6b7280; margin-bottom: 4px;">
+              <strong>Platforms:</strong> ${post.platforms}
+            </div>
+            <div style="font-size: 13px; color: #6b7280;">
+              <strong>Scheduled:</strong> ${post.scheduledTime ? new Date(post.scheduledTime).toLocaleString() : 'Not scheduled'}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+
+      <button onclick="createPostsFromCSV(${JSON.stringify(posts).replace(/"/g, '&quot;')})" class="btn btn-primary" style="max-width: 250px;">
+        Create All ${posts.length} Posts
+      </button>
+    `;
+
+  } catch (error) {
+    console.error('CSV import error:', error);
+    resultsDiv.innerHTML = `
+      <div style="background: #fee2e2; padding: 16px; border-radius: 8px;">
+        <h4 style="color: #991b1b;">❌ Import Failed</h4>
+        <p style="color: #991b1b;">${error.message}</p>
+      </div>
+    `;
+  }
+}
+
+// Create posts from CSV data
+async function createPostsFromCSV(posts) {
+  const token = localStorage.getItem('auth_token');
+  const resultsDiv = document.getElementById('csvImportResults');
+
+  try {
+    resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Creating posts... This may take a moment.</div>';
+
+    const createdPosts = [];
+    const errors = [];
+
+    for (let i = 0; i < posts.length; i++) {
+      const post = posts[i];
+
+      try {
+        // Note: This assumes files are already in the media folder
+        const response = await fetch('/api/posts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            user_id: currentUser.id,
+            filename: post.filename,
+            filepath: post.filename, // Files should be in media folder
+            filetype: post.filename.match(/\.(jpg|jpeg|png|gif)$/i) ? 'image' : 'video',
+            caption: post.caption,
+            platforms: post.platforms.split(','),
+            scheduled_time: post.scheduledTime
+          })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          createdPosts.push(data);
+        } else {
+          errors.push(`${post.filename}: ${data.error}`);
+        }
+      } catch (error) {
+        errors.push(`${post.filename}: ${error.message}`);
+      }
+    }
+
+    // Show results
+    resultsDiv.innerHTML = `
+      <div style="background: #d1fae5; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+        <h4 style="color: #065f46;">✅ Successfully created ${createdPosts.length} posts!</h4>
+      </div>
+
+      ${errors.length > 0 ? `
+        <div style="background: #fee2e2; padding: 16px; border-radius: 8px;">
+          <h4 style="color: #991b1b; margin-bottom: 8px;">⚠️ ${errors.length} posts failed</h4>
+          <ul style="margin-left: 20px; color: #991b1b; font-size: 13px;">
+            ${errors.map(err => `<li>${err}</li>`).join('')}
+          </ul>
+        </div>
+      ` : ''}
+    `;
+
+    // Reset CSV upload
+    csvFile = null;
+    document.getElementById('csvFileInput').value = '';
+    document.getElementById('csvUploadPlaceholder').style.display = 'block';
+    document.getElementById('csvFilePreview').style.display = 'none';
+
+    // Refresh data
+    loadStats();
+    loadPosts();
+
+    // Show success message
+    setTimeout(() => {
+      if (confirm('Posts created! Would you like to view them?')) {
+        switchTab('posts');
+      }
+    }, 2000);
+
+  } catch (error) {
+    console.error('Create posts error:', error);
+    resultsDiv.innerHTML = `
+      <div style="background: #fee2e2; padding: 16px; border-radius: 8px;">
+        <h4 style="color: #991b1b;">❌ Failed to create posts</h4>
+        <p style="color: #991b1b;">${error.message}</p>
+      </div>
+    `;
+  }
+}
