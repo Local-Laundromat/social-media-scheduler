@@ -596,6 +596,7 @@
         <div class="tabs">
           <div class="tab active" onclick="switchTab('create')">Create Post</div>
           <div class="tab" onclick="switchTab('bulk')">Bulk Upload</div>
+          <div class="tab" onclick="switchTab('calendar')">Calendar</div>
           <div class="tab" onclick="switchTab('posts')">My Posts</div>
           <div class="tab" onclick="switchTab('settings')">Settings</div>
         </div>
@@ -811,6 +812,60 @@
           <button type="button" class="btn btn-primary" style="max-width: 250px;" onclick="processBulkUpload()">
             Continue to Review Posts
           </button>
+          </div>
+        </div>
+
+        <!-- Calendar Tab -->
+        <div id="calendarTab" class="tab-content">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <h3 style="margin: 0;">Content Calendar</h3>
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <button onclick="previousMonth()" class="btn btn-secondary" style="width: auto; padding: 8px 16px;">← Previous</button>
+              <h4 id="calendarMonthYear" style="margin: 0; min-width: 200px; text-align: center;">Loading...</h4>
+              <button onclick="nextMonth()" class="btn btn-secondary" style="width: auto; padding: 8px 16px;">Next →</button>
+            </div>
+          </div>
+
+          <!-- Calendar Legend -->
+          <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 12px; height: 12px; border-radius: 50%; background: #3b82f6;"></div>
+              <span style="font-size: 13px;">Facebook</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 12px; height: 12px; border-radius: 50%; background: #ec4899;"></div>
+              <span style="font-size: 13px;">Instagram</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 12px; height: 12px; border-radius: 50%; background: #000000;"></div>
+              <span style="font-size: 13px;">TikTok</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 12px; height: 12px; border-radius: 50%; background: #fbbf24;"></div>
+              <span style="font-size: 13px;">Pending</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 12px; height: 12px; border-radius: 50%; background: #10b981;"></div>
+              <span style="font-size: 13px;">Posted</span>
+            </div>
+          </div>
+
+          <!-- Calendar Grid -->
+          <div id="calendar" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: #e5e7eb; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+            <!-- Calendar will be populated by JavaScript -->
+          </div>
+
+          <!-- Post Details Modal (shows when clicking a post) -->
+          <div id="postDetailsModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+            <div style="background: white; padding: 24px; border-radius: 12px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 id="modalPostTitle" style="margin: 0;">Post Details</h3>
+                <button onclick="closePostModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280;">×</button>
+              </div>
+              <div id="modalPostContent">
+                <!-- Post details will be populated here -->
+              </div>
+            </div>
           </div>
         </div>
 

@@ -287,10 +287,12 @@ function switchTab(tabName) {
   event.target.classList.add('active');
   document.getElementById(`${tabName}Tab`).classList.add('active');
 
-  // Reload data when switching to posts tab
+  // Reload data when switching to specific tabs
   if (tabName === 'posts') {
     loadPosts();
     loadStats();
+  } else if (tabName === 'calendar') {
+    loadCalendar();
   }
 }
 
@@ -1134,3 +1136,237 @@ Replace your caption with this?`)) {
   }
 }
 
+
+// ===== CONTENT CALENDAR =====
+
+let currentCalendarDate = new Date();
+let allPosts = [];
+
+// Load calendar when tab is switched
+function loadCalendar() {
+  renderCalendar(currentCalendarDate);
+}
+
+// Render calendar for given month
+async function renderCalendar(date) {
+  const token = localStorage.getItem('auth_token');
+
+  try {
+    // Fetch all posts
+    const response = await fetch(`/api/users/${currentUser.id}/posts`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    const data = await response.json();
+    allPosts = data.posts || [];
+
+    // Render calendar grid
+    const calendar = document.getElementById('calendar');
+    const monthYear = document.getElementById('calendarMonthYear');
+
+    const year = date.getFullYear();
+    const month = date.getMonth();
+
+    monthYear.textContent = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    // Get first and last day of month
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+
+    // Clear calendar
+    calendar.innerHTML = '';
+
+    // Add day headers
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    dayNames.forEach(day => {
+      const header = document.createElement('div');
+      header.style.cssText = 'background: #f3f4f6; padding: 12px; font-weight: 600; text-align: center; font-size: 14px;';
+      header.textContent = day;
+      calendar.appendChild(header);
+    });
+
+    // Add empty cells for days before month starts
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      const emptyCell = document.createElement('div');
+      emptyCell.style.cssText = 'background: #fafafa; min-height: 100px;';
+      calendar.appendChild(emptyCell);
+    }
+
+    // Add day cells
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayCell = document.createElement('div');
+      dayCell.style.cssText = 'background: white; padding: 8px; min-height: 100px; position: relative; cursor: pointer; transition: background 0.2s;';
+      
+      // Highlight today
+      const today = new Date();
+      if (year === today.getFullYear() && month === today.getMonth() && day === today.getDate()) {
+        dayCell.style.background = '#fef3c7';
+      }
+
+      dayCell.onmouseenter = () => { dayCell.style.background = '#f9fafb'; };
+      dayCell.onmouseleave = () => {
+        if (year === today.getFullYear() && month === today.getMonth() && day === today.getDate()) {
+          dayCell.style.background = '#fef3c7';
+        } else {
+          dayCell.style.background = 'white';
+        }
+      };
+
+      // Day number
+      const dayNumber = document.createElement('div');
+      dayNumber.style.cssText = 'font-weight: 600; margin-bottom: 8px; font-size: 14px;';
+      dayNumber.textContent = day;
+      dayCell.appendChild(dayNumber);
+
+      // Find posts for this day
+      const currentDate = new Date(year, month, day);
+      const postsForDay = allPosts.filter(post => {
+        if (!post.scheduled_time) return false;
+        const postDate = new Date(post.scheduled_time);
+        return postDate.toDateString() === currentDate.toDateString();
+      });
+
+      // Add post indicators
+      const postsContainer = document.createElement('div');
+      postsContainer.style.cssText = 'display: flex; flex-direction: column; gap: 4px;';
+      
+      postsForDay.slice(0, 3).forEach(post => {
+        const postIndicator = document.createElement('div');
+        const platforms = JSON.parse(post.platforms || '[]');
+        
+        // Determine color based on platform
+        let color = '#6b7280';
+        if (platforms.includes('facebook')) color = '#3b82f6';
+        else if (platforms.includes('instagram')) color = '#ec4899';
+        else if (platforms.includes('tiktok')) color = '#000000';
+        
+        // Status color overlay
+        if (post.status === 'posted') color = '#10b981';
+        else if (post.status === 'pending') color = '#fbbf24';
+
+        postIndicator.style.cssText = `
+          background: ${color};
+          color: white;
+          padding: 4px 6px;
+          border-radius: 4px;
+          font-size: 11px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          cursor: pointer;
+        `;
+        postIndicator.textContent = post.caption ? post.caption.substring(0, 20) + '...' : post.filename;
+        postIndicator.onclick = (e) => {
+          e.stopPropagation();
+          showPostDetails(post);
+        };
+        postsContainer.appendChild(postIndicator);
+      });
+
+      if (postsForDay.length > 3) {
+        const moreIndicator = document.createElement('div');
+        moreIndicator.style.cssText = 'font-size: 11px; color: #6b7280; font-weight: 600; padding: 4px;';
+        moreIndicator.textContent = `+${postsForDay.length - 3} more`;
+        postsContainer.appendChild(moreIndicator);
+      }
+
+      dayCell.appendChild(postsContainer);
+      calendar.appendChild(dayCell);
+    }
+
+  } catch (error) {
+    console.error('Failed to load calendar:', error);
+    const calendar = document.getElementById('calendar');
+    calendar.innerHTML = '<div style="grid-column: span 7; padding: 40px; text-align: center; color: #6b7280;">Failed to load calendar</div>';
+  }
+}
+
+// Navigate to previous month
+function previousMonth() {
+  currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+  renderCalendar(currentCalendarDate);
+}
+
+// Navigate to next month
+function nextMonth() {
+  currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+  renderCalendar(currentCalendarDate);
+}
+
+// Show post details in modal
+function showPostDetails(post) {
+  const modal = document.getElementById('postDetailsModal');
+  const content = document.getElementById('modalPostContent');
+  
+  const platforms = JSON.parse(post.platforms || '[]');
+  const scheduledTime = post.scheduled_time ? new Date(post.scheduled_time).toLocaleString() : 'Not scheduled';
+  
+  content.innerHTML = `
+    <div style="margin-bottom: 16px;">
+      <strong>Filename:</strong> ${post.filename}
+    </div>
+    <div style="margin-bottom: 16px;">
+      <strong>Caption:</strong><br>
+      <div style="background: #f3f4f6; padding: 12px; border-radius: 6px; margin-top: 8px;">
+        ${post.caption || '(No caption)'}
+      </div>
+    </div>
+    <div style="margin-bottom: 16px;">
+      <strong>Platforms:</strong> ${platforms.join(', ')}
+    </div>
+    <div style="margin-bottom: 16px;">
+      <strong>Scheduled:</strong> ${scheduledTime}
+    </div>
+    <div style="margin-bottom: 16px;">
+      <strong>Status:</strong> <span style="padding: 4px 8px; border-radius: 4px; background: ${post.status === 'posted' ? '#d1fae5' : post.status === 'pending' ? '#fef3c7' : '#fee2e2'}; color: ${post.status === 'posted' ? '#065f46' : post.status === 'pending' ? '#92400e' : '#991b1b'};">${post.status}</span>
+    </div>
+    ${post.error_message ? `
+    <div style="margin-bottom: 16px;">
+      <strong>Error:</strong><br>
+      <div style="background: #fee2e2; padding: 12px; border-radius: 6px; margin-top: 8px; color: #991b1b;">
+        ${post.error_message}
+      </div>
+    </div>
+    ` : ''}
+    <div style="display: flex; gap: 12px; margin-top: 24px;">
+      <button onclick="editPost(${post.id})" class="btn btn-primary" style="flex: 1;">Edit Post</button>
+      <button onclick="deletePost(${post.id})" class="btn btn-danger" style="flex: 1;">Delete</button>
+    </div>
+  `;
+  
+  modal.style.display = 'flex';
+}
+
+// Close post modal
+function closePostModal() {
+  document.getElementById('postDetailsModal').style.display = 'none';
+}
+
+// Edit post (placeholder - would need edit UI)
+function editPost(postId) {
+  alert('Edit functionality coming soon! Post ID: ' + postId);
+  closePostModal();
+}
+
+// Delete post
+async function deletePost(postId) {
+  if (!confirm('Are you sure you want to delete this post?')) return;
+  
+  const token = localStorage.getItem('auth_token');
+  
+  try {
+    await fetch(`/api/posts/${postId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    alert('Post deleted successfully!');
+    closePostModal();
+    renderCalendar(currentCalendarDate);
+    loadStats();
+  } catch (error) {
+    alert('Failed to delete post');
+  }
+}
