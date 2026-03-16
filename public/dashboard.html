@@ -572,6 +572,23 @@
             Connect Instagram
           </button>
         </div>
+
+        <!-- TikTok -->
+        <div class="connection-item" id="tiktokConnection">
+          <div class="connection-header">
+            <div class="connection-name">
+              <span class="connection-icon">🎵</span>
+              <span>TikTok</span>
+            </div>
+            <span class="status-badge disconnected" id="tiktokStatus">Not Connected</span>
+          </div>
+          <div class="connection-details" id="tiktokDetails">
+            Connect your TikTok Business Account
+          </div>
+          <button class="btn btn-primary" id="tiktokBtn" onclick="connectTikTok()">
+            Connect TikTok
+          </button>
+        </div>
       </div>
 
       <!-- Main Content -->
@@ -616,6 +633,9 @@
                 </label>
                 <label>
                   <input type="checkbox" name="platform" value="instagram" checked> Instagram
+                </label>
+                <label>
+                  <input type="checkbox" name="platform" value="tiktok"> TikTok
                 </label>
               </div>
             </div>
@@ -718,6 +738,9 @@
               </label>
               <label>
                 <input type="checkbox" name="bulkPlatform" value="instagram" checked> Instagram
+              </label>
+              <label>
+                <input type="checkbox" name="bulkPlatform" value="tiktok"> TikTok
               </label>
             </div>
           </div>
