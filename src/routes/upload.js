@@ -3,6 +3,10 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const supabaseStorage = require('../services/supabaseStorage');
+
+// Check if using Supabase Storage
+const useSupabase = supabaseStorage.isConfigured();
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, '../../uploads');
@@ -11,16 +15,18 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadsDir);
-  },
-  filename: function (req, file, cb) {
-    // Generate unique filename: timestamp-originalname
-    const uniqueName = Date.now() + '-' + file.originalname;
-    cb(null, uniqueName);
-  }
-});
+const storage = useSupabase
+  ? multer.memoryStorage() // Use memory storage for Supabase
+  : multer.diskStorage({
+      destination: function (req, file, cb) {
+        cb(null, uploadsDir);
+      },
+      filename: function (req, file, cb) {
+        // Generate unique filename: timestamp-originalname
+        const uniqueName = Date.now() + '-' + file.originalname;
+        cb(null, uniqueName);
+      }
+    });
 
 const upload = multer({
   storage: storage,
@@ -45,24 +51,54 @@ const upload = multer({
  * POST /api/upload - Upload a single file
  * Returns the public URL of the uploaded file
  */
-router.post('/', upload.single('file'), (req, res) => {
+router.post('/', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
 
-  // Get the base URL from environment or request
-  const baseUrl = process.env.PUBLIC_FILE_URL || `${req.protocol}://${req.get('host')}`;
-  const publicUrl = `${baseUrl}/uploads/${req.file.filename}`;
+  try {
+    if (useSupabase) {
+      // Upload to Supabase Storage
+      const result = await supabaseStorage.uploadFile(
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype
+      );
 
-  res.json({
-    success: true,
-    filename: req.file.filename,
-    originalName: req.file.originalname,
-    size: req.file.size,
-    mimetype: req.file.mimetype,
-    url: publicUrl,
-    path: req.file.path,
-  });
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      return res.json({
+        success: true,
+        filename: result.filename,
+        originalName: req.file.originalname,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+        url: result.url,
+        path: result.path,
+        storage: 'supabase'
+      });
+    } else {
+      // Use local file system
+      const baseUrl = process.env.PUBLIC_FILE_URL || `${req.protocol}://${req.get('host')}`;
+      const publicUrl = `${baseUrl}/uploads/${req.file.filename}`;
+
+      res.json({
+        success: true,
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+        url: publicUrl,
+        path: req.file.path,
+        storage: 'local'
+      });
+    }
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'Upload failed', details: error.message });
+  }
 });
 
 /**
