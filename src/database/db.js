@@ -132,6 +132,29 @@ db.serialize(() => {
     )
   `);
 
+  // Comment replies table (AI Comment Responder)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS comment_replies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      platform TEXT NOT NULL,
+      comment_id TEXT NOT NULL,
+      comment_text TEXT,
+      reply_text TEXT NOT NULL,
+      reply_id TEXT,
+      was_auto_reply INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  // Add auto_reply_enabled column to users table if not exists
+  db.run(`
+    ALTER TABLE users ADD COLUMN auto_reply_enabled INTEGER DEFAULT 0
+  `, (err) => {
+    // Ignore error if column already exists
+  });
+
   // Create default account if none exists
   db.get('SELECT COUNT(*) as count FROM accounts', (err, row) => {
     if (!err && row.count === 0) {

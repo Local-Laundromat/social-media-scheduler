@@ -12,6 +12,7 @@ const userRoutes = require('./routes/users');
 const uploadRoutes = require('./routes/upload');
 const aiCaptionRoutes = require('./routes/aiCaption');
 const csvRoutes = require('./routes/csv');
+const commentsRoutes = require('./routes/comments');
 const db = require('./database/db');
 const scheduler = require('./services/scheduler');
 
@@ -39,6 +40,7 @@ app.use('/api/auth', authApiRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/csv', csvRoutes);
+app.use('/api/comments', commentsRoutes);
 app.use('/auth', authRoutes);
 
 // Page routes
