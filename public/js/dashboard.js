@@ -302,6 +302,8 @@ function switchTab(tabName) {
     loadCalendar();
   } else if (tabName === 'analytics') {
     loadAnalytics();
+  } else if (tabName === 'comments') {
+    loadComments();
   }
 }
 

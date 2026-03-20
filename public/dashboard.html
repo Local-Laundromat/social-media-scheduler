@@ -599,6 +599,7 @@
           <div class="tab" onclick="switchTab('calendar')">Calendar</div>
           <div class="tab" onclick="switchTab('analytics')">Analytics</div>
           <div class="tab" onclick="switchTab('posts')">My Posts</div>
+          <div class="tab" onclick="switchTab('comments')">Comments</div>
           <div class="tab" onclick="switchTab('settings')">Settings</div>
         </div>
 
@@ -1007,6 +1008,63 @@
           </div>
         </div>
 
+        <!-- Comments Tab -->
+        <div id="commentsTab" class="tab-content">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <h3 style="margin: 0;">AI Comment Responder</h3>
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="autoReplyToggle" onchange="toggleAutoReply()">
+                <span style="font-size: 14px; font-weight: 500;">Auto-Reply Enabled</span>
+              </label>
+              <button class="btn btn-primary" style="width: auto; padding: 10px 20px;" onclick="refreshComments()">
+                🔄 Refresh Comments
+              </button>
+            </div>
+          </div>
+
+          <div style="background: #eff6ff; padding: 16px; border-radius: 8px; margin-bottom: 24px;">
+            <h4 style="margin-bottom: 8px; color: #1e40af;">💬 How AI Comment Responder Works</h4>
+            <p style="font-size: 13px; color: #1e40af; margin-bottom: 8px;">
+              AI monitors your Facebook and Instagram posts for new comments and generates contextual, brand-appropriate replies.
+            </p>
+            <ul style="font-size: 13px; color: #1e40af; margin-left: 20px; margin-bottom: 0;">
+              <li>Analyzes sentiment (positive, negative, neutral)</li>
+              <li>Identifies comment type (question, inquiry, praise, complaint)</li>
+              <li>Generates personalized responses using your brand voice</li>
+              <li>Recommends whether to auto-reply or review manually</li>
+            </ul>
+          </div>
+
+          <!-- Comment Filter -->
+          <div style="margin-bottom: 24px;">
+            <label style="font-weight: 600; margin-right: 12px;">Filter:</label>
+            <select id="commentFilter" onchange="filterComments()" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db;">
+              <option value="all">All Comments</option>
+              <option value="needs-review">Needs Review</option>
+              <option value="questions">Questions</option>
+              <option value="inquiries">Inquiries</option>
+              <option value="praise">Praise</option>
+              <option value="complaints">Complaints</option>
+            </select>
+          </div>
+
+          <!-- Comments List -->
+          <div id="commentsList">
+            <div class="loading">
+              <div class="spinner"></div>
+              Loading comments...
+            </div>
+          </div>
+
+          <!-- Reply History Link -->
+          <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
+            <button class="btn btn-secondary" style="width: auto;" onclick="showReplyHistory()">
+              📜 View Reply History
+            </button>
+          </div>
+        </div>
+
         <!-- Settings Tab -->
         <div id="settingsTab" class="tab-content">
           <h3>Settings</h3>
@@ -1051,5 +1109,6 @@
   </div>
 
   <script src="/js/dashboard.js"></script>
+  <script src="/js/comments.js"></script>
 </body>
 </html>
