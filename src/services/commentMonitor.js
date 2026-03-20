@@ -6,9 +6,16 @@
 const OpenAI = require('openai');
 const db = require('../database/db');
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'not-configured'
-});
+// Helper function to get OpenAI client for a user
+function getOpenAIClient(userApiKey) {
+  const apiKey = userApiKey || process.env.OPENAI_API_KEY || 'not-configured';
+
+  if (!apiKey || apiKey === 'not-configured') {
+    return null;
+  }
+
+  return new OpenAI({ apiKey });
+}
 
 /**
  * Fetch recent comments from Facebook post
@@ -65,10 +72,13 @@ async function fetchInstagramComments(mediaId, accessToken) {
 /**
  * Analyze comment sentiment and intent using AI
  * @param {string} commentText - The comment text
+ * @param {string} userApiKey - User's OpenAI API key (optional)
  * @returns {Promise<Object>} Analysis result
  */
-async function analyzeComment(commentText) {
-  if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'not-configured') {
+async function analyzeComment(commentText, userApiKey = null) {
+  const openai = getOpenAIClient(userApiKey);
+
+  if (!openai) {
     // Fallback: simple keyword analysis
     const lowerText = commentText.toLowerCase();
 
@@ -142,16 +152,19 @@ async function analyzeComment(commentText) {
  * @param {Object} comment - Comment object
  * @param {Object} analysis - Analysis result
  * @param {Object} userProfile - User's brand profile
+ * @param {string} userApiKey - User's OpenAI API key (optional)
  * @returns {Promise<string>} Generated reply
  */
-async function generateReply(comment, analysis, userProfile = {}) {
+async function generateReply(comment, analysis, userProfile = {}, userApiKey = null) {
   const {
     company = 'our team',
     brandVoice = 'professional and friendly',
     contactInfo = {}
   } = userProfile;
 
-  if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'not-configured') {
+  const openai = getOpenAIClient(userApiKey);
+
+  if (!openai) {
     // Fallback: template-based responses
     const templates = {
       question: `Thanks for your question! Please DM us or contact ${contactInfo.email || 'us'} for more details. 😊`,
@@ -301,7 +314,7 @@ async function monitorUserComments(userId) {
                 );
 
                 for (const comment of fbComments) {
-                  const analysis = await analyzeComment(comment.message);
+                  const analysis = await analyzeComment(comment.message, user.openai_api_key);
                   const suggestedReply = await generateReply(
                     { text: comment.message },
                     analysis,
@@ -311,7 +324,8 @@ async function monitorUserComments(userId) {
                         email: user.email,
                         phone: user.phone
                       }
-                    }
+                    },
+                    user.openai_api_key
                   );
 
                   commentsWithSuggestions.push({
@@ -336,7 +350,7 @@ async function monitorUserComments(userId) {
                 );
 
                 for (const comment of igComments) {
-                  const analysis = await analyzeComment(comment.text);
+                  const analysis = await analyzeComment(comment.text, user.openai_api_key);
                   const suggestedReply = await generateReply(
                     { text: comment.text },
                     analysis,
@@ -345,7 +359,8 @@ async function monitorUserComments(userId) {
                       contactInfo: {
                         email: user.email
                       }
-                    }
+                    },
+                    user.openai_api_key
                   );
 
                   commentsWithSuggestions.push({

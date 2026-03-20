@@ -155,6 +155,13 @@ db.serialize(() => {
     // Ignore error if column already exists
   });
 
+  // Add openai_api_key column to users table if not exists
+  db.run(`
+    ALTER TABLE users ADD COLUMN openai_api_key TEXT
+  `, (err) => {
+    // Ignore error if column already exists
+  });
+
   // Create default account if none exists
   db.get('SELECT COUNT(*) as count FROM accounts', (err, row) => {
     if (!err && row.count === 0) {

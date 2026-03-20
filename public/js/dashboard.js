@@ -512,6 +512,7 @@ function loadSettings() {
   document.getElementById('settingsEmail').value = currentUser.email;
   document.getElementById('settingsName').value = currentUser.name || '';
   document.getElementById('settingsCompany').value = currentUser.company || '';
+  document.getElementById('openaiApiKey').value = currentUser.openai_api_key || '';
 }
 
 // Copy API key
@@ -564,6 +565,34 @@ async function saveProfile() {
     reloadUserData();
   } catch (error) {
     alert('Failed to update profile');
+  }
+}
+
+// Toggle OpenAI key visibility
+function toggleOpenAIKeyVisibility() {
+  const input = document.getElementById('openaiApiKey');
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+// Save OpenAI API key
+async function saveOpenAIKey() {
+  const openaiApiKey = document.getElementById('openaiApiKey').value.trim();
+  const token = localStorage.getItem('auth_token');
+
+  try {
+    await fetch(`/api/users/${currentUser.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ openai_api_key: openaiApiKey })
+    });
+
+    alert('OpenAI API key saved! AI features are now enabled.');
+    reloadUserData();
+  } catch (error) {
+    alert('Failed to save OpenAI API key');
   }
 }
 

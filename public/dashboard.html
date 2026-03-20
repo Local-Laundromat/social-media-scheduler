@@ -1070,12 +1070,26 @@
           <h3>Settings</h3>
 
           <div class="settings-section">
-            <h4>API Key</h4>
+            <h4>Quu API Key</h4>
             <p style="color: #6b7280; font-size: 13px; margin-bottom: 12px;">
               Use this API key to integrate with OmniBroker or Sun Production
             </p>
             <div class="api-key-display" id="apiKeyDisplay">Loading...</div>
             <button class="copy-btn" onclick="copyApiKey()">Copy API Key</button>
+          </div>
+
+          <div class="settings-section">
+            <h4>OpenAI API Key (Optional)</h4>
+            <p style="color: #6b7280; font-size: 13px; margin-bottom: 12px;">
+              Add your own OpenAI API key to enable AI features (caption generation, comment analysis, smart replies). Get one at <a href="https://platform.openai.com/api-keys" target="_blank" style="color: #ca8a04;">platform.openai.com</a>
+            </p>
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <input type="password" id="openaiApiKey" placeholder="sk-proj-..." style="flex: 1; font-family: 'Courier New', monospace; font-size: 13px;">
+              <button onclick="toggleOpenAIKeyVisibility()" style="padding: 10px 16px; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer;">
+                👁️
+              </button>
+            </div>
+            <button class="btn btn-primary" style="max-width: 200px; margin-top: 12px;" onclick="saveOpenAIKey()">Save OpenAI Key</button>
           </div>
 
           <div class="settings-section">
