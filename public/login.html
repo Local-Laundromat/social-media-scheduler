@@ -255,6 +255,10 @@
       <span id="toggleText">Don't have an account?</span>
       <a href="#" id="toggleLink">Sign Up</a>
     </div>
+
+    <div class="toggle-form" id="forgotPasswordLink" style="margin-top: 10px;">
+      <a href="#" onclick="showForgotPassword(event)" style="color: #6b7280; font-size: 13px;">Forgot password?</a>
+    </div>
   </div>
 
   <script>
@@ -434,6 +438,38 @@
       }
     });
 
+    // Show forgot password modal
+    async function showForgotPassword(e) {
+      e.preventDefault();
+
+      const email = prompt('Enter your email address to receive a password reset link:');
+
+      if (!email) return;
+
+      if (!email.includes('@')) {
+        alert('Please enter a valid email address');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/auth/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showSuccess(data.message);
+        } else {
+          showError(data.error || 'Failed to send reset email');
+        }
+      } catch (error) {
+        showError('Failed to send reset email. Please try again.');
+      }
+    }
+
     // Check if already logged in
     const authToken = localStorage.getItem('auth_token');
     if (authToken) {
@@ -448,11 +484,13 @@
         } else {
           localStorage.removeItem('auth_token');
           localStorage.removeItem('user');
+          localStorage.removeItem('team');
         }
       })
       .catch(() => {
         localStorage.removeItem('auth_token');
         localStorage.removeItem('user');
+        localStorage.removeItem('team');
       });
     }
   </script>
