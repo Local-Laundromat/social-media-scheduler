@@ -1,5 +1,5 @@
 const cron = require('node-cron');
-const db = require('../database/db');
+const { get, getAll, insert, update: updateRow, deleteRows, customQuery, customGet, run, isSupabase } = require('../database/helpers');
 const FacebookService = require('./facebook');
 const InstagramService = require('./instagram');
 const fs = require('fs');
@@ -45,109 +45,109 @@ class Scheduler {
    * Process all pending posts that are due
    */
   async processPendingPosts() {
-    return new Promise((resolve, reject) => {
+    try {
       const now = new Date().toISOString();
 
-      db.all(
+      const posts = await customQuery(
         `SELECT * FROM posts
          WHERE status = 'pending'
          AND (scheduled_time IS NULL OR scheduled_time <= ?)
          ORDER BY scheduled_time ASC, id ASC
          LIMIT 1`,
         [now],
-        async (err, posts) => {
-          if (err) {
-            console.error('Error fetching pending posts:', err);
-            reject(err);
-            return;
-          }
+        async () => {
+          const { db } = require('../database/helpers');
+          let query = db
+            .from('posts')
+            .select('*')
+            .eq('status', 'pending')
+            .or(`scheduled_time.is.null,scheduled_time.lte.${now}`)
+            .order('scheduled_time', { ascending: true })
+            .order('id', { ascending: true })
+            .limit(1);
 
-          if (posts.length === 0) {
-            console.log('No pending posts to process');
-            resolve({ processed: 0 });
-            return;
-          }
-
-          console.log(`Processing ${posts.length} post(s)...`);
-          let processed = 0;
-
-          for (const post of posts) {
-            try {
-              await this.processPost(post);
-              processed++;
-            } catch (error) {
-              console.error(`Error processing post ${post.id}:`, error);
-            }
-          }
-
-          resolve({ processed });
+          const { data, error } = await query;
+          if (error) throw error;
+          return data || [];
         }
       );
-    });
+
+      if (posts.length === 0) {
+        console.log('No pending posts to process');
+        return { processed: 0 };
+      }
+
+      console.log(`Processing ${posts.length} post(s)...`);
+      let processed = 0;
+
+      for (const post of posts) {
+        try {
+          await this.processPost(post);
+          processed++;
+        } catch (error) {
+          console.error(`Error processing post ${post.id}:`, error);
+        }
+      }
+
+      return { processed };
+    } catch (error) {
+      console.error('Error fetching pending posts:', error);
+      throw error;
+    }
   }
 
   /**
    * Get credentials for posting (user-specific or account-based)
    */
   async getCredentials(post) {
-    return new Promise((resolve, reject) => {
+    try {
       // If post has a user_id, use user's credentials
       if (post.user_id) {
-        db.get('SELECT * FROM users WHERE id = ?', [post.user_id], (err, user) => {
-          if (err) {
-            reject(err);
-            return;
-          }
+        const user = await get('users', { id: post.user_id });
 
-          if (!user) {
-            reject(new Error('User not found'));
-            return;
-          }
+        if (!user) {
+          throw new Error('User not found');
+        }
 
-          resolve({
-            facebookToken: user.facebook_page_token,
-            facebookPageId: user.facebook_page_id,
-            instagramToken: user.instagram_token,
-            instagramAccountId: user.instagram_account_id,
-            source: 'user',
-            userName: user.name,
-          });
-        });
+        return {
+          facebookToken: user.facebook_page_token,
+          facebookPageId: user.facebook_page_id,
+          instagramToken: user.instagram_token,
+          instagramAccountId: user.instagram_account_id,
+          source: 'user',
+          userName: user.name,
+        };
       }
       // Otherwise, check if post has account_id
       else if (post.account_id) {
-        db.get('SELECT * FROM accounts WHERE id = ?', [post.account_id], (err, account) => {
-          if (err) {
-            reject(err);
-            return;
-          }
+        const account = await get('accounts', { id: post.account_id });
 
-          if (!account) {
-            reject(new Error('Account not found'));
-            return;
-          }
+        if (!account) {
+          throw new Error('Account not found');
+        }
 
-          resolve({
-            facebookToken: account.facebook_page_token,
-            facebookPageId: account.facebook_page_id,
-            instagramToken: account.instagram_token,
-            instagramAccountId: account.instagram_account_id,
-            source: 'account',
-            accountName: account.name,
-          });
-        });
+        return {
+          facebookToken: account.facebook_page_token,
+          facebookPageId: account.facebook_page_id,
+          instagramToken: account.instagram_token,
+          instagramAccountId: account.instagram_account_id,
+          source: 'account',
+          accountName: account.name,
+        };
       }
       // Fallback to environment variables
       else {
-        resolve({
+        return {
           facebookToken: process.env.FACEBOOK_PAGE_ACCESS_TOKEN,
           facebookPageId: process.env.FACEBOOK_PAGE_ID,
           instagramToken: process.env.INSTAGRAM_ACCESS_TOKEN,
           instagramAccountId: process.env.INSTAGRAM_ACCOUNT_ID,
           source: 'env',
-        });
+        };
       }
-    });
+    } catch (error) {
+      throw error;
+    }
   }
 
   /**
@@ -260,63 +260,52 @@ class Scheduler {
   /**
    * Update post status
    */
-  updatePostStatus(postId, status, errorMessage = null) {
-    return new Promise((resolve, reject) => {
-      const params = [status, new Date().toISOString(), postId];
-      let query = 'UPDATE posts SET status = ?, posted_time = ? WHERE id = ?';
+  async updatePostStatus(postId, status, errorMessage = null) {
+    try {
+      const updateData = {
+        status,
+        posted_time: new Date().toISOString()
+      };
 
       if (errorMessage) {
-        query = 'UPDATE posts SET status = ?, posted_time = ?, error_message = ? WHERE id = ?';
-        params.splice(2, 0, errorMessage);
+        updateData.error_message = errorMessage;
       }
 
-      db.run(query, params, (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+      await updateRow('posts', { id: postId }, updateData);
+    } catch (error) {
+      throw error;
+    }
   }
 
   /**
    * Update specific post field
    */
-  updatePostField(postId, field, value) {
-    return new Promise((resolve, reject) => {
-      db.run(
-        `UPDATE posts SET ${field} = ? WHERE id = ?`,
-        [value, postId],
-        (err) => {
-          if (err) reject(err);
-          else resolve();
-        }
-      );
-    });
+  async updatePostField(postId, field, value) {
+    try {
+      const updateData = {};
+      updateData[field] = value;
+      await updateRow('posts', { id: postId }, updateData);
+    } catch (error) {
+      throw error;
+    }
   }
 
   /**
    * Manually trigger a specific post
    */
   async postNow(postId) {
-    return new Promise((resolve, reject) => {
-      db.get('SELECT * FROM posts WHERE id = ?', [postId], async (err, post) => {
-        if (err) {
-          reject(err);
-          return;
-        }
+    try {
+      const post = await get('posts', { id: postId });
 
-        if (!post) {
-          reject(new Error('Post not found'));
-          return;
-        }
+      if (!post) {
+        throw new Error('Post not found');
+      }
 
-        try {
-          const result = await this.processPost(post);
-          resolve(result);
-        } catch (error) {
-          reject(error);
-        }
-      });
-    });
+      const result = await this.processPost(post);
+      return result;
+    } catch (error) {
+      throw error;
+    }
   }
 }
 

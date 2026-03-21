@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('./authApi');
 const commentMonitor = require('../services/commentMonitor');
-const db = require('../database/db');
+const { get, getAll, insert, update: updateRow, deleteRows, customQuery, customGet, run, isSupabase } = require('../database/helpers');
 
 /**
  * GET /api/comments/monitor - Get new comments with AI suggestions
@@ -53,59 +53,58 @@ router.post('/reply', authenticateToken, async (req, res) => {
     }
 
     // Get user's access tokens
-    db.get(
-      'SELECT * FROM users WHERE id = ?',
-      [userId],
-      async (err, user) => {
-        if (err || !user) {
-          return res.status(404).json({
-            success: false,
-            error: 'User not found'
-          });
-        }
+    const user = await get('users', { id: userId });
 
-        let result;
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
 
-        if (platform === 'facebook') {
-          result = await commentMonitor.postFacebookReply(
-            commentId,
-            replyText,
-            user.facebook_page_token || user.facebook_access_token
-          );
-        } else if (platform === 'instagram') {
-          result = await commentMonitor.postInstagramReply(
-            commentId,
-            replyText,
-            user.instagram_token || user.instagram_access_token
-          );
-        } else {
-          return res.status(400).json({
-            success: false,
-            error: 'Invalid platform. Use "facebook" or "instagram"'
-          });
-        }
+    let result;
 
-        if (result.success) {
-          // Log the reply
-          db.run(
-            `INSERT INTO comment_replies (user_id, platform, comment_id, reply_text, reply_id, created_at)
-             VALUES (?, ?, ?, ?, ?, datetime('now'))`,
-            [userId, platform, commentId, replyText, result.id]
-          );
+    if (platform === 'facebook') {
+      result = await commentMonitor.postFacebookReply(
+        commentId,
+        replyText,
+        user.facebook_page_token || user.facebook_access_token
+      );
+    } else if (platform === 'instagram') {
+      result = await commentMonitor.postInstagramReply(
+        commentId,
+        replyText,
+        user.instagram_token || user.instagram_access_token
+      );
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid platform. Use "facebook" or "instagram"'
+      });
+    }
 
-          res.json({
-            success: true,
-            message: 'Reply posted successfully',
-            replyId: result.id
-          });
-        } else {
-          res.status(500).json({
-            success: false,
-            error: result.error
-          });
-        }
-      }
-    );
+    if (result.success) {
+      // Log the reply
+      await insert('comment_replies', {
+        user_id: userId,
+        platform,
+        comment_id: commentId,
+        reply_text: replyText,
+        reply_id: result.id,
+        created_at: isSupabase ? new Date().toISOString() : null
+      });
+
+      res.json({
+        success: true,
+        message: 'Reply posted successfully',
+        replyId: result.id
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error
+      });
+    }
 
   } catch (error) {
     console.error('Reply posting error:', error);
@@ -133,27 +132,23 @@ router.post('/analyze', authenticateToken, async (req, res) => {
     }
 
     // Get user profile for personalized responses
-    db.get(
-      'SELECT company, email FROM users WHERE id = ?',
-      [userId],
-      async (err, user) => {
-        const analysis = await commentMonitor.analyzeComment(commentText);
-        const suggestedReply = await commentMonitor.generateReply(
-          { text: commentText },
-          analysis,
-          {
-            company: user?.company,
-            contactInfo: { email: user?.email }
-          }
-        );
+    const user = await get('users', { id: userId });
 
-        res.json({
-          success: true,
-          analysis,
-          suggestedReply
-        });
+    const analysis = await commentMonitor.analyzeComment(commentText);
+    const suggestedReply = await commentMonitor.generateReply(
+      { text: commentText },
+      analysis,
+      {
+        company: user?.company,
+        contactInfo: { email: user?.email }
       }
     );
+
+    res.json({
+      success: true,
+      analysis,
+      suggestedReply
+    });
 
   } catch (error) {
     console.error('Comment analysis error:', error);
@@ -173,27 +168,16 @@ router.get('/history', authenticateToken, async (req, res) => {
     const userId = req.userId;
     const limit = parseInt(req.query.limit) || 50;
 
-    db.all(
-      `SELECT * FROM comment_replies
-       WHERE user_id = ?
-       ORDER BY created_at DESC
-       LIMIT ?`,
-      [userId, limit],
-      (err, replies) => {
-        if (err) {
-          return res.status(500).json({
-            success: false,
-            error: 'Failed to fetch history'
-          });
-        }
+    const replies = await getAll('comment_replies', { user_id: userId }, {
+      orderBy: 'created_at DESC',
+      limit
+    });
 
-        res.json({
-          success: true,
-          count: replies?.length || 0,
-          replies: replies || []
-        });
-      }
-    );
+    res.json({
+      success: true,
+      count: replies?.length || 0,
+      replies: replies || []
+    });
 
   } catch (error) {
     console.error('History fetch error:', error);
@@ -213,23 +197,14 @@ router.post('/auto-reply/toggle', authenticateToken, async (req, res) => {
     const { enabled } = req.body;
     const userId = req.userId;
 
-    db.run(
-      `UPDATE users SET auto_reply_enabled = ? WHERE id = ?`,
-      [enabled ? 1 : 0, userId],
-      (err) => {
-        if (err) {
-          return res.status(500).json({
-            success: false,
-            error: 'Failed to update setting'
-          });
-        }
+    await updateRow('users', { id: userId }, {
+      auto_reply_enabled: isSupabase ? enabled : (enabled ? 1 : 0)
+    });
 
-        res.json({
-          success: true,
-          autoReplyEnabled: enabled
-        });
-      }
-    );
+    res.json({
+      success: true,
+      autoReplyEnabled: enabled
+    });
 
   } catch (error) {
     console.error('Toggle error:', error);

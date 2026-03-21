@@ -4,7 +4,7 @@
  */
 
 const OpenAI = require('openai');
-const db = require('../database/db');
+const { get, getAll, insert, update: updateRow, deleteRows, customQuery, customGet, run, isSupabase } = require('../database/helpers');
 
 // Helper function to get OpenAI client for a user
 function getOpenAIClient(userApiKey) {
@@ -281,109 +281,118 @@ async function postInstagramReply(commentId, replyText, accessToken) {
  * @returns {Promise<Array>} New comments with AI suggestions
  */
 async function monitorUserComments(userId) {
-  return new Promise((resolve, reject) => {
+  try {
     // Get user's social media credentials
-    db.get(
-      'SELECT * FROM users WHERE id = ?',
+    const user = await get('users', { id: userId });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Get user's recent posts
+    const posts = await customQuery(
+      `SELECT * FROM posts
+       WHERE user_id = ?
+       AND status = 'posted'
+       AND (facebook_post_id IS NOT NULL OR instagram_post_id IS NOT NULL)
+       ORDER BY posted_at DESC
+       LIMIT 10`,
       [userId],
-      async (err, user) => {
-        if (err || !user) {
-          return reject(err || new Error('User not found'));
-        }
+      async () => {
+        const { db } = require('../database/helpers');
+        const { data, error } = await db
+          .from('posts')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('status', 'posted')
+          .or('facebook_post_id.not.is.null,instagram_post_id.not.is.null')
+          .order('posted_at', { ascending: false })
+          .limit(10);
 
-        // Get user's recent posts
-        db.all(
-          `SELECT * FROM posts
-           WHERE user_id = ?
-           AND status = 'posted'
-           AND (facebook_post_id IS NOT NULL OR instagram_post_id IS NOT NULL)
-           ORDER BY posted_at DESC
-           LIMIT 10`,
-          [userId],
-          async (err, posts) => {
-            if (err) return reject(err);
-
-            const commentsWithSuggestions = [];
-
-            for (const post of posts) {
-              // Fetch Facebook comments
-              if (post.facebook_post_id && user.facebook_access_token) {
-                const fbComments = await fetchFacebookComments(
-                  post.facebook_post_id,
-                  user.facebook_access_token
-                );
-
-                for (const comment of fbComments) {
-                  const analysis = await analyzeComment(comment.message, user.openai_api_key);
-                  const suggestedReply = await generateReply(
-                    { text: comment.message },
-                    analysis,
-                    {
-                      company: user.company,
-                      contactInfo: {
-                        email: user.email,
-                        phone: user.phone
-                      }
-                    },
-                    user.openai_api_key
-                  );
-
-                  commentsWithSuggestions.push({
-                    platform: 'facebook',
-                    postId: post.id,
-                    commentId: comment.id,
-                    commentText: comment.message,
-                    from: comment.from.name,
-                    createdAt: comment.created_time,
-                    analysis,
-                    suggestedReply,
-                    autoReplyRecommended: analysis.autoReplyRecommended
-                  });
-                }
-              }
-
-              // Fetch Instagram comments
-              if (post.instagram_post_id && user.instagram_access_token) {
-                const igComments = await fetchInstagramComments(
-                  post.instagram_post_id,
-                  user.instagram_access_token
-                );
-
-                for (const comment of igComments) {
-                  const analysis = await analyzeComment(comment.text, user.openai_api_key);
-                  const suggestedReply = await generateReply(
-                    { text: comment.text },
-                    analysis,
-                    {
-                      company: user.company,
-                      contactInfo: {
-                        email: user.email
-                      }
-                    },
-                    user.openai_api_key
-                  );
-
-                  commentsWithSuggestions.push({
-                    platform: 'instagram',
-                    postId: post.id,
-                    commentId: comment.id,
-                    commentText: comment.text,
-                    from: comment.username,
-                    createdAt: comment.timestamp,
-                    analysis,
-                    suggestedReply,
-                    autoReplyRecommended: analysis.autoReplyRecommended
-                  });
-                }
-              }
-            }
-
-            resolve(commentsWithSuggestions);
-          }
-        );
+        if (error) throw error;
+        return data || [];
       }
     );
-  });
+
+    const commentsWithSuggestions = [];
+
+    for (const post of posts) {
+      // Fetch Facebook comments
+      if (post.facebook_post_id && user.facebook_access_token) {
+        const fbComments = await fetchFacebookComments(
+          post.facebook_post_id,
+          user.facebook_access_token
+        );
+
+        for (const comment of fbComments) {
+          const analysis = await analyzeComment(comment.message, user.openai_api_key);
+          const suggestedReply = await generateReply(
+            { text: comment.message },
+            analysis,
+            {
+              company: user.company,
+              contactInfo: {
+                email: user.email,
+                phone: user.phone
+              }
+            },
+            user.openai_api_key
+          );
+
+          commentsWithSuggestions.push({
+            platform: 'facebook',
+            postId: post.id,
+            commentId: comment.id,
+            commentText: comment.message,
+            from: comment.from.name,
+            createdAt: comment.created_time,
+            analysis,
+            suggestedReply,
+            autoReplyRecommended: analysis.autoReplyRecommended
+          });
+        }
+      }
+
+      // Fetch Instagram comments
+      if (post.instagram_post_id && user.instagram_access_token) {
+        const igComments = await fetchInstagramComments(
+          post.instagram_post_id,
+          user.instagram_access_token
+        );
+
+        for (const comment of igComments) {
+          const analysis = await analyzeComment(comment.text, user.openai_api_key);
+          const suggestedReply = await generateReply(
+            { text: comment.text },
+            analysis,
+            {
+              company: user.company,
+              contactInfo: {
+                email: user.email
+              }
+            },
+            user.openai_api_key
+          );
+
+          commentsWithSuggestions.push({
+            platform: 'instagram',
+            postId: post.id,
+            commentId: comment.id,
+            commentText: comment.text,
+            from: comment.username,
+            createdAt: comment.timestamp,
+            analysis,
+            suggestedReply,
+            autoReplyRecommended: analysis.autoReplyRecommended
+          });
+        }
+      }
+    }
+
+    return commentsWithSuggestions;
+  } catch (error) {
+    throw error;
+  }
 }
 
 module.exports = {

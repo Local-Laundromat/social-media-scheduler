@@ -1,7 +1,22 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
-const db = require('../database/db');
+const { get, update, insert, isSupabase } = require('../database/helpers');
+
+// Helper functions for database queries
+async function getUserByField(field, value) {
+  return await get('users', { [field]: value });
+}
+
+async function updateUser(field, value, updates) {
+  // Add updated_at timestamp
+  updates.updated_at = new Date().toISOString();
+  await update('users', { [field]: value }, updates);
+}
+
+async function createUser(userData) {
+  await insert('users', userData);
+}
 
 /**
  * OAuth Configuration
@@ -111,90 +126,83 @@ router.get('/facebook/callback', async (req, res) => {
     const lookupField = isDirectUser ? 'id' : 'external_user_id';
     const lookupValue = isDirectUser ? user_id : `${app}_${user_id}`;
 
-    db.get(
-      `SELECT * FROM users WHERE ${lookupField} = ?`,
-      [lookupValue],
-      (err, existingUser) => {
-        if (err) {
-          console.error('Database error:', err);
-          return res.send('<html><body><h1>❌ Database Error</h1><script>setTimeout(() => window.close(), 3000);</script></body></html>');
+    try {
+      const existingUser = await getUserByField(lookupField, lookupValue);
+
+      if (existingUser) {
+        // Update existing user
+        const updates = {
+          facebook_page_token: pageAccessToken,
+          facebook_page_id: pageId,
+          facebook_page_name: pageName,
+          facebook_connected: isSupabase ? true : 1,
+        };
+
+        // Add Instagram data if available
+        if (instagramAccountId) {
+          updates.instagram_token = pageAccessToken;
+          updates.instagram_account_id = instagramAccountId;
+          updates.instagram_username = instagramUsername;
+          updates.instagram_connected = isSupabase ? true : 1;
         }
 
-        if (existingUser) {
-          // Update existing user
-          db.run(
-            `UPDATE users SET
-              facebook_page_token = ?,
-              facebook_page_id = ?,
-              facebook_page_name = ?,
-              facebook_connected = 1,
-              instagram_token = COALESCE(?, instagram_token),
-              instagram_account_id = COALESCE(?, instagram_account_id),
-              instagram_username = COALESCE(?, instagram_username),
-              instagram_connected = CASE WHEN ? IS NOT NULL THEN 1 ELSE instagram_connected END,
-              updated_at = CURRENT_TIMESTAMP
-            WHERE external_user_id = ?`,
-            [pageAccessToken, pageId, pageName, pageAccessToken, instagramAccountId, instagramUsername, instagramAccountId, externalUserId],
-            (err) => {
-              if (err) {
-                console.error('Update error:', err);
-                return res.send('<html><body><h1>❌ Update Failed</h1><script>setTimeout(() => window.close(), 3000);</script></body></html>');
-              }
+        await updateUser(lookupField, lookupValue, updates);
 
-              res.send(`
-                <html>
-                <body style="font-family: system-ui; text-align: center; padding: 40px;">
-                  <h1 style="color: #10b981;">✓ Facebook Connected!</h1>
-                  <p>Page: <strong>${pageName}</strong></p>
-                  ${instagramUsername ? `<p>Instagram: <strong>@${instagramUsername}</strong> (also connected!)</p>` : ''}
-                  <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
-                  <script>
-                    if (window.opener) {
-                      window.opener.postMessage({ type: 'facebook_connected', page: '${pageName}' }, '*');
-                    }
-                    setTimeout(() => window.close(), 3000);
-                  </script>
-                </body>
-                </html>
-              `);
-            }
-          );
-        } else {
-          // Create new user
-          db.run(
-            `INSERT INTO users (
-              external_user_id, name, app_name,
-              facebook_page_token, facebook_page_id, facebook_page_name, facebook_connected,
-              instagram_token, instagram_account_id, instagram_username, instagram_connected
-            ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
-            [externalUserId, name, app, pageAccessToken, pageId, pageName, pageAccessToken, instagramAccountId, instagramUsername, instagramAccountId ? 1 : 0],
-            (err) => {
-              if (err) {
-                console.error('Insert error:', err);
-                return res.send('<html><body><h1>❌ Save Failed</h1><script>setTimeout(() => window.close(), 3000);</script></body></html>');
+        res.send(`
+          <html>
+          <body style="font-family: system-ui; text-align: center; padding: 40px;">
+            <h1 style="color: #10b981;">✓ Facebook Connected!</h1>
+            <p>Page: <strong>${pageName}</strong></p>
+            ${instagramUsername ? `<p>Instagram: <strong>@${instagramUsername}</strong> (also connected!)</p>` : ''}
+            <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({ type: 'facebook_connected', page: '${pageName}' }, '*');
               }
+              setTimeout(() => window.close(), 3000);
+            </script>
+          </body>
+          </html>
+        `);
+      } else {
+        // Create new user
+        const newUser = {
+          external_user_id: lookupValue,
+          name,
+          app_name: app,
+          facebook_page_token: pageAccessToken,
+          facebook_page_id: pageId,
+          facebook_page_name: pageName,
+          facebook_connected: isSupabase ? true : 1,
+          instagram_token: pageAccessToken,
+          instagram_account_id: instagramAccountId,
+          instagram_username: instagramUsername,
+          instagram_connected: isSupabase ? (instagramAccountId ? true : false) : (instagramAccountId ? 1 : 0),
+        };
 
-              res.send(`
-                <html>
-                <body style="font-family: system-ui; text-align: center; padding: 40px;">
-                  <h1 style="color: #10b981;">✓ Facebook Connected!</h1>
-                  <p>Page: <strong>${pageName}</strong></p>
-                  ${instagramUsername ? `<p>Instagram: <strong>@${instagramUsername}</strong> (also connected!)</p>` : ''}
-                  <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
-                  <script>
-                    if (window.opener) {
-                      window.opener.postMessage({ type: 'facebook_connected', page: '${pageName}' }, '*');
-                    }
-                    setTimeout(() => window.close(), 3000);
-                  </script>
-                </body>
-                </html>
-              `);
-            }
-          );
-        }
+        await createUser(newUser);
+
+        res.send(`
+          <html>
+          <body style="font-family: system-ui; text-align: center; padding: 40px;">
+            <h1 style="color: #10b981;">✓ Facebook Connected!</h1>
+            <p>Page: <strong>${pageName}</strong></p>
+            ${instagramUsername ? `<p>Instagram: <strong>@${instagramUsername}</strong> (also connected!)</p>` : ''}
+            <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({ type: 'facebook_connected', page: '${pageName}' }, '*');
+              }
+              setTimeout(() => window.close(), 3000);
+            </script>
+          </body>
+          </html>
+        `);
       }
-    );
+    } catch (err) {
+      console.error('Database error:', err);
+      return res.send('<html><body><h1>❌ Database Error</h1><script>setTimeout(() => window.close(), 3000);</script></body></html>');
+    }
   } catch (error) {
     console.error('Facebook OAuth error:', error.response?.data || error.message);
     res.send(`
@@ -299,83 +307,65 @@ router.get('/instagram/callback', async (req, res) => {
     // Save to database
     const externalUserId = `${app}_${user_id}`;
 
-    db.get(
-      'SELECT * FROM users WHERE external_user_id = ?',
-      [externalUserId],
-      (err, existingUser) => {
-        if (err) {
-          console.error('Database error:', err);
-          return res.send('<html><body><h1>❌ Database Error</h1><script>setTimeout(() => window.close(), 3000);</script></body></html>');
-        }
+    try {
+      const existingUser = await getUserByField('external_user_id', externalUserId);
 
-        if (existingUser) {
-          // Update existing user
-          db.run(
-            `UPDATE users SET
-              instagram_token = ?,
-              instagram_account_id = ?,
-              instagram_username = ?,
-              instagram_connected = 1,
-              updated_at = CURRENT_TIMESTAMP
-            WHERE external_user_id = ?`,
-            [pageAccessToken, instagramAccountId, instagramUsername, externalUserId],
-            (err) => {
-              if (err) {
-                console.error('Update error:', err);
-                return res.send('<html><body><h1>❌ Update Failed</h1><script>setTimeout(() => window.close(), 3000);</script></body></html>');
+      if (existingUser) {
+        // Update existing user
+        await updateUser('external_user_id', externalUserId, {
+          instagram_token: pageAccessToken,
+          instagram_account_id: instagramAccountId,
+          instagram_username: instagramUsername,
+          instagram_connected: isSupabase ? true : 1,
+        });
+
+        res.send(`
+          <html>
+          <body style="font-family: system-ui; text-align: center; padding: 40px;">
+            <h1 style="color: #10b981;">✓ Instagram Connected!</h1>
+            <p>Account: <strong>@${instagramUsername}</strong></p>
+            <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({ type: 'instagram_connected', username: '${instagramUsername}' }, '*');
               }
+              setTimeout(() => window.close(), 3000);
+            </script>
+          </body>
+          </html>
+        `);
+      } else {
+        // Create new user (Instagram only)
+        await createUser({
+          external_user_id: externalUserId,
+          name,
+          app_name: app,
+          instagram_token: pageAccessToken,
+          instagram_account_id: instagramAccountId,
+          instagram_username: instagramUsername,
+          instagram_connected: isSupabase ? true : 1,
+        });
 
-              res.send(`
-                <html>
-                <body style="font-family: system-ui; text-align: center; padding: 40px;">
-                  <h1 style="color: #10b981;">✓ Instagram Connected!</h1>
-                  <p>Account: <strong>@${instagramUsername}</strong></p>
-                  <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
-                  <script>
-                    if (window.opener) {
-                      window.opener.postMessage({ type: 'instagram_connected', username: '${instagramUsername}' }, '*');
-                    }
-                    setTimeout(() => window.close(), 3000);
-                  </script>
-                </body>
-                </html>
-              `);
-            }
-          );
-        } else {
-          // Create new user (Instagram only)
-          db.run(
-            `INSERT INTO users (
-              external_user_id, name, app_name,
-              instagram_token, instagram_account_id, instagram_username, instagram_connected
-            ) VALUES (?, ?, ?, ?, ?, ?, 1)`,
-            [externalUserId, name, app, pageAccessToken, instagramAccountId, instagramUsername],
-            (err) => {
-              if (err) {
-                console.error('Insert error:', err);
-                return res.send('<html><body><h1>❌ Save Failed</h1><script>setTimeout(() => window.close(), 3000);</script></body></html>');
+        res.send(`
+          <html>
+          <body style="font-family: system-ui; text-align: center; padding: 40px;">
+            <h1 style="color: #10b981;">✓ Instagram Connected!</h1>
+            <p>Account: <strong>@${instagramUsername}</strong></p>
+            <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({ type: 'instagram_connected', username: '${instagramUsername}' }, '*');
               }
-
-              res.send(`
-                <html>
-                <body style="font-family: system-ui; text-align: center; padding: 40px;">
-                  <h1 style="color: #10b981;">✓ Instagram Connected!</h1>
-                  <p>Account: <strong>@${instagramUsername}</strong></p>
-                  <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
-                  <script>
-                    if (window.opener) {
-                      window.opener.postMessage({ type: 'instagram_connected', username: '${instagramUsername}' }, '*');
-                    }
-                    setTimeout(() => window.close(), 3000);
-                  </script>
-                </body>
-                </html>
-              `);
-            }
-          );
-        }
+              setTimeout(() => window.close(), 3000);
+            </script>
+          </body>
+          </html>
+        `);
       }
-    );
+    } catch (err) {
+      console.error('Database error:', err);
+      return res.send('<html><body><h1>❌ Database Error</h1><script>setTimeout(() => window.close(), 3000);</script></body></html>');
+    }
   } catch (error) {
     console.error('Instagram OAuth error:', error.response?.data || error.message);
     res.send(`

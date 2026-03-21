@@ -1,102 +1,93 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../database/db');
+const { get, getAll, insert, update: updateRow, deleteRows, customQuery, customGet, run, isSupabase } = require('../database/helpers');
 
 /**
  * GET /api/users/:userId - Get user by external_user_id
  * This endpoint is used by the embed page to check connection status
  */
-router.get('/:userId', (req, res) => {
+router.get('/:userId', async (req, res) => {
   const externalUserId = req.params.userId;
 
-  db.get(
-    'SELECT * FROM users WHERE external_user_id = ?',
-    [externalUserId],
-    (err, user) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
+  try {
+    const user = await get('users', { external_user_id: externalUserId });
 
-      if (!user) {
-        // User doesn't exist yet, return empty state
-        return res.json({
-          user: null,
-          exists: false,
-        });
-      }
-
-      // Don't expose tokens in response
-      const safeUser = {
-        id: user.id,
-        external_user_id: user.external_user_id,
-        name: user.name,
-        email: user.email,
-        app_name: user.app_name,
-        facebook_page_id: user.facebook_page_id,
-        facebook_page_name: user.facebook_page_name,
-        facebook_connected: user.facebook_connected,
-        instagram_account_id: user.instagram_account_id,
-        instagram_username: user.instagram_username,
-        instagram_connected: user.instagram_connected,
-        created_at: user.created_at,
-        updated_at: user.updated_at,
-      };
-
-      res.json({
-        user: safeUser,
-        exists: true,
+    if (!user) {
+      // User doesn't exist yet, return empty state
+      return res.json({
+        user: null,
+        exists: false,
       });
     }
-  );
+
+    // Don't expose tokens in response
+    const safeUser = {
+      id: user.id,
+      external_user_id: user.external_user_id,
+      name: user.name,
+      email: user.email,
+      app_name: user.app_name,
+      facebook_page_id: user.facebook_page_id,
+      facebook_page_name: user.facebook_page_name,
+      facebook_connected: user.facebook_connected,
+      instagram_account_id: user.instagram_account_id,
+      instagram_username: user.instagram_username,
+      instagram_connected: user.instagram_connected,
+      created_at: user.created_at,
+      updated_at: user.updated_at,
+    };
+
+    res.json({
+      user: safeUser,
+      exists: true,
+    });
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 /**
  * GET /api/users/:userId/posts - Get all posts for a user
  */
-router.get('/:userId/posts', (req, res) => {
+router.get('/:userId/posts', async (req, res) => {
   const externalUserId = req.params.userId;
   const { status, limit = 50 } = req.query;
 
-  // First get the user's internal ID
-  db.get(
-    'SELECT id FROM users WHERE external_user_id = ?',
-    [externalUserId],
-    (err, user) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
+  try {
+    // First get the user's internal ID
+    const user = await get('users', { external_user_id: externalUserId });
 
-      if (!user) {
-        return res.json({ posts: [] });
-      }
+    if (!user) {
+      return res.json({ posts: [] });
+    }
 
-      // Get posts for this user
-      let query = 'SELECT * FROM posts WHERE user_id = ?';
-      const params = [user.id];
-
-      if (status) {
-        query += ' AND status = ?';
-        params.push(status);
-      }
-
-      query += ' ORDER BY created_at DESC LIMIT ?';
-      params.push(parseInt(limit));
-
-      db.all(query, params, (err, posts) => {
-        if (err) {
-          return res.status(500).json({ error: err.message });
-        }
-        res.json({ posts });
+    // Get posts for this user
+    let posts;
+    if (status) {
+      posts = await getAll('posts', { user_id: user.id, status }, {
+        orderBy: 'created_at DESC',
+        limit: parseInt(limit)
+      });
+    } else {
+      posts = await getAll('posts', { user_id: user.id }, {
+        orderBy: 'created_at DESC',
+        limit: parseInt(limit)
       });
     }
-  );
+
+    res.json({ posts });
+  } catch (error) {
+    console.error('Get posts error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 /**
  * POST /api/users - Create or update user
  * Used by parent apps (OmniBroker/Sun Production) to register users
  */
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { user_id, app_name, name, email } = req.body;
 
   if (!user_id || !app_name) {
@@ -105,63 +96,72 @@ router.post('/', (req, res) => {
 
   const externalUserId = `${app_name}_${user_id}`;
 
-  // Check if user exists
-  db.get(
-    'SELECT * FROM users WHERE external_user_id = ?',
-    [externalUserId],
-    (err, existingUser) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
+  try {
+    // Check if user exists
+    const existingUser = await get('users', { external_user_id: externalUserId });
 
-      if (existingUser) {
-        // Update existing user
-        db.run(
-          `UPDATE users SET
-            name = COALESCE(?, name),
-            email = COALESCE(?, email),
-            updated_at = CURRENT_TIMESTAMP
-          WHERE external_user_id = ?`,
-          [name, email, externalUserId],
-          function (err) {
-            if (err) {
-              return res.status(500).json({ error: err.message });
-            }
-            res.json({
-              success: true,
-              id: existingUser.id,
-              external_user_id: externalUserId,
-              message: 'User updated successfully',
-            });
-          }
-        );
-      } else {
-        // Create new user
-        db.run(
-          `INSERT INTO users (external_user_id, app_name, name, email)
-           VALUES (?, ?, ?, ?)`,
-          [externalUserId, app_name, name, email],
-          function (err) {
-            if (err) {
-              return res.status(500).json({ error: err.message });
-            }
-            res.json({
-              success: true,
-              id: this.lastID,
-              external_user_id: externalUserId,
-              message: 'User created successfully',
-            });
-          }
-        );
-      }
+    if (existingUser) {
+      // Update existing user
+      const updateData = {};
+      if (name) updateData.name = name;
+      if (email) updateData.email = email;
+
+      await customQuery(
+        `UPDATE users SET
+          name = COALESCE(?, name),
+          email = COALESCE(?, email),
+          updated_at = CURRENT_TIMESTAMP
+        WHERE external_user_id = ?`,
+        [name, email, externalUserId],
+        async () => {
+          const { db } = require('../database/helpers');
+          const updates = {};
+          if (name) updates.name = name;
+          if (email) updates.email = email;
+          updates.updated_at = new Date().toISOString();
+
+          const { error } = await db
+            .from('users')
+            .update(updates)
+            .eq('external_user_id', externalUserId);
+
+          if (error) throw error;
+          return [];
+        }
+      );
+
+      res.json({
+        success: true,
+        id: existingUser.id,
+        external_user_id: externalUserId,
+        message: 'User updated successfully',
+      });
+    } else {
+      // Create new user
+      const result = await insert('users', {
+        external_user_id: externalUserId,
+        app_name,
+        name,
+        email
+      });
+
+      res.json({
+        success: true,
+        id: result.id,
+        external_user_id: externalUserId,
+        message: 'User created successfully',
+      });
     }
-  );
+  } catch (error) {
+    console.error('Create/update user error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 /**
  * POST /api/users/:userId/disconnect/:platform - Disconnect a platform
  */
-router.post('/:userId/disconnect/:platform', (req, res) => {
+router.post('/:userId/disconnect/:platform', async (req, res) => {
   const externalUserId = req.params.userId;
   const platform = req.params.platform;
 
@@ -169,157 +169,180 @@ router.post('/:userId/disconnect/:platform', (req, res) => {
     return res.status(400).json({ error: 'Invalid platform. Must be facebook or instagram' });
   }
 
-  let updateQuery = '';
-  if (platform === 'facebook') {
-    updateQuery = `UPDATE users SET
-      facebook_page_token = NULL,
-      facebook_page_id = NULL,
-      facebook_page_name = NULL,
-      facebook_connected = 0,
-      updated_at = CURRENT_TIMESTAMP
-    WHERE external_user_id = ?`;
-  } else {
-    updateQuery = `UPDATE users SET
-      instagram_token = NULL,
-      instagram_account_id = NULL,
-      instagram_username = NULL,
-      instagram_connected = 0,
-      updated_at = CURRENT_TIMESTAMP
-    WHERE external_user_id = ?`;
-  }
-
-  db.run(updateQuery, [externalUserId], function (err) {
-    if (err) {
-      return res.status(500).json({ error: err.message });
+  try {
+    let updateData;
+    if (platform === 'facebook') {
+      updateData = {
+        facebook_page_token: null,
+        facebook_page_id: null,
+        facebook_page_name: null,
+        facebook_connected: isSupabase ? false : 0
+      };
+    } else {
+      updateData = {
+        instagram_token: null,
+        instagram_account_id: null,
+        instagram_username: null,
+        instagram_connected: isSupabase ? false : 0
+      };
     }
 
-    if (this.changes === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    await customQuery(
+      `UPDATE users SET
+        ${Object.keys(updateData).map(k => `${k} = ?`).join(', ')},
+        updated_at = CURRENT_TIMESTAMP
+      WHERE external_user_id = ?`,
+      [...Object.values(updateData), externalUserId],
+      async () => {
+        const { db } = require('../database/helpers');
+        updateData.updated_at = new Date().toISOString();
+
+        const { error, count } = await db
+          .from('users')
+          .update(updateData)
+          .eq('external_user_id', externalUserId);
+
+        if (error) throw error;
+        if (count === 0) throw new Error('User not found');
+        return [];
+      }
+    );
 
     res.json({
       success: true,
       message: `${platform} disconnected successfully`,
     });
-  });
+  } catch (error) {
+    console.error('Disconnect error:', error);
+    if (error.message === 'User not found') {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.status(500).json({ error: error.message });
+  }
 });
 
 /**
  * GET /api/users - List all users (admin only - for dashboard)
  */
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const { app_name, limit = 100 } = req.query;
 
-  let query = 'SELECT id, external_user_id, name, email, app_name, facebook_connected, instagram_connected, created_at FROM users';
-  const params = [];
+  try {
+    const users = await customQuery(
+      `SELECT id, external_user_id, name, email, app_name, facebook_connected, instagram_connected, created_at FROM users
+       ${app_name ? 'WHERE app_name = ?' : ''}
+       ORDER BY created_at DESC LIMIT ?`,
+      app_name ? [app_name, parseInt(limit)] : [parseInt(limit)],
+      async () => {
+        const { db } = require('../database/helpers');
+        let query = db
+          .from('users')
+          .select('id, external_user_id, name, email, app_name, facebook_connected, instagram_connected, created_at');
 
-  if (app_name) {
-    query += ' WHERE app_name = ?';
-    params.push(app_name);
-  }
+        if (app_name) {
+          query = query.eq('app_name', app_name);
+        }
 
-  query += ' ORDER BY created_at DESC LIMIT ?';
-  params.push(parseInt(limit));
+        query = query.order('created_at', { ascending: false }).limit(parseInt(limit));
 
-  db.all(query, params, (err, users) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
+        const { data, error } = await query;
+        if (error) throw error;
+        return data;
+      }
+    );
+
     res.json({ users });
-  });
+  } catch (error) {
+    console.error('List users error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 /**
  * PUT /api/users/:userId - Update user information
  */
-router.put('/:userId', (req, res) => {
+router.put('/:userId', async (req, res) => {
   const userId = req.params.userId;
   const { name, company, webhook_url } = req.body;
 
-  const updates = [];
-  const params = [];
+  const updateData = {};
 
   if (name !== undefined) {
-    updates.push('name = ?');
-    params.push(name);
+    updateData.name = name;
   }
 
   if (company !== undefined) {
-    updates.push('company = ?');
-    params.push(company);
+    updateData.company = company;
   }
 
   if (webhook_url !== undefined) {
-    updates.push('webhook_url = ?');
-    params.push(webhook_url);
+    updateData.webhook_url = webhook_url;
   }
 
-  if (updates.length === 0) {
+  if (Object.keys(updateData).length === 0) {
     return res.status(400).json({ error: 'No fields to update' });
   }
 
-  updates.push('updated_at = CURRENT_TIMESTAMP');
-  params.push(userId);
+  try {
+    const result = await customQuery(
+      `UPDATE users SET ${Object.keys(updateData).map(k => `${k} = ?`).join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [...Object.values(updateData), userId],
+      async () => {
+        const { db } = require('../database/helpers');
+        updateData.updated_at = new Date().toISOString();
 
-  db.run(
-    `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
-    params,
-    function (err) {
-      if (err) {
-        return res.status(500).json({ error: err.message });
+        const { error, count } = await db
+          .from('users')
+          .update(updateData)
+          .eq('id', userId);
+
+        if (error) throw error;
+        if (count === 0) throw new Error('User not found');
+        return [];
       }
+    );
 
-      if (this.changes === 0) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-
-      res.json({
-        success: true,
-        message: 'User updated successfully'
-      });
+    res.json({
+      success: true,
+      message: 'User updated successfully'
+    });
+  } catch (error) {
+    console.error('Update user error:', error);
+    if (error.message === 'User not found') {
+      return res.status(404).json({ error: 'User not found' });
     }
-  );
+    res.status(500).json({ error: error.message });
+  }
 });
 
 /**
  * DELETE /api/users/:userId - Delete user and all their posts
  */
-router.delete('/:userId', (req, res) => {
+router.delete('/:userId', async (req, res) => {
   const externalUserId = req.params.userId;
 
-  // First get user ID
-  db.get(
-    'SELECT id FROM users WHERE external_user_id = ?',
-    [externalUserId],
-    (err, user) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
+  try {
+    // First get user ID
+    const user = await get('users', { external_user_id: externalUserId });
 
-      if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-
-      // Delete all posts for this user
-      db.run('DELETE FROM posts WHERE user_id = ?', [user.id], (err) => {
-        if (err) {
-          return res.status(500).json({ error: err.message });
-        }
-
-        // Delete user
-        db.run('DELETE FROM users WHERE id = ?', [user.id], function (err) {
-          if (err) {
-            return res.status(500).json({ error: err.message });
-          }
-
-          res.json({
-            success: true,
-            message: 'User and all their posts deleted successfully',
-          });
-        });
-      });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
-  );
+
+    // Delete all posts for this user
+    await deleteRows('posts', { user_id: user.id });
+
+    // Delete user
+    await deleteRows('users', { id: user.id });
+
+    res.json({
+      success: true,
+      message: 'User and all their posts deleted successfully',
+    });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 module.exports = router;

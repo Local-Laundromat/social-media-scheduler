@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../database/db');
+const { get, getAll, insert, update: updateRow, deleteRows, customQuery, customGet, run, isSupabase } = require('../database/helpers');
 const scheduler = require('../services/scheduler');
 const webhookService = require('../services/webhooks');
 const { authenticateApiKey, optionalApiKey } = require('../middleware/auth');
@@ -11,177 +11,147 @@ const path = require('path');
 /**
  * GET /api/posts - Get all posts
  */
-router.get('/posts', optionalApiKey, (req, res) => {
-  const { status, limit = 100 } = req.query;
-
-  let query = 'SELECT * FROM posts';
-  const params = [];
-
-  if (status) {
-    query += ' WHERE status = ?';
-    params.push(status);
-  }
-
-  query += ' ORDER BY created_at DESC LIMIT ?';
-  params.push(parseInt(limit));
-
-  db.all(query, params, (err, posts) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
+router.get('/posts', optionalApiKey, async (req, res) => {
+  try {
+    const { status, limit = 100 } = req.query;
+    const where = status ? { status } : {};
+    const posts = await getAll('posts', where, {
+      orderBy: 'created_at DESC',
+      limit: parseInt(limit)
+    });
     res.json({ posts });
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /**
  * GET /api/posts/:id - Get single post
  */
-router.get('/posts/:id', optionalApiKey, (req, res) => {
-  db.get('SELECT * FROM posts WHERE id = ?', [req.params.id], (err, post) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
+router.get('/posts/:id', optionalApiKey, async (req, res) => {
+  try {
+    const post = await get('posts', { id: req.params.id });
     if (!post) {
       return res.status(404).json({ error: 'Post not found' });
     }
     res.json({ post });
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /**
  * POST /api/posts - Create new post (Supports both API key and user_id)
  */
-router.post('/posts', optionalApiKey, (req, res) => {
-  const { user_id, filename, filepath, filetype, caption, platforms, scheduled_time, webhook_url } = req.body;
+router.post('/posts', optionalApiKey, async (req, res) => {
+  try {
+    const { user_id, filename, filepath, filetype, caption, platforms, scheduled_time, webhook_url } = req.body;
 
-  if (!filename || !filepath || !platforms) {
-    return res.status(400).json({ error: 'Missing required fields: filename, filepath, platforms' });
-  }
+    if (!filename || !filepath || !platforms) {
+      return res.status(400).json({ error: 'Missing required fields: filename, filepath, platforms' });
+    }
 
-  const platformsJson = JSON.stringify(platforms);
-  const accountId = req.account?.id || null;
-  const apiKey = req.apiKey?.api_key || null;
-  const webhook = webhook_url || req.apiKey?.webhook_url || null;
+    const platformsJson = JSON.stringify(platforms);
+    const accountId = req.account?.id || null;
+    const apiKey = req.apiKey?.api_key || null;
+    const webhook = webhook_url || req.apiKey?.webhook_url || null;
 
-  // If user_id is provided, look up the user's internal ID
-  if (user_id) {
-    db.get(
-      'SELECT id FROM users WHERE external_user_id = ?',
-      [user_id],
-      (err, user) => {
-        if (err) {
-          return res.status(500).json({ error: err.message });
-        }
+    let internalUserId = null;
 
-        if (!user) {
-          return res.status(404).json({
-            error: 'User not found',
-            message: 'Please connect your social media accounts first in the embed page'
-          });
-        }
+    // If user_id is provided, look up the user's internal ID
+    if (user_id) {
+      const user = await get('users', { external_user_id: user_id });
 
-        // Create post with user_id
-        db.run(
-          `INSERT INTO posts (filename, filepath, filetype, caption, platforms, scheduled_time, user_id, account_id, api_key, webhook_url)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [filename, filepath, filetype || 'image', caption || '', platformsJson, scheduled_time || null, user.id, accountId, apiKey, webhook],
-          function (err) {
-            if (err) {
-              return res.status(500).json({ error: err.message });
-            }
-            res.json({
-              success: true,
-              id: this.lastID,
-              message: 'Post created successfully',
-              webhook_url: webhook,
-            });
-          }
-        );
-      }
-    );
-  } else {
-    // No user_id - use old account-based system
-    db.run(
-      `INSERT INTO posts (filename, filepath, filetype, caption, platforms, scheduled_time, account_id, api_key, webhook_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [filename, filepath, filetype || 'image', caption || '', platformsJson, scheduled_time || null, accountId, apiKey, webhook],
-      function (err) {
-        if (err) {
-          return res.status(500).json({ error: err.message });
-        }
-        res.json({
-          success: true,
-          id: this.lastID,
-          message: 'Post created successfully',
-          webhook_url: webhook,
+      if (!user) {
+        return res.status(404).json({
+          error: 'User not found',
+          message: 'Please connect your social media accounts first in the embed page'
         });
       }
-    );
+
+      internalUserId = user.id;
+    }
+
+    // Create post
+    const result = await insert('posts', {
+      filename,
+      filepath,
+      filetype: filetype || 'image',
+      caption: caption || '',
+      platforms: platformsJson,
+      scheduled_time: scheduled_time || null,
+      user_id: internalUserId,
+      account_id: accountId,
+      api_key: apiKey,
+      webhook_url: webhook
+    });
+
+    res.json({
+      success: true,
+      id: result.id,
+      message: 'Post created successfully',
+      webhook_url: webhook,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
 /**
  * PUT /api/posts/:id - Update post
  */
-router.put('/posts/:id', optionalApiKey, (req, res) => {
-  const { caption, platforms, scheduled_time, status } = req.body;
-  const updates = [];
-  const params = [];
+router.put('/posts/:id', optionalApiKey, async (req, res) => {
+  try {
+    const { caption, platforms, scheduled_time, status } = req.body;
+    const data = {};
 
-  if (caption !== undefined) {
-    updates.push('caption = ?');
-    params.push(caption);
-  }
-
-  if (platforms !== undefined) {
-    updates.push('platforms = ?');
-    params.push(JSON.stringify(platforms));
-  }
-
-  if (scheduled_time !== undefined) {
-    updates.push('scheduled_time = ?');
-    params.push(scheduled_time);
-  }
-
-  if (status !== undefined) {
-    updates.push('status = ?');
-    params.push(status);
-  }
-
-  if (updates.length === 0) {
-    return res.status(400).json({ error: 'No fields to update' });
-  }
-
-  params.push(req.params.id);
-
-  db.run(
-    `UPDATE posts SET ${updates.join(', ')} WHERE id = ?`,
-    params,
-    function (err) {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      if (this.changes === 0) {
-        return res.status(404).json({ error: 'Post not found' });
-      }
-      res.json({ message: 'Post updated successfully' });
+    if (caption !== undefined) {
+      data.caption = caption;
     }
-  );
+
+    if (platforms !== undefined) {
+      data.platforms = JSON.stringify(platforms);
+    }
+
+    if (scheduled_time !== undefined) {
+      data.scheduled_time = scheduled_time;
+    }
+
+    if (status !== undefined) {
+      data.status = status;
+    }
+
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    const result = await updateRow('posts', { id: req.params.id }, data);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    res.json({ message: 'Post updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /**
  * DELETE /api/posts/:id - Delete post
  */
-router.delete('/posts/:id', optionalApiKey, (req, res) => {
-  db.run('DELETE FROM posts WHERE id = ?', [req.params.id], function (err) {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-    if (this.changes === 0) {
+router.delete('/posts/:id', optionalApiKey, async (req, res) => {
+  try {
+    const result = await deleteRows('posts', { id: req.params.id });
+
+    if (result.changes === 0) {
       return res.status(404).json({ error: 'Post not found' });
     }
+
     res.json({ message: 'Post deleted successfully' });
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /**
@@ -199,25 +169,42 @@ router.post('/posts/:id/post-now', optionalApiKey, async (req, res) => {
 /**
  * POST /api/import-folder - Import all files from a folder
  */
-router.post('/api/import-folder', optionalApiKey, (req, res) => {
-  const { user_id, folderPath, platforms, caption } = req.body;
+router.post('/api/import-folder', optionalApiKey, async (req, res) => {
+  try {
+    const { user_id, folderPath, platforms, caption } = req.body;
 
-  if (!folderPath || !platforms) {
-    return res.status(400).json({ error: 'Missing folderPath or platforms' });
-  }
+    if (!folderPath || !platforms) {
+      return res.status(400).json({ error: 'Missing folderPath or platforms' });
+    }
 
-  if (!fs.existsSync(folderPath)) {
-    return res.status(404).json({ error: 'Folder not found' });
-  }
+    if (!fs.existsSync(folderPath)) {
+      return res.status(404).json({ error: 'Folder not found' });
+    }
 
-  const files = fs.readdirSync(folderPath);
-  const imported = [];
-  const errors = [];
-  const accountId = req.account?.id || null;
+    let internalUserId = null;
 
-  // Helper function to import files
-  const importFiles = (internalUserId) => {
-    files.forEach((filename) => {
+    // If user_id provided, look up internal ID first
+    if (user_id) {
+      const user = await get('users', { external_user_id: user_id });
+
+      if (!user) {
+        return res.status(404).json({
+          error: 'User not found',
+          message: 'Please connect your social media accounts first'
+        });
+      }
+
+      internalUserId = user.id;
+    }
+
+    const files = fs.readdirSync(folderPath);
+    const imported = [];
+    const errors = [];
+    const accountId = req.account?.id || null;
+    const platformsJson = JSON.stringify(platforms);
+
+    // Import files
+    for (const filename of files) {
       const filepath = path.join(folderPath, filename);
       const stat = fs.statSync(filepath);
 
@@ -229,79 +216,74 @@ router.post('/api/import-folder', optionalApiKey, (req, res) => {
           filetype = 'video';
         } else if (!['.jpg', '.jpeg', '.png', '.gif'].includes(ext)) {
           errors.push({ filename, error: 'Unsupported file type' });
-          return;
+          continue;
         }
 
-        const platformsJson = JSON.stringify(platforms);
-
-        db.run(
-          `INSERT INTO posts (filename, filepath, filetype, caption, platforms, account_id, user_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [filename, filepath, filetype, caption || '', platformsJson, accountId, internalUserId],
-          function (err) {
-            if (err) {
-              errors.push({ filename, error: err.message });
-            } else {
-              imported.push({ id: this.lastID, filename });
-            }
-          }
-        );
-      }
-    });
-
-    setTimeout(() => {
-      res.json({
-        message: 'Import complete',
-        imported: imported.length,
-        errors: errors.length,
-        details: { imported, errors },
-      });
-    }, 500);
-  };
-
-  // If user_id provided, look up internal ID first
-  if (user_id) {
-    db.get(
-      'SELECT id FROM users WHERE external_user_id = ?',
-      [user_id],
-      (err, user) => {
-        if (err) {
-          return res.status(500).json({ error: err.message });
-        }
-
-        if (!user) {
-          return res.status(404).json({
-            error: 'User not found',
-            message: 'Please connect your social media accounts first'
+        try {
+          const result = await insert('posts', {
+            filename,
+            filepath,
+            filetype,
+            caption: caption || '',
+            platforms: platformsJson,
+            account_id: accountId,
+            user_id: internalUserId
           });
-        }
 
-        importFiles(user.id);
+          imported.push({ id: result.id, filename });
+        } catch (err) {
+          errors.push({ filename, error: err.message });
+        }
       }
-    );
-  } else {
-    importFiles(null);
+    }
+
+    res.json({
+      message: 'Import complete',
+      imported: imported.length,
+      errors: errors.length,
+      details: { imported, errors },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
 /**
  * GET /api/stats - Get dashboard statistics
  */
-router.get('/stats', optionalApiKey, (req, res) => {
-  db.get(
-    `SELECT
-      COUNT(*) as total,
-      SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-      SUM(CASE WHEN status = 'posted' THEN 1 ELSE 0 END) as posted,
-      SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
-     FROM posts`,
-    (err, row) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
+router.get('/stats', optionalApiKey, async (req, res) => {
+  try {
+    const stats = await customGet(
+      `SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN status = 'posted' THEN 1 ELSE 0 END) as posted,
+        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
+       FROM posts`,
+      [],
+      async () => {
+        const { db } = require('../database/helpers');
+        const { data, error } = await db
+          .from('posts')
+          .select('status')
+          .then(({ data, error }) => {
+            if (error) throw error;
+            const stats = {
+              total: data.length,
+              pending: data.filter(p => p.status === 'pending').length,
+              posted: data.filter(p => p.status === 'posted').length,
+              failed: data.filter(p => p.status === 'failed').length
+            };
+            return { data: stats, error: null };
+          });
+        if (error) throw error;
+        return data;
       }
-      res.json({ stats: row });
-    }
-  );
+    );
+    res.json({ stats });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /**
@@ -335,103 +317,100 @@ router.post('/scheduler/stop', (req, res) => {
 /**
  * GET /api/keys - Get all API keys
  */
-router.get('/keys', (req, res) => {
-  db.all('SELECT id, name, api_key, account_id, webhook_url, is_active, created_at, last_used_at FROM api_keys ORDER BY created_at DESC', (err, keys) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
+router.get('/keys', async (req, res) => {
+  try {
+    const keys = await getAll('api_keys', {}, {
+      orderBy: 'created_at DESC'
+    });
     res.json({ keys });
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /**
  * POST /api/keys - Create new API key
  */
-router.post('/keys', (req, res) => {
-  const { name, account_id, webhook_url } = req.body;
+router.post('/keys', async (req, res) => {
+  try {
+    const { name, account_id, webhook_url } = req.body;
 
-  if (!name) {
-    return res.status(400).json({ error: 'Name is required' });
-  }
-
-  // Generate API key
-  const apiKey = 'sk_' + crypto.randomBytes(32).toString('hex');
-
-  db.run(
-    `INSERT INTO api_keys (name, api_key, account_id, webhook_url)
-     VALUES (?, ?, ?, ?)`,
-    [name, apiKey, account_id || null, webhook_url || null],
-    function (err) {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      res.json({
-        success: true,
-        id: this.lastID,
-        api_key: apiKey,
-        message: 'API key created successfully. Save this key, it will not be shown again!',
-      });
+    if (!name) {
+      return res.status(400).json({ error: 'Name is required' });
     }
-  );
+
+    // Generate API key
+    const apiKey = 'sk_' + crypto.randomBytes(32).toString('hex');
+
+    const result = await insert('api_keys', {
+      name,
+      api_key: apiKey,
+      account_id: account_id || null,
+      webhook_url: webhook_url || null
+    });
+
+    res.json({
+      success: true,
+      id: result.id,
+      api_key: apiKey,
+      message: 'API key created successfully. Save this key, it will not be shown again!',
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /**
  * PUT /api/keys/:id - Update API key
  */
-router.put('/keys/:id', (req, res) => {
-  const { name, webhook_url, is_active } = req.body;
-  const updates = [];
-  const params = [];
+router.put('/keys/:id', async (req, res) => {
+  try {
+    const { name, webhook_url, is_active } = req.body;
+    const data = {};
 
-  if (name !== undefined) {
-    updates.push('name = ?');
-    params.push(name);
-  }
-
-  if (webhook_url !== undefined) {
-    updates.push('webhook_url = ?');
-    params.push(webhook_url);
-  }
-
-  if (is_active !== undefined) {
-    updates.push('is_active = ?');
-    params.push(is_active ? 1 : 0);
-  }
-
-  if (updates.length === 0) {
-    return res.status(400).json({ error: 'No fields to update' });
-  }
-
-  params.push(req.params.id);
-
-  db.run(
-    `UPDATE api_keys SET ${updates.join(', ')} WHERE id = ?`,
-    params,
-    function (err) {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      if (this.changes === 0) {
-        return res.status(404).json({ error: 'API key not found' });
-      }
-      res.json({ message: 'API key updated successfully' });
+    if (name !== undefined) {
+      data.name = name;
     }
-  );
+
+    if (webhook_url !== undefined) {
+      data.webhook_url = webhook_url;
+    }
+
+    if (is_active !== undefined) {
+      data.is_active = is_active ? 1 : 0;
+    }
+
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    const result = await updateRow('api_keys', { id: req.params.id }, data);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'API key not found' });
+    }
+
+    res.json({ message: 'API key updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /**
  * DELETE /api/keys/:id - Delete API key
  */
-router.delete('/keys/:id', (req, res) => {
-  db.run('DELETE FROM api_keys WHERE id = ?', [req.params.id], function (err) {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-    if (this.changes === 0) {
+router.delete('/keys/:id', async (req, res) => {
+  try {
+    const result = await deleteRows('api_keys', { id: req.params.id });
+
+    if (result.changes === 0) {
       return res.status(404).json({ error: 'API key not found' });
     }
+
     res.json({ message: 'API key deleted successfully' });
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ===== SOCIAL MEDIA ACCOUNTS MANAGEMENT =====
@@ -439,123 +418,143 @@ router.delete('/keys/:id', (req, res) => {
 /**
  * GET /api/accounts - Get all social media accounts
  */
-router.get('/accounts', (req, res) => {
-  db.all('SELECT id, name, type, facebook_page_id, instagram_account_id, is_default, created_at FROM accounts ORDER BY is_default DESC, created_at DESC', (err, accounts) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
+router.get('/accounts', async (req, res) => {
+  try {
+    const accounts = await getAll('accounts', {}, {
+      orderBy: 'is_default DESC, created_at DESC'
+    });
     res.json({ accounts });
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /**
  * POST /api/accounts - Create new social media account
  */
-router.post('/accounts', (req, res) => {
-  const { name, type, facebook_page_token, facebook_page_id, instagram_token, instagram_account_id, is_default } = req.body;
+router.post('/accounts', async (req, res) => {
+  try {
+    const { name, type, facebook_page_token, facebook_page_id, instagram_token, instagram_account_id, is_default } = req.body;
 
-  if (!name || !type) {
-    return res.status(400).json({ error: 'Name and type are required' });
-  }
-
-  // If setting as default, unset other defaults
-  if (is_default) {
-    db.run('UPDATE accounts SET is_default = 0');
-  }
-
-  db.run(
-    `INSERT INTO accounts (name, type, facebook_page_token, facebook_page_id, instagram_token, instagram_account_id, is_default)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [name, type, facebook_page_token || null, facebook_page_id || null, instagram_token || null, instagram_account_id || null, is_default ? 1 : 0],
-    function (err) {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      res.json({
-        success: true,
-        id: this.lastID,
-        message: 'Account created successfully',
-      });
+    if (!name || !type) {
+      return res.status(400).json({ error: 'Name and type are required' });
     }
-  );
+
+    // If setting as default, unset other defaults
+    if (is_default) {
+      await run(
+        'UPDATE accounts SET is_default = 0',
+        [],
+        async () => {
+          const { db } = require('../database/helpers');
+          const { error } = await db.from('accounts').update({ is_default: false });
+          if (error) throw error;
+        }
+      );
+    }
+
+    const result = await insert('accounts', {
+      name,
+      type,
+      facebook_page_token: facebook_page_token || null,
+      facebook_page_id: facebook_page_id || null,
+      instagram_token: instagram_token || null,
+      instagram_account_id: instagram_account_id || null,
+      is_default: is_default ? 1 : 0
+    });
+
+    res.json({
+      success: true,
+      id: result.id,
+      message: 'Account created successfully',
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /**
  * PUT /api/accounts/:id - Update account
  */
-router.put('/accounts/:id', (req, res) => {
-  const { name, facebook_page_token, facebook_page_id, instagram_token, instagram_account_id, is_default } = req.body;
-  const updates = [];
-  const params = [];
+router.put('/accounts/:id', async (req, res) => {
+  try {
+    const { name, facebook_page_token, facebook_page_id, instagram_token, instagram_account_id, is_default } = req.body;
+    const data = {};
 
-  if (name !== undefined) {
-    updates.push('name = ?');
-    params.push(name);
-  }
-
-  if (facebook_page_token !== undefined) {
-    updates.push('facebook_page_token = ?');
-    params.push(facebook_page_token);
-  }
-
-  if (facebook_page_id !== undefined) {
-    updates.push('facebook_page_id = ?');
-    params.push(facebook_page_id);
-  }
-
-  if (instagram_token !== undefined) {
-    updates.push('instagram_token = ?');
-    params.push(instagram_token);
-  }
-
-  if (instagram_account_id !== undefined) {
-    updates.push('instagram_account_id = ?');
-    params.push(instagram_account_id);
-  }
-
-  if (is_default !== undefined) {
-    if (is_default) {
-      db.run('UPDATE accounts SET is_default = 0');
+    if (name !== undefined) {
+      data.name = name;
     }
-    updates.push('is_default = ?');
-    params.push(is_default ? 1 : 0);
-  }
 
-  if (updates.length === 0) {
-    return res.status(400).json({ error: 'No fields to update' });
-  }
-
-  updates.push('updated_at = CURRENT_TIMESTAMP');
-  params.push(req.params.id);
-
-  db.run(
-    `UPDATE accounts SET ${updates.join(', ')} WHERE id = ?`,
-    params,
-    function (err) {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      if (this.changes === 0) {
-        return res.status(404).json({ error: 'Account not found' });
-      }
-      res.json({ message: 'Account updated successfully' });
+    if (facebook_page_token !== undefined) {
+      data.facebook_page_token = facebook_page_token;
     }
-  );
+
+    if (facebook_page_id !== undefined) {
+      data.facebook_page_id = facebook_page_id;
+    }
+
+    if (instagram_token !== undefined) {
+      data.instagram_token = instagram_token;
+    }
+
+    if (instagram_account_id !== undefined) {
+      data.instagram_account_id = instagram_account_id;
+    }
+
+    if (is_default !== undefined) {
+      if (is_default) {
+        await run(
+          'UPDATE accounts SET is_default = 0',
+          [],
+          async () => {
+            const { db } = require('../database/helpers');
+            const { error } = await db.from('accounts').update({ is_default: false });
+            if (error) throw error;
+          }
+        );
+      }
+      data.is_default = is_default ? 1 : 0;
+    }
+
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    const result = await run(
+      `UPDATE accounts SET ${Object.keys(data).map(k => `${k} = ?`).join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [...Object.values(data), req.params.id],
+      async () => {
+        const { db } = require('../database/helpers');
+        const { error } = await db.from('accounts').update({ ...data, updated_at: new Date().toISOString() }).eq('id', req.params.id);
+        if (error) throw error;
+      }
+    );
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+
+    res.json({ message: 'Account updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /**
  * DELETE /api/accounts/:id - Delete account
  */
-router.delete('/accounts/:id', (req, res) => {
-  db.run('DELETE FROM accounts WHERE id = ?', [req.params.id], function (err) {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-    if (this.changes === 0) {
+router.delete('/accounts/:id', async (req, res) => {
+  try {
+    const result = await deleteRows('accounts', { id: req.params.id });
+
+    if (result.changes === 0) {
       return res.status(404).json({ error: 'Account not found' });
     }
+
     res.json({ message: 'Account deleted successfully' });
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ===== WEBHOOK LOGS =====
@@ -563,19 +562,19 @@ router.delete('/accounts/:id', (req, res) => {
 /**
  * GET /api/webhook-logs - Get webhook logs
  */
-router.get('/webhook-logs', (req, res) => {
-  const { limit = 50 } = req.query;
+router.get('/webhook-logs', async (req, res) => {
+  try {
+    const { limit = 50 } = req.query;
 
-  db.all(
-    'SELECT * FROM webhook_logs ORDER BY created_at DESC LIMIT ?',
-    [parseInt(limit)],
-    (err, logs) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      res.json({ logs });
-    }
-  );
+    const logs = await getAll('webhook_logs', {}, {
+      orderBy: 'created_at DESC',
+      limit: parseInt(limit)
+    });
+
+    res.json({ logs });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

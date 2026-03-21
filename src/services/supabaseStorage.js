@@ -6,13 +6,30 @@
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
-
 const BUCKET_NAME = 'quu-media';
+
+// Initialize Supabase client only if configured
+let supabase = null;
+
+function getSupabaseClient() {
+  if (!supabase && isConfigured()) {
+    supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_ANON_KEY
+    );
+  }
+  return supabase;
+}
+
+/**
+ * Check if Supabase Storage is configured
+ * @returns {boolean}
+ */
+function isConfigured() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_ANON_KEY;
+  return !!(url && key && url !== 'not-configured' && key !== 'not-configured');
+}
 
 /**
  * Upload a file to Supabase Storage
@@ -22,13 +39,22 @@ const BUCKET_NAME = 'quu-media';
  * @returns {Promise<{success, url, error}>}
  */
 async function uploadFile(fileBuffer, fileName, mimeType) {
+  const client = getSupabaseClient();
+
+  if (!client) {
+    return {
+      success: false,
+      error: 'Supabase is not configured'
+    };
+  }
+
   try {
     // Generate unique filename
     const timestamp = Date.now();
     const uniqueFileName = `${timestamp}-${fileName}`;
 
     // Upload to Supabase Storage
-    const { data, error } = await supabase.storage
+    const { data, error } = await client.storage
       .from(BUCKET_NAME)
       .upload(uniqueFileName, fileBuffer, {
         contentType: mimeType,
@@ -45,7 +71,7 @@ async function uploadFile(fileBuffer, fileName, mimeType) {
     }
 
     // Get public URL
-    const { data: { publicUrl } } = supabase.storage
+    const { data: { publicUrl } } = client.storage
       .from(BUCKET_NAME)
       .getPublicUrl(uniqueFileName);
 
@@ -73,8 +99,17 @@ async function uploadFile(fileBuffer, fileName, mimeType) {
  * @returns {Promise<{success, error}>}
  */
 async function deleteFile(fileName) {
+  const client = getSupabaseClient();
+
+  if (!client) {
+    return {
+      success: false,
+      error: 'Supabase is not configured'
+    };
+  }
+
   try {
-    const { data, error } = await supabase.storage
+    const { data, error } = await client.storage
       .from(BUCKET_NAME)
       .remove([fileName]);
 
@@ -107,7 +142,13 @@ async function deleteFile(fileName) {
  * @returns {string} Public URL
  */
 function getPublicUrl(fileName) {
-  const { data } = supabase.storage
+  const client = getSupabaseClient();
+
+  if (!client) {
+    return null;
+  }
+
+  const { data } = client.storage
     .from(BUCKET_NAME)
     .getPublicUrl(fileName);
 
@@ -120,8 +161,14 @@ function getPublicUrl(fileName) {
  * @returns {Promise<Array>} List of files
  */
 async function listFiles(folder = '') {
+  const client = getSupabaseClient();
+
+  if (!client) {
+    return [];
+  }
+
   try {
-    const { data, error } = await supabase.storage
+    const { data, error } = await client.storage
       .from(BUCKET_NAME)
       .list(folder, {
         limit: 100,
@@ -142,20 +189,12 @@ async function listFiles(folder = '') {
   }
 }
 
-/**
- * Check if Supabase Storage is configured
- * @returns {boolean}
- */
-function isConfigured() {
-  return !!(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY);
-}
-
 module.exports = {
   uploadFile,
   deleteFile,
   getPublicUrl,
   listFiles,
   isConfigured,
-  supabase,
+  supabase: getSupabaseClient,
   BUCKET_NAME
 };

@@ -1,5 +1,5 @@
 const axios = require('axios');
-const db = require('../database/db');
+const { get, getAll, insert, update: updateRow, deleteRows, customQuery, customGet, run, isSupabase } = require('../database/helpers');
 
 class WebhookService {
   /**
@@ -47,18 +47,18 @@ class WebhookService {
   /**
    * Log webhook attempt
    */
-  logWebhook(postId, webhookUrl, payload, statusCode, response) {
-    db.run(
-      `INSERT INTO webhook_logs (post_id, webhook_url, payload, status_code, response)
-       VALUES (?, ?, ?, ?, ?)`,
-      [
-        postId,
-        webhookUrl,
-        JSON.stringify(payload),
-        statusCode,
-        typeof response === 'string' ? response : JSON.stringify(response),
-      ]
-    );
+  async logWebhook(postId, webhookUrl, payload, statusCode, response) {
+    try {
+      await insert('webhook_logs', {
+        post_id: postId,
+        webhook_url: webhookUrl,
+        payload: JSON.stringify(payload),
+        status_code: statusCode,
+        response: typeof response === 'string' ? response : JSON.stringify(response)
+      });
+    } catch (error) {
+      console.error('Error logging webhook:', error);
+    }
   }
 
   /**

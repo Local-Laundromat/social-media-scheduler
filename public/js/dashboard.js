@@ -1032,7 +1032,7 @@ async function generateHashtags() {
   const captionField = document.getElementById("caption");
   const caption = captionField.value;
 
-  if (\!caption || caption.trim().length === 0) {
+  if (!caption || caption.trim().length === 0) {
     alert("Please write a caption first");
     return;
   }
@@ -1059,11 +1059,9 @@ async function generateHashtags() {
 
     if (data.success && data.hashtags) {
       const currentCaption = captionField.value.trim();
-      const hashtagsStr = "
-
-" + data.hashtags.slice(0, 15).join(" ");
+      const hashtagsStr = "\n\n" + data.hashtags.slice(0, 15).join(" ");
       captionField.value = currentCaption + hashtagsStr;
-      alert(`Added ${data.hashtags.length} relevant hashtags\!`);
+      alert(`Added ${data.hashtags.length} relevant hashtags!`);
     } else {
       alert(data.note || "Failed to generate hashtags");
     }
@@ -1078,14 +1076,13 @@ async function translateCaption() {
   const captionField = document.getElementById("caption");
   const caption = captionField.value;
 
-  if (\!caption || caption.trim().length === 0) {
+  if (!caption || caption.trim().length === 0) {
     alert("Please write a caption first");
     return;
   }
 
-  const targetLanguage = prompt("Translate to which language?
-(e.g., Spanish, French, German, Japanese)");
-  if (\!targetLanguage) return;
+  const targetLanguage = prompt("Translate to which language?\n(e.g., Spanish, French, German, Japanese)");
+  if (!targetLanguage) return;
 
   const token = localStorage.getItem("auth_token");
 
@@ -1106,7 +1103,7 @@ async function translateCaption() {
 
     if (data.success) {
       captionField.value = data.translatedCaption;
-      alert(`Caption translated to ${targetLanguage}\!`);
+      alert(`Caption translated to ${targetLanguage}!`);
     } else {
       alert(data.error || "Translation failed");
     }
@@ -1121,7 +1118,7 @@ async function optimizeCaption() {
   const captionField = document.getElementById("caption");
   const caption = captionField.value;
 
-  if (\!caption || caption.trim().length === 0) {
+  if (!caption || caption.trim().length === 0) {
     alert("Please write a caption first");
     return;
   }
@@ -1136,9 +1133,8 @@ async function optimizeCaption() {
 
   let targetPlatform = platforms[0];
   if (platforms.length > 1) {
-    targetPlatform = prompt(`Optimize for which platform?
-Options: ${platforms.join(", ")}`, platforms[0]);
-    if (\!targetPlatform) return;
+    targetPlatform = prompt(`Optimize for which platform?\nOptions: ${platforms.join(", ")}`, platforms[0]);
+    if (!targetPlatform) return;
   }
 
   const token = localStorage.getItem("auth_token");
@@ -1160,11 +1156,7 @@ Options: ${platforms.join(", ")}`, platforms[0]);
     const data = await response.json();
 
     if (data.success) {
-      if (confirm(`Optimized for ${targetPlatform}\!
-
-"${data.optimizedCaption}"
-
-Replace your caption with this?`)) {
+      if (confirm(`Optimized for ${targetPlatform}!\n\n"${data.optimizedCaption}"\n\nReplace your caption with this?`)) {
         captionField.value = data.optimizedCaption;
       }
     } else {

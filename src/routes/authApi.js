@@ -3,7 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const db = require('../database/db');
+const { get, getAll, insert, update: updateRow, deleteRows, customQuery, customGet, run, isSupabase } = require('../database/helpers');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -19,53 +19,47 @@ router.post('/signup', async (req, res) => {
 
   try {
     // Check if user already exists
-    db.get('SELECT * FROM users WHERE email = ?', [email], async (err, existingUser) => {
-      if (err) {
-        return res.status(500).json({ error: 'Database error' });
+    const existingUser = await get('users', { email });
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'Email already registered' });
+    }
+
+    // Hash password
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Generate API key for this user
+    const apiKey = 'sk_' + crypto.randomBytes(32).toString('hex');
+
+    // Create user
+    const result = await insert('users', {
+      email,
+      password_hash: passwordHash,
+      name: name || null,
+      company: company || null,
+      api_key: apiKey
+    });
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: result.id, email },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: result.id,
+        email,
+        name: name || null,
+        company: company || null,
+        api_key: apiKey
       }
-
-      if (existingUser) {
-        return res.status(400).json({ error: 'Email already registered' });
-      }
-
-      // Hash password
-      const passwordHash = await bcrypt.hash(password, 10);
-
-      // Generate API key for this user
-      const apiKey = 'sk_' + crypto.randomBytes(32).toString('hex');
-
-      // Create user
-      db.run(
-        `INSERT INTO users (email, password_hash, name, company, api_key)
-         VALUES (?, ?, ?, ?, ?)`,
-        [email, passwordHash, name || null, company || null, apiKey],
-        function (err) {
-          if (err) {
-            return res.status(500).json({ error: 'Failed to create account' });
-          }
-
-          // Generate JWT token
-          const token = jwt.sign(
-            { userId: this.lastID, email },
-            JWT_SECRET,
-            { expiresIn: '30d' }
-          );
-
-          res.json({
-            success: true,
-            token,
-            user: {
-              id: this.lastID,
-              email,
-              name: name || null,
-              company: company || null,
-              api_key: apiKey
-            }
-          });
-        }
-      );
     });
   } catch (error) {
+    console.error('Signup error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -73,17 +67,15 @@ router.post('/signup', async (req, res) => {
 /**
  * POST /api/auth/login - Sign in existing user
  */
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
 
-  db.get('SELECT * FROM users WHERE email = ?', [email], async (err, user) => {
-    if (err) {
-      return res.status(500).json({ error: 'Database error' });
-    }
+  try {
+    const user = await get('users', { email });
 
     if (!user || !user.password_hash) {
       return res.status(401).json({ error: 'Invalid email or password' });
@@ -116,13 +108,16 @@ router.post('/login', (req, res) => {
         api_key: user.api_key
       }
     });
-  });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
 /**
  * GET /api/auth/verify - Verify JWT token
  */
-router.get('/verify', (req, res) => {
+router.get('/verify', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
 
   if (!token) {
@@ -131,25 +126,25 @@ router.get('/verify', (req, res) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+    const user = await get('users', { id: decoded.userId });
 
-    db.get('SELECT * FROM users WHERE id = ?', [decoded.userId], (err, user) => {
-      if (err || !user) {
-        return res.json({ valid: false });
+    if (!user) {
+      return res.json({ valid: false });
+    }
+
+    res.json({
+      valid: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        company: user.company,
+        facebook_connected: user.facebook_connected,
+        instagram_connected: user.instagram_connected
       }
-
-      res.json({
-        valid: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          company: user.company,
-          facebook_connected: user.facebook_connected,
-          instagram_connected: user.instagram_connected
-        }
-      });
     });
   } catch (error) {
+    console.error('Verify error:', error);
     res.json({ valid: false });
   }
 });
@@ -157,11 +152,9 @@ router.get('/verify', (req, res) => {
 /**
  * GET /api/auth/me - Get current user info
  */
-router.get('/me', authenticateToken, (req, res) => {
-  db.get('SELECT * FROM users WHERE id = ?', [req.userId], (err, user) => {
-    if (err) {
-      return res.status(500).json({ error: 'Database error' });
-    }
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await get('users', { id: req.userId });
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -182,7 +175,10 @@ router.get('/me', authenticateToken, (req, res) => {
         created_at: user.created_at
       }
     });
-  });
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
 /**
