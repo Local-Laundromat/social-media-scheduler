@@ -9,12 +9,17 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-producti
 
 /**
  * POST /api/auth/signup - Create new user account
+ * Supports team creation or joining
  */
 router.post('/signup', async (req, res) => {
-  const { email, password, name, company } = req.body;
+  const { email, password, name, teamName, inviteCode } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  if (!teamName && !inviteCode) {
+    return res.status(400).json({ error: 'Either team name or invite code is required' });
   }
 
   try {
@@ -31,18 +36,56 @@ router.post('/signup', async (req, res) => {
     // Generate API key for this user
     const apiKey = 'sk_' + crypto.randomBytes(32).toString('hex');
 
+    let teamId = null;
+    let role = 'member';
+    let team = null;
+
+    // Handle team logic
+    if (inviteCode) {
+      // Joining existing team
+      team = await get('teams', { invite_code: inviteCode });
+
+      if (!team) {
+        return res.status(400).json({ error: 'Invalid invite code' });
+      }
+
+      teamId = team.id;
+      role = 'member';
+    } else if (teamName) {
+      // Creating new team
+      const newInviteCode = crypto.randomBytes(6).toString('hex').toUpperCase();
+
+      team = await insert('teams', {
+        name: teamName,
+        invite_code: newInviteCode,
+        created_by: null // Will update after user is created
+      });
+
+      teamId = team.id;
+      role = 'owner';
+    }
+
     // Create user
-    const result = await insert('users', {
+    const user = await insert('users', {
       email,
       password_hash: passwordHash,
       name: name || null,
-      company: company || null,
-      api_key: apiKey
+      api_key: apiKey,
+      team_id: teamId,
+      role: role
     });
+
+    // If creating team, update created_by
+    if (role === 'owner' && teamId) {
+      await updateRow('teams', { id: teamId }, { created_by: user.id });
+    }
+
+    // Get team info for response
+    const teamInfo = await get('teams', { id: teamId });
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: result.id, email },
+      { userId: user.id, email, teamId },
       JWT_SECRET,
       { expiresIn: '30d' }
     );
@@ -51,12 +94,18 @@ router.post('/signup', async (req, res) => {
       success: true,
       token,
       user: {
-        id: result.id,
+        id: user.id,
         email,
         name: name || null,
-        company: company || null,
-        api_key: apiKey
-      }
+        api_key: apiKey,
+        team_id: teamId,
+        role: role
+      },
+      team: teamInfo ? {
+        id: teamInfo.id,
+        name: teamInfo.name,
+        invite_code: teamInfo.invite_code
+      } : null
     });
   } catch (error) {
     console.error('Signup error:', error);
@@ -88,9 +137,15 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    // Get team info if user has a team
+    let team = null;
+    if (user.team_id) {
+      team = await get('teams', { id: user.team_id });
+    }
+
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user.id, email: user.email },
+      { userId: user.id, email: user.email, teamId: user.team_id },
       JWT_SECRET,
       { expiresIn: '30d' }
     );
@@ -102,11 +157,17 @@ router.post('/login', async (req, res) => {
         id: user.id,
         email: user.email,
         name: user.name,
-        company: user.company,
         facebook_connected: user.facebook_connected,
         instagram_connected: user.instagram_connected,
-        api_key: user.api_key
-      }
+        api_key: user.api_key,
+        team_id: user.team_id,
+        role: user.role
+      },
+      team: team ? {
+        id: team.id,
+        name: team.name,
+        invite_code: team.invite_code
+      } : null
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -132,16 +193,28 @@ router.get('/verify', async (req, res) => {
       return res.json({ valid: false });
     }
 
+    // Get team info
+    let team = null;
+    if (user.team_id) {
+      team = await get('teams', { id: user.team_id });
+    }
+
     res.json({
       valid: true,
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
-        company: user.company,
         facebook_connected: user.facebook_connected,
-        instagram_connected: user.instagram_connected
-      }
+        instagram_connected: user.instagram_connected,
+        team_id: user.team_id,
+        role: user.role
+      },
+      team: team ? {
+        id: team.id,
+        name: team.name,
+        invite_code: team.invite_code
+      } : null
     });
   } catch (error) {
     console.error('Verify error:', error);
