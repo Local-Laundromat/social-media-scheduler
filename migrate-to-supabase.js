@@ -53,14 +53,12 @@ async function migrateUsers() {
     for (const user of users) {
       try {
         // Convert SQLite INTEGER (0/1) to PostgreSQL BOOLEAN
+        // Note: company and app_name fields from SQLite are skipped (not in Supabase schema)
         const userData = {
-          id: user.id,
           external_user_id: user.external_user_id,
           email: user.email,
           password_hash: user.password_hash,
           name: user.name,
-          company: user.company,
-          app_name: user.app_name,
           facebook_page_token: user.facebook_page_token,
           facebook_page_id: user.facebook_page_id,
           facebook_page_name: user.facebook_page_name,
@@ -79,7 +77,7 @@ async function migrateUsers() {
 
         const { error } = await supabase
           .from('users')
-          .upsert([userData], { onConflict: 'id' });
+          .insert([userData]);
 
         if (error) {
           console.error(`  ❌ Failed to migrate user ${user.email}:`, error.message);
