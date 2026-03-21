@@ -57,8 +57,9 @@ router.post('/posts', optionalApiKey, async (req, res) => {
     const webhook = webhook_url || req.apiKey?.webhook_url || null;
 
     let internalUserId = null;
+    let teamId = null;
 
-    // If user_id is provided, look up the user's internal ID
+    // If user_id is provided, look up the user's internal ID and team_id
     if (user_id) {
       const user = await get('users', { external_user_id: user_id });
 
@@ -70,6 +71,7 @@ router.post('/posts', optionalApiKey, async (req, res) => {
       }
 
       internalUserId = user.id;
+      teamId = user.team_id || null;
     }
 
     // Create post
@@ -81,6 +83,7 @@ router.post('/posts', optionalApiKey, async (req, res) => {
       platforms: platformsJson,
       scheduled_time: scheduled_time || null,
       user_id: internalUserId,
+      team_id: teamId,
       account_id: accountId,
       api_key: apiKey,
       webhook_url: webhook

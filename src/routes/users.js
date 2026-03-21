@@ -62,15 +62,17 @@ router.get('/:userId/posts', async (req, res) => {
       return res.json({ posts: [] });
     }
 
-    // Get posts for this user
+    // Get posts for this user's team (if they have one) or just their posts
     let posts;
+    const whereClause = user.team_id ? { team_id: user.team_id } : { user_id: user.id };
+
     if (status) {
-      posts = await getAll('posts', { user_id: user.id, status }, {
+      posts = await getAll('posts', { ...whereClause, status }, {
         orderBy: 'created_at DESC',
         limit: parseInt(limit)
       });
     } else {
-      posts = await getAll('posts', { user_id: user.id }, {
+      posts = await getAll('posts', whereClause, {
         orderBy: 'created_at DESC',
         limit: parseInt(limit)
       });

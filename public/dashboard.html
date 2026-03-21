@@ -1078,6 +1078,36 @@
             <button class="copy-btn" onclick="copyApiKey()">Copy API Key</button>
           </div>
 
+          <!-- Team Information (Only for team owners) -->
+          <div class="settings-section" id="teamInviteSection" style="display: none;">
+            <h4>Team Collaboration</h4>
+            <p style="color: #6b7280; font-size: 13px; margin-bottom: 12px;">
+              Share this invite code with your team members to give them access to this dashboard
+            </p>
+            <div style="background: #fef3c7; padding: 16px; border-radius: 8px; margin-bottom: 12px;">
+              <div style="font-size: 13px; color: #78350f; margin-bottom: 8px; font-weight: 600;">Team Name:</div>
+              <div style="font-size: 16px; color: #1f2937; font-weight: 700; margin-bottom: 16px;" id="teamName">Loading...</div>
+              <div style="font-size: 13px; color: #78350f; margin-bottom: 8px; font-weight: 600;">Team Invite Code:</div>
+              <div style="font-family: 'Courier New', monospace; font-size: 20px; color: #1f2937; font-weight: 700; letter-spacing: 2px;" id="teamInviteCode">Loading...</div>
+            </div>
+            <button class="copy-btn" onclick="copyInviteCode()">Copy Invite Code</button>
+          </div>
+
+          <!-- Team Info (For all team members) -->
+          <div class="settings-section" id="teamInfoSection" style="display: none;">
+            <h4>Team Information</h4>
+            <div style="display: grid; gap: 12px;">
+              <div>
+                <div style="font-size: 13px; color: #6b7280; margin-bottom: 4px;">Team Name:</div>
+                <div style="font-size: 16px; font-weight: 600; color: #1f2937;" id="teamInfoName">Loading...</div>
+              </div>
+              <div>
+                <div style="font-size: 13px; color: #6b7280; margin-bottom: 4px;">Your Role:</div>
+                <div style="font-size: 16px; font-weight: 600; color: #1f2937;" id="userRole">Loading...</div>
+              </div>
+            </div>
+          </div>
+
           <div class="settings-section">
             <h4>OpenAI API Key (Optional)</h4>
             <p style="color: #6b7280; font-size: 13px; margin-bottom: 12px;">

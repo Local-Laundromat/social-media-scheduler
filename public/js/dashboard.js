@@ -513,6 +513,41 @@ function loadSettings() {
   document.getElementById('settingsName').value = currentUser.name || '';
   document.getElementById('settingsCompany').value = currentUser.company || '';
   document.getElementById('openaiApiKey').value = currentUser.openai_api_key || '';
+
+  // Load team information
+  loadTeamInfo();
+}
+
+// Load team information from localStorage
+function loadTeamInfo() {
+  const team = JSON.parse(localStorage.getItem('team') || 'null');
+  const user = JSON.parse(localStorage.getItem('user') || 'null');
+
+  if (team && user) {
+    if (user.role === 'owner') {
+      // Show team invite section for owners
+      document.getElementById('teamInviteSection').style.display = 'block';
+      document.getElementById('teamName').textContent = team.name;
+      document.getElementById('teamInviteCode').textContent = team.invite_code;
+      document.getElementById('teamInfoSection').style.display = 'none';
+    } else {
+      // Show team info for members
+      document.getElementById('teamInfoSection').style.display = 'block';
+      document.getElementById('teamInfoName').textContent = team.name;
+      document.getElementById('userRole').textContent = user.role.charAt(0).toUpperCase() + user.role.slice(1);
+      document.getElementById('teamInviteSection').style.display = 'none';
+    }
+  }
+}
+
+// Copy invite code to clipboard
+function copyInviteCode() {
+  const team = JSON.parse(localStorage.getItem('team') || 'null');
+  if (team && team.invite_code) {
+    navigator.clipboard.writeText(team.invite_code).then(() => {
+      alert('Invite code copied to clipboard!');
+    });
+  }
 }
 
 // Copy API key
@@ -600,6 +635,7 @@ async function saveOpenAIKey() {
 function logout() {
   localStorage.removeItem('auth_token');
   localStorage.removeItem('user');
+  localStorage.removeItem('team');
   window.location.href = '/login';
 }
 
