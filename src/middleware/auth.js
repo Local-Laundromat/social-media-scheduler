@@ -1,125 +1,145 @@
-const { customGet, get, updateRow, isSupabase } = require('../database/helpers');
+const { createClient } = require('@supabase/supabase-js');
+const { get, getAll, update: updateRow, isSupabase } = require('../database/helpers');
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
- * API Key Authentication Middleware
+ * Supabase Auth Middleware
+ * Verifies JWT tokens issued by Supabase Auth
  */
-const authenticateApiKey = async (req, res, next) => {
+const authenticateSupabase = async (req, res, next) => {
   try {
-    const apiKey = req.headers['x-api-key'] || req.query.api_key;
+    const token = req.headers.authorization?.replace('Bearer ', '');
 
-    if (!apiKey) {
+    if (!token) {
       return res.status(401).json({
-        error: 'Missing API key',
-        message: 'Please provide an API key in X-API-Key header or api_key query parameter',
+        error: 'Missing authentication token',
+        message: 'Please provide a valid Supabase auth token in the Authorization header'
       });
     }
 
-    // Verify API key
-    const key = await customGet(
-      'SELECT * FROM api_keys WHERE api_key = ? AND is_active = 1',
-      [apiKey],
-      async () => {
-        const { db } = require('../database/helpers');
-        const { data, error } = await db
-          .from('api_keys')
-          .select('*')
-          .eq('api_key', apiKey)
-          .eq('is_active', true)
-          .single();
-        if (error && error.code !== 'PGRST116') throw error;
-        return data;
-      }
-    );
+    // Verify token with Supabase
+    const { data: { user }, error } = await supabase.auth.getUser(token);
 
-    if (!key) {
+    if (error || !user) {
       return res.status(403).json({
-        error: 'Invalid API key',
-        message: 'The provided API key is invalid or inactive',
+        error: 'Invalid authentication token',
+        message: 'The provided token is invalid or expired'
       });
     }
 
-    // Update last used time (non-blocking)
-    updateRow('api_keys', { id: key.id }, {
-      last_used_at: isSupabase ? new Date().toISOString() : null // SQLite uses CURRENT_TIMESTAMP as default
-    }).catch(err => console.error('Failed to update last_used_at:', err));
+    // Attach user info to request
+    req.userId = user.id;
+    req.user = user;
 
-    // Attach key info to request
-    req.apiKey = key;
-
-    // Get associated account if exists
-    if (key.account_id) {
-      const account = await get('accounts', { id: key.account_id });
-      if (account) {
-        req.account = account;
-      }
-    } else {
-      // Get default account
-      const account = await customGet(
-        'SELECT * FROM accounts WHERE is_default = 1',
-        [],
-        async () => {
-          const { db } = require('../database/helpers');
-          const { data, error } = await db
-            .from('accounts')
-            .select('*')
-            .eq('is_default', isSupabase ? true : 1)
-            .single();
-          if (error && error.code !== 'PGRST116') throw error;
-          return data;
-        }
-      );
-      if (account) {
-        req.account = account;
-      }
+    // Get profile info
+    const profile = await get('profiles', { id: user.id });
+    if (profile) {
+      req.profile = profile;
+      req.teamId = profile.team_id;
+      req.userRole = profile.role;
     }
 
     next();
   } catch (err) {
     console.error('Authentication error:', err);
-    res.status(500).json({ error: 'Database error' });
+    res.status(500).json({ error: 'Authentication failed' });
   }
 };
 
 /**
- * Optional API Key Authentication
- * Allows access without API key but attaches account info if provided
+ * Optional Supabase Auth
+ * Allows access without token but attaches user info if provided
  */
-const optionalApiKey = async (req, res, next) => {
-  const apiKey = req.headers['x-api-key'] || req.query.api_key;
+const optionalSupabaseAuth = async (req, res, next) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
 
-  if (!apiKey) {
-    // No API key, use default account
-    try {
-      const account = await customGet(
-        'SELECT * FROM accounts WHERE is_default = 1',
-        [],
-        async () => {
-          const { db } = require('../database/helpers');
-          const { data, error } = await db
-            .from('accounts')
-            .select('*')
-            .eq('is_default', isSupabase ? true : 1)
-            .single();
-          if (error && error.code !== 'PGRST116') throw error;
-          return data;
-        }
-      );
-      if (account) {
-        req.account = account;
-      }
-      next();
-    } catch (err) {
-      console.error('Error fetching default account:', err);
-      next(); // Continue without account on error
-    }
+  if (!token) {
+    // No token, continue without user info
+    next();
     return;
   }
 
-  // Has API key, authenticate
-  await authenticateApiKey(req, res, next);
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+
+    if (!error && user) {
+      req.userId = user.id;
+      req.user = user;
+
+      // Get profile info
+      const profile = await get('profiles', { id: user.id });
+      if (profile) {
+        req.profile = profile;
+        req.teamId = profile.team_id;
+        req.userRole = profile.role;
+      }
+    }
+
+    next();
+  } catch (err) {
+    console.error('Optional auth error:', err);
+    next(); // Continue without user on error
+  }
+};
+
+/**
+ * Check if user has specific role
+ */
+const requireRole = (allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.userRole) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (!allowedRoles.includes(req.userRole)) {
+      return res.status(403).json({
+        error: 'Insufficient permissions',
+        message: `This action requires one of the following roles: ${allowedRoles.join(', ')}`
+      });
+    }
+
+    next();
+  };
+};
+
+/**
+ * Check if user is in same team
+ */
+const requireSameTeam = async (req, res, next) => {
+  const resourceUserId = req.params.userId || req.body.userId || req.query.userId;
+
+  if (!resourceUserId) {
+    return next(); // Skip if no userId in request
+  }
+
+  try {
+    const resourceProfile = await get('profiles', { id: resourceUserId });
+
+    if (!resourceProfile) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if same user or same team
+    if (req.userId === resourceUserId || req.teamId === resourceProfile.team_id) {
+      next();
+    } else {
+      res.status(403).json({ error: 'Access denied: Different team' });
+    }
+  } catch (err) {
+    console.error('Team check error:', err);
+    res.status(500).json({ error: 'Authorization failed' });
+  }
 };
 
 module.exports = {
-  authenticateApiKey,
-  optionalApiKey,
+  authenticateSupabase,
+  optionalSupabaseAuth,
+  requireRole,
+  requireSameTeam,
+  // Backwards compatibility aliases
+  authenticateApiKey: authenticateSupabase,
+  optionalApiKey: optionalSupabaseAuth
 };

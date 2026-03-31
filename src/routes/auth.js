@@ -26,6 +26,10 @@ const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET;
 const FACEBOOK_REDIRECT_URI = process.env.FACEBOOK_REDIRECT_URI || 'http://localhost:3000/auth/facebook/callback';
 const INSTAGRAM_REDIRECT_URI = process.env.INSTAGRAM_REDIRECT_URI || 'http://localhost:3000/auth/instagram/callback';
 
+const TIKTOK_CLIENT_KEY = process.env.TIKTOK_CLIENT_KEY;
+const TIKTOK_CLIENT_SECRET = process.env.TIKTOK_CLIENT_SECRET;
+const TIKTOK_REDIRECT_URI = process.env.TIKTOK_REDIRECT_URI || 'http://localhost:3000/auth/tiktok/callback';
+
 /**
  * GET /auth/facebook - Initiate Facebook OAuth
  */
@@ -39,11 +43,12 @@ router.get('/facebook', (req, res) => {
   // Store user info in session/state
   const state = Buffer.from(JSON.stringify({ user_id, app, name })).toString('base64');
 
+  // New Pages Experience (NPE) permissions - granular and business_management required
   const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?` +
     `client_id=${FACEBOOK_APP_ID}` +
     `&redirect_uri=${encodeURIComponent(FACEBOOK_REDIRECT_URI)}` +
     `&state=${state}` +
-    `&scope=pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish`;
+    `&scope=email,pages_manage_metadata,pages_read_user_content,pages_manage_posts,pages_manage_engagement,pages_read_engagement,business_management`;
 
   res.redirect(fbAuthUrl);
 });
@@ -80,6 +85,9 @@ router.get('/facebook/callback', async (req, res) => {
         access_token: userAccessToken,
       },
     });
+
+    console.log('🔍 Facebook Pages Response:', JSON.stringify(pagesResponse.data, null, 2));
+    console.log('📊 Number of pages found:', pagesResponse.data.data?.length || 0);
 
     if (!pagesResponse.data.data || pagesResponse.data.data.length === 0) {
       return res.send('<html><body><h1>⚠️ No Facebook Pages Found</h1><p>Please create a Facebook Business Page first.</p><script>setTimeout(() => window.close(), 5000);</script></body></html>');
@@ -231,11 +239,12 @@ router.get('/instagram', (req, res) => {
   // For Instagram Business accounts, we use Facebook OAuth with Instagram permissions
   const state = Buffer.from(JSON.stringify({ user_id, app, name, instagram_flow: true })).toString('base64');
 
+  // New Pages Experience (NPE) permissions for Instagram
   const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?` +
     `client_id=${FACEBOOK_APP_ID}` +
     `&redirect_uri=${encodeURIComponent(INSTAGRAM_REDIRECT_URI)}` +
     `&state=${state}` +
-    `&scope=pages_show_list,instagram_basic,instagram_content_publish,pages_read_engagement`;
+    `&scope=email,pages_manage_metadata,pages_read_user_content,pages_manage_posts,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights,business_management`;
 
   res.redirect(fbAuthUrl);
 });
@@ -368,6 +377,153 @@ router.get('/instagram/callback', async (req, res) => {
     }
   } catch (error) {
     console.error('Instagram OAuth error:', error.response?.data || error.message);
+    res.send(`
+      <html>
+      <body style="font-family: system-ui; text-align: center; padding: 40px;">
+        <h1 style="color: #ef4444;">❌ Connection Failed</h1>
+        <p>${error.response?.data?.error?.message || error.message}</p>
+        <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
+        <script>setTimeout(() => window.close(), 5000);</script>
+      </body>
+      </html>
+    `);
+  }
+});
+
+/**
+ * GET /auth/tiktok - Initiate TikTok OAuth
+ */
+router.get('/tiktok', (req, res) => {
+  const { user_id, app, name } = req.query;
+
+  if (!user_id || !app) {
+    return res.status(400).send('Missing user_id or app parameter');
+  }
+
+  // Store user info in state
+  const state = Buffer.from(JSON.stringify({ user_id, app, name })).toString('base64');
+
+  // TikTok OAuth URL
+  const csrfState = Math.random().toString(36).substring(2);
+  const tiktokAuthUrl = `https://www.tiktok.com/v2/auth/authorize/` +
+    `?client_key=${TIKTOK_CLIENT_KEY}` +
+    `&response_type=code` +
+    `&scope=user.info.basic,video.upload,video.publish` +
+    `&redirect_uri=${encodeURIComponent(TIKTOK_REDIRECT_URI)}` +
+    `&state=${state}`;
+
+  res.redirect(tiktokAuthUrl);
+});
+
+/**
+ * GET /auth/tiktok/callback - Handle TikTok OAuth callback
+ */
+router.get('/tiktok/callback', async (req, res) => {
+  const { code, state } = req.query;
+
+  if (!code) {
+    return res.send('<html><body><h1>❌ Authorization failed</h1><p>Please close this window and try again.</p><script>setTimeout(() => window.close(), 3000);</script></body></html>');
+  }
+
+  try {
+    // Decode state
+    const { user_id, app, name } = JSON.parse(Buffer.from(state, 'base64').toString());
+
+    // Exchange code for access token
+    const tokenResponse = await axios.post('https://open.tiktokapis.com/v2/oauth/token/', {
+      client_key: TIKTOK_CLIENT_KEY,
+      client_secret: TIKTOK_CLIENT_SECRET,
+      code,
+      grant_type: 'authorization_code',
+      redirect_uri: TIKTOK_REDIRECT_URI,
+    }, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
+
+    const accessToken = tokenResponse.data.access_token;
+    const openId = tokenResponse.data.open_id;
+
+    // Get user info
+    const userInfoResponse = await axios.get('https://open.tiktokapis.com/v2/user/info/', {
+      params: {
+        fields: 'open_id,union_id,avatar_url,display_name',
+      },
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    const tiktokUser = userInfoResponse.data.data.user;
+    const displayName = tiktokUser.display_name;
+
+    // Save to database
+    const isDirectUser = app === 'direct';
+    const lookupField = isDirectUser ? 'id' : 'external_user_id';
+    const lookupValue = isDirectUser ? user_id : `${app}_${user_id}`;
+
+    try {
+      const existingUser = await getUserByField(lookupField, lookupValue);
+
+      if (existingUser) {
+        // Update existing user
+        await updateUser(lookupField, lookupValue, {
+          tiktok_access_token: accessToken,
+          tiktok_open_id: openId,
+          tiktok_username: displayName,
+          tiktok_connected: isSupabase ? true : 1,
+        });
+
+        res.send(`
+          <html>
+          <body style="font-family: system-ui; text-align: center; padding: 40px;">
+            <h1 style="color: #10b981;">✓ TikTok Connected!</h1>
+            <p>Account: <strong>${displayName}</strong></p>
+            <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({ type: 'tiktok_connected', username: '${displayName}' }, '*');
+              }
+              setTimeout(() => window.close(), 3000);
+            </script>
+          </body>
+          </html>
+        `);
+      } else {
+        // Create new user
+        await createUser({
+          external_user_id: lookupValue,
+          name,
+          app_name: app,
+          tiktok_access_token: accessToken,
+          tiktok_open_id: openId,
+          tiktok_username: displayName,
+          tiktok_connected: isSupabase ? true : 1,
+        });
+
+        res.send(`
+          <html>
+          <body style="font-family: system-ui; text-align: center; padding: 40px;">
+            <h1 style="color: #10b981;">✓ TikTok Connected!</h1>
+            <p>Account: <strong>${displayName}</strong></p>
+            <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({ type: 'tiktok_connected', username: '${displayName}' }, '*');
+              }
+              setTimeout(() => window.close(), 3000);
+            </script>
+          </body>
+          </html>
+        `);
+      }
+    } catch (err) {
+      console.error('Database error:', err);
+      return res.send('<html><body><h1>❌ Database Error</h1><script>setTimeout(() => window.close(), 3000);</script></body></html>');
+    }
+  } catch (error) {
+    console.error('TikTok OAuth error:', error.response?.data || error.message);
     res.send(`
       <html>
       <body style="font-family: system-ui; text-align: center; padding: 40px;">

@@ -5,7 +5,7 @@ const Papa = require('papaparse');
 const fs = require('fs');
 const path = require('path');
 const db = require('../database/db');
-const { authenticateToken } = require('./authApi');
+const { authenticateSupabase } = require('../middleware/auth');
 
 // Configure multer for CSV upload
 const storage = multer.diskStorage({
@@ -41,7 +41,7 @@ const upload = multer({
  * image1.jpg, "Check out our new product!", "facebook,instagram", "2024-03-20 10:00"
  * video1.mp4, "Behind the scenes", "facebook,instagram,tiktok", "2024-03-21 14:30"
  */
-router.post('/upload', authenticateToken, upload.single('csv'), async (req, res) => {
+router.post('/upload', authenticateSupabase, upload.single('csv'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No CSV file uploaded' });

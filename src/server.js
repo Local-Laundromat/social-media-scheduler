@@ -6,8 +6,8 @@ const fs = require('fs');
 
 // Import routes and services
 const apiRoutes = require('./routes/api');
-const authRoutes = require('./routes/auth');
-const authApiRoutes = require('./routes/authApi');
+const authRoutes = require('./routes/auth'); // OAuth routes (Facebook/Instagram)
+const authApiRoutes = require('./routes/authApi'); // Supabase Auth routes
 const userRoutes = require('./routes/users');
 const uploadRoutes = require('./routes/upload');
 const aiCaptionRoutes = require('./routes/aiCaption');
@@ -36,12 +36,12 @@ app.use(express.static(path.join(__dirname, '../public')));
 // Routes
 app.use('/api', apiRoutes);
 app.use('/api', aiCaptionRoutes);
-app.use('/api/auth', authApiRoutes);
+app.use('/api/auth', authApiRoutes); // Supabase Auth (signup, login, password reset)
 app.use('/api/users', userRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/csv', csvRoutes);
 app.use('/api/comments', commentsRoutes);
-app.use('/auth', authRoutes);
+app.use('/auth', authRoutes); // OAuth routes (Facebook/Instagram)
 
 // Page routes
 app.get('/', (req, res) => {

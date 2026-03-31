@@ -5,14 +5,14 @@
 
 const express = require('express');
 const router = express.Router();
-const { authenticateToken } = require('./authApi');
+const { authenticateSupabase } = require('../middleware/auth');
 const commentMonitor = require('../services/commentMonitor');
 const { get, getAll, insert, update: updateRow, deleteRows, customQuery, customGet, run, isSupabase } = require('../database/helpers');
 
 /**
  * GET /api/comments/monitor - Get new comments with AI suggestions
  */
-router.get('/monitor', authenticateToken, async (req, res) => {
+router.get('/monitor', authenticateSupabase, async (req, res) => {
   try {
     const userId = req.userId;
 
@@ -40,7 +40,7 @@ router.get('/monitor', authenticateToken, async (req, res) => {
 /**
  * POST /api/comments/reply - Post a reply to a comment
  */
-router.post('/reply', authenticateToken, async (req, res) => {
+router.post('/reply', authenticateSupabase, async (req, res) => {
   try {
     const { platform, commentId, replyText } = req.body;
     const userId = req.userId;
@@ -119,7 +119,7 @@ router.post('/reply', authenticateToken, async (req, res) => {
 /**
  * POST /api/comments/analyze - Analyze a comment and generate reply suggestion
  */
-router.post('/analyze', authenticateToken, async (req, res) => {
+router.post('/analyze', authenticateSupabase, async (req, res) => {
   try {
     const { commentText } = req.body;
     const userId = req.userId;
@@ -163,7 +163,7 @@ router.post('/analyze', authenticateToken, async (req, res) => {
 /**
  * GET /api/comments/history - Get reply history
  */
-router.get('/history', authenticateToken, async (req, res) => {
+router.get('/history', authenticateSupabase, async (req, res) => {
   try {
     const userId = req.userId;
     const limit = parseInt(req.query.limit) || 50;
@@ -192,7 +192,7 @@ router.get('/history', authenticateToken, async (req, res) => {
 /**
  * POST /api/comments/auto-reply/toggle - Enable/disable auto-reply
  */
-router.post('/auto-reply/toggle', authenticateToken, async (req, res) => {
+router.post('/auto-reply/toggle', authenticateSupabase, async (req, res) => {
   try {
     const { enabled } = req.body;
     const userId = req.userId;

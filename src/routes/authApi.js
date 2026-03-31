@@ -1,16 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
-const { get, getAll, insert, update: updateRow, deleteRows, customQuery, customGet, run, isSupabase } = require('../database/helpers');
-const emailService = require('../services/email');
+const { createClient } = require('@supabase/supabase-js');
+const { getAll, insert: insertRow, update: updateRow, get, isSupabase } = require('../database/helpers');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
- * POST /api/auth/signup - Create new user account
- * Supports team creation or joining
+ * POST /api/auth/signup - Register with Supabase Auth
  */
 router.post('/signup', async (req, res) => {
   const { email, password, name, teamName, inviteCode } = req.body;
@@ -24,24 +22,28 @@ router.post('/signup', async (req, res) => {
   }
 
   try {
-    // Check if user already exists
-    const existingUser = await get('users', { email });
+    // Create user in Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name: name || null
+        }
+      }
+    });
 
-    if (existingUser) {
-      return res.status(400).json({ error: 'Email already registered' });
+    if (authError) {
+      return res.status(400).json({ error: authError.message });
     }
 
-    // Hash password
-    const passwordHash = await bcrypt.hash(password, 10);
+    const userId = authData.user.id;
 
-    // Generate API key for this user
-    const apiKey = 'sk_' + crypto.randomBytes(32).toString('hex');
-
+    // Handle team logic
     let teamId = null;
     let role = 'member';
     let team = null;
 
-    // Handle team logic
     if (inviteCode) {
       // Joining existing team
       team = await get('teams', { invite_code: inviteCode });
@@ -54,51 +56,37 @@ router.post('/signup', async (req, res) => {
       role = 'member';
     } else if (teamName) {
       // Creating new team
+      const crypto = require('crypto');
       const newInviteCode = crypto.randomBytes(6).toString('hex').toUpperCase();
 
-      team = await insert('teams', {
+      team = await insertRow('teams', {
         name: teamName,
         invite_code: newInviteCode,
-        created_by: null // Will update after user is created
+        created_by: userId
       });
 
       teamId = team.id;
       role = 'owner';
     }
 
-    // Create user
-    const user = await insert('users', {
-      email,
-      password_hash: passwordHash,
+    // Update profile with team info
+    // Note: The trigger already created the profile, we just need to update it
+    await updateRow('profiles', { id: userId }, {
       name: name || null,
-      api_key: apiKey,
       team_id: teamId,
       role: role
     });
 
-    // If creating team, update created_by
-    if (role === 'owner' && teamId) {
-      await updateRow('teams', { id: teamId }, { created_by: user.id });
-    }
-
     // Get team info for response
     const teamInfo = await get('teams', { id: teamId });
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: user.id, email, teamId },
-      JWT_SECRET,
-      { expiresIn: '30d' }
-    );
-
     res.json({
       success: true,
-      token,
+      session: authData.session,
       user: {
-        id: user.id,
-        email,
+        id: userId,
+        email: authData.user.email,
         name: name || null,
-        api_key: apiKey,
         team_id: teamId,
         role: role
       },
@@ -115,7 +103,7 @@ router.post('/signup', async (req, res) => {
 });
 
 /**
- * POST /api/auth/login - Sign in existing user
+ * POST /api/auth/login - Sign in with Supabase Auth
  */
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
@@ -125,44 +113,47 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    const user = await get('users', { email });
+    // Sign in with Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
 
-    if (!user || !user.password_hash) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+    if (authError) {
+      return res.status(401).json({ error: authError.message });
     }
 
-    // Verify password
-    const isValid = await bcrypt.compare(password, user.password_hash);
+    const userId = authData.user.id;
 
-    if (!isValid) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
+    // Get profile data
+    const profile = await get('profiles', { id: userId });
+
+    // Get Facebook accounts
+    const facebookAccounts = await getAll('facebook_accounts', { user_id: userId });
+    const facebookConnected = facebookAccounts.length > 0;
+
+    // Get Instagram accounts
+    const instagramAccounts = await getAll('instagram_accounts', { user_id: userId });
+    const instagramConnected = instagramAccounts.length > 0;
 
     // Get team info if user has a team
     let team = null;
-    if (user.team_id) {
-      team = await get('teams', { id: user.team_id });
+    if (profile && profile.team_id) {
+      team = await get('teams', { id: profile.team_id });
     }
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: user.id, email: user.email, teamId: user.team_id },
-      JWT_SECRET,
-      { expiresIn: '30d' }
-    );
 
     res.json({
       success: true,
-      token,
+      session: authData.session,
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        facebook_connected: user.facebook_connected,
-        instagram_connected: user.instagram_connected,
-        api_key: user.api_key,
-        team_id: user.team_id,
-        role: user.role
+        id: userId,
+        email: authData.user.email,
+        name: profile?.name,
+        facebook_connected: facebookConnected,
+        instagram_connected: instagramConnected,
+        api_key: profile?.api_key,
+        team_id: profile?.team_id,
+        role: profile?.role
       },
       team: team ? {
         id: team.id,
@@ -172,12 +163,37 @@ router.post('/login', async (req, res) => {
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ error: 'Database error' });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
 /**
- * GET /api/auth/verify - Verify JWT token
+ * POST /api/auth/logout - Sign out
+ */
+router.post('/logout', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+
+    if (token) {
+      // Create admin client to sign out user
+      const supabaseAdmin = createClient(
+        supabaseUrl,
+        supabaseAnonKey,
+        { auth: { autoRefreshToken: false } }
+      );
+
+      await supabaseAdmin.auth.signOut();
+    }
+
+    res.json({ success: true, message: 'Signed out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * GET /api/auth/verify - Verify Supabase JWT token
  */
 router.get('/verify', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
@@ -187,17 +203,28 @@ router.get('/verify', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    const user = await get('users', { id: decoded.userId });
+    // Get user from Supabase
+    const { data: { user }, error } = await supabase.auth.getUser(token);
 
-    if (!user) {
+    if (error || !user) {
       return res.json({ valid: false });
     }
 
+    // Get profile data
+    const profile = await get('profiles', { id: user.id });
+
+    // Get Facebook accounts
+    const facebookAccounts = await getAll('facebook_accounts', { user_id: user.id });
+    const facebookConnected = facebookAccounts.length > 0;
+
+    // Get Instagram accounts
+    const instagramAccounts = await getAll('instagram_accounts', { user_id: user.id });
+    const instagramConnected = instagramAccounts.length > 0;
+
     // Get team info
     let team = null;
-    if (user.team_id) {
-      team = await get('teams', { id: user.team_id });
+    if (profile && profile.team_id) {
+      team = await get('teams', { id: profile.team_id });
     }
 
     res.json({
@@ -205,11 +232,11 @@ router.get('/verify', async (req, res) => {
       user: {
         id: user.id,
         email: user.email,
-        name: user.name,
-        facebook_connected: user.facebook_connected,
-        instagram_connected: user.instagram_connected,
-        team_id: user.team_id,
-        role: user.role
+        name: profile?.name,
+        facebook_connected: facebookConnected,
+        instagram_connected: instagramConnected,
+        team_id: profile?.team_id,
+        role: profile?.role
       },
       team: team ? {
         id: team.id,
@@ -226,27 +253,37 @@ router.get('/verify', async (req, res) => {
 /**
  * GET /api/auth/me - Get current user info
  */
-router.get('/me', authenticateToken, async (req, res) => {
+router.get('/me', authenticateSupabaseToken, async (req, res) => {
   try {
-    const user = await get('users', { id: req.userId });
+    const profile = await get('profiles', { id: req.userId });
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found' });
     }
+
+    // Get Facebook accounts
+    const facebookAccounts = await getAll('facebook_accounts', { user_id: req.userId });
+    const facebookConnected = facebookAccounts.length > 0;
+    const facebookPageName = facebookAccounts[0]?.page_name;
+
+    // Get Instagram accounts
+    const instagramAccounts = await getAll('instagram_accounts', { user_id: req.userId });
+    const instagramConnected = instagramAccounts.length > 0;
+    const instagramUsername = instagramAccounts[0]?.username;
 
     res.json({
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        company: user.company,
-        facebook_page_name: user.facebook_page_name,
-        instagram_username: user.instagram_username,
-        facebook_connected: user.facebook_connected,
-        instagram_connected: user.instagram_connected,
-        api_key: user.api_key,
-        webhook_url: user.webhook_url,
-        created_at: user.created_at
+        id: req.userId,
+        email: req.user.email,
+        name: profile.name,
+        company: profile.company,
+        facebook_page_name: facebookPageName,
+        instagram_username: instagramUsername,
+        facebook_connected: facebookConnected,
+        instagram_connected: instagramConnected,
+        api_key: profile.api_key,
+        webhook_url: profile.webhook_url,
+        created_at: profile.created_at
       }
     });
   } catch (error) {
@@ -256,27 +293,7 @@ router.get('/me', authenticateToken, async (req, res) => {
 });
 
 /**
- * Middleware to authenticate JWT token
- */
-function authenticateToken(req, res, next) {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-
-  if (!token) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.userId = decoded.userId;
-    req.userEmail = decoded.email;
-    next();
-  } catch (error) {
-    res.status(401).json({ error: 'Invalid or expired token' });
-  }
-}
-
-/**
- * POST /api/auth/forgot-password - Request password reset
+ * POST /api/auth/forgot-password - Request password reset via Supabase
  */
 router.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
@@ -286,29 +303,13 @@ router.post('/forgot-password', async (req, res) => {
   }
 
   try {
-    // Find user by email
-    const user = await get('users', { email });
-
-    // Always return success (security: don't reveal if email exists)
-    if (!user) {
-      return res.json({
-        success: true,
-        message: 'If an account exists with that email, a password reset link has been sent.'
-      });
-    }
-
-    // Generate reset token (32 random bytes)
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenExpires = new Date(Date.now() + 3600000); // 1 hour from now
-
-    // Save token to database
-    await updateRow('users', { id: user.id }, {
-      reset_token: resetToken,
-      reset_token_expires: isSupabase ? resetTokenExpires.toISOString() : resetTokenExpires.getTime()
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password`
     });
 
-    // Send reset email
-    await emailService.sendPasswordReset(email, resetToken);
+    if (error) {
+      throw error;
+    }
 
     res.json({
       success: true,
@@ -321,56 +322,37 @@ router.post('/forgot-password', async (req, res) => {
 });
 
 /**
- * POST /api/auth/reset-password - Reset password with token
+ * POST /api/auth/reset-password - Reset password with Supabase
  */
 router.post('/reset-password', async (req, res) => {
-  const { token, newPassword } = req.body;
+  const { newPassword } = req.body;
+  const token = req.headers.authorization?.replace('Bearer ', '');
 
-  if (!token || !newPassword) {
-    return res.status(400).json({ error: 'Token and new password are required' });
+  if (!newPassword) {
+    return res.status(400).json({ error: 'New password is required' });
   }
 
   if (newPassword.length < 6) {
     return res.status(400).json({ error: 'Password must be at least 6 characters' });
   }
 
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication token required' });
+  }
+
   try {
-    // Find user with valid reset token
-    const user = await customGet(
-      isSupabase
-        ? `SELECT * FROM users WHERE reset_token = $1 AND reset_token_expires > NOW()`
-        : `SELECT * FROM users WHERE reset_token = ? AND reset_token_expires > ?`,
-      isSupabase ? [token] : [token, Date.now()],
-      async () => {
-        const { db } = require('../database/helpers');
-        const { data, error } = await db
-          .from('users')
-          .select('*')
-          .eq('reset_token', token)
-          .gt('reset_token_expires', new Date().toISOString())
-          .single();
-        if (error && error.code !== 'PGRST116') throw error;
-        return data;
-      }
-    );
-
-    if (!user) {
-      return res.status(400).json({ error: 'Invalid or expired reset token' });
-    }
-
-    // Hash new password
-    const passwordHash = await bcrypt.hash(newPassword, 10);
-
-    // Update password and clear reset token
-    await updateRow('users', { id: user.id }, {
-      password_hash: passwordHash,
-      reset_token: null,
-      reset_token_expires: null
+    // Update password using Supabase
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword
     });
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
 
     res.json({
       success: true,
-      message: 'Password has been reset successfully. You can now log in with your new password.'
+      message: 'Password has been reset successfully.'
     });
   } catch (error) {
     console.error('Reset password error:', error);
@@ -378,5 +360,31 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+/**
+ * Middleware to authenticate Supabase JWT token
+ */
+async function authenticateSupabaseToken(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+
+    if (error || !user) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    req.userId = user.id;
+    req.user = user;
+    next();
+  } catch (error) {
+    console.error('Auth middleware error:', error);
+    res.status(401).json({ error: 'Invalid or expired token' });
+  }
+}
+
 module.exports = router;
-module.exports.authenticateToken = authenticateToken;
+module.exports.authenticateSupabaseToken = authenticateSupabaseToken;
