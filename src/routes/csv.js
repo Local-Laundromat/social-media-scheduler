@@ -4,7 +4,6 @@ const multer = require('multer');
 const Papa = require('papaparse');
 const fs = require('fs');
 const path = require('path');
-const db = require('../database/db');
 const { authenticateSupabase } = require('../middleware/auth');
 
 // Configure multer for CSV upload

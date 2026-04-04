@@ -1,7 +1,11 @@
 const cron = require('node-cron');
-const { get, getAll, insert, update: updateRow, deleteRows, customQuery, customGet, run, isSupabase } = require('../database/helpers');
+const { supabase, getPostById, updatePost } = require('../database/supabase');
 const FacebookService = require('./facebook');
 const InstagramService = require('./instagram');
+const {
+  applyFacebookAccountFilter,
+  applyInstagramAccountFilter,
+} = require('./socialAccountQuery');
 const fs = require('fs');
 const path = require('path');
 
@@ -48,31 +52,18 @@ class Scheduler {
     try {
       const now = new Date().toISOString();
 
-      const posts = await customQuery(
-        `SELECT * FROM posts
-         WHERE status = 'pending'
-         AND (scheduled_time IS NULL OR scheduled_time <= ?)
-         ORDER BY scheduled_time ASC, id ASC
-         LIMIT 1`,
-        [now],
-        async () => {
-          const { db } = require('../database/helpers');
-          let query = db
-            .from('posts')
-            .select('*')
-            .eq('status', 'pending')
-            .or(`scheduled_time.is.null,scheduled_time.lte.${now}`)
-            .order('scheduled_time', { ascending: true })
-            .order('id', { ascending: true })
-            .limit(1);
+      const { data: posts, error } = await supabase
+        .from('posts')
+        .select('*')
+        .in('status', ['pending', 'scheduled'])
+        .or(`scheduled_time.is.null,scheduled_time.lte.${now}`)
+        .order('scheduled_time', { ascending: true })
+        .order('id', { ascending: true })
+        .limit(1);
 
-          const { data, error } = await query;
-          if (error) throw error;
-          return data || [];
-        }
-      );
+      if (error) throw error;
 
-      if (posts.length === 0) {
+      if (!posts || posts.length === 0) {
         console.log('No pending posts to process');
         return { processed: 0 };
       }
@@ -101,28 +92,71 @@ class Scheduler {
    */
   async getCredentials(post) {
     try {
-      // If post has a user_id, use user's credentials
+      // If post has a user_id, use user's credentials from social accounts
       if (post.user_id) {
-        const user = await get('users', { id: post.user_id });
+        // Get user profile
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', post.user_id)
+          .single();
 
-        if (!user) {
-          throw new Error('User not found');
+        if (profileError || !profile) {
+          throw new Error('User profile not found');
+        }
+
+        // Get Facebook credentials (specific page from post, or team-shared, or user-owned)
+        let facebookToken = null;
+        let facebookPageId = null;
+        let fbQuery = supabase
+          .from('facebook_accounts')
+          .select('*')
+          .eq('is_active', true);
+
+        fbQuery = applyFacebookAccountFilter(fbQuery, post, profile);
+
+        const { data: fbAccounts } = await fbQuery.limit(1);
+
+        if (fbAccounts && fbAccounts.length > 0) {
+          facebookToken = fbAccounts[0].access_token;
+          facebookPageId = fbAccounts[0].page_id;
+        }
+
+        // Get Instagram credentials
+        let instagramToken = null;
+        let instagramAccountId = null;
+        let igQuery = supabase
+          .from('instagram_accounts')
+          .select('*')
+          .eq('is_active', true);
+
+        igQuery = applyInstagramAccountFilter(igQuery, post, profile);
+
+        const { data: igAccounts } = await igQuery.limit(1);
+
+        if (igAccounts && igAccounts.length > 0) {
+          instagramToken = igAccounts[0].access_token;
+          instagramAccountId = igAccounts[0].account_id;
         }
 
         return {
-          facebookToken: user.facebook_page_token,
-          facebookPageId: user.facebook_page_id,
-          instagramToken: user.instagram_token,
-          instagramAccountId: user.instagram_account_id,
+          facebookToken,
+          facebookPageId,
+          instagramToken,
+          instagramAccountId,
           source: 'user',
-          userName: user.name,
+          userName: profile.name,
         };
       }
       // Otherwise, check if post has account_id
       else if (post.account_id) {
-        const account = await get('accounts', { id: post.account_id });
+        const { data: account, error } = await supabase
+          .from('accounts')
+          .select('*')
+          .eq('id', post.account_id)
+          .single();
 
-        if (!account) {
+        if (error || !account) {
           throw new Error('Account not found');
         }
 
@@ -170,7 +204,8 @@ class Scheduler {
       return { error: error.message };
     }
 
-    const platforms = JSON.parse(post.platforms);
+    // Handle platforms - could be array or JSON string
+    const platforms = Array.isArray(post.platforms) ? post.platforms : JSON.parse(post.platforms);
     const results = {
       facebook: null,
       instagram: null,
@@ -192,7 +227,7 @@ class Scheduler {
         results.facebook = await fbService.post(post.filepath, post.caption || '');
 
         if (results.facebook.success) {
-          await this.updatePostField(post.id, 'facebook_post_id', results.facebook.postId);
+          await updatePost(post.id, { facebook_post_id: results.facebook.postId });
         }
       }
     }
@@ -218,7 +253,7 @@ class Scheduler {
         results.instagram = await igService.post(publicUrl, post.caption || '', isVideo);
 
         if (results.instagram.success) {
-          await this.updatePostField(post.id, 'instagram_post_id', results.instagram.postId);
+          await updatePost(post.id, { instagram_post_id: results.instagram.postId });
         }
       }
     }
@@ -271,20 +306,7 @@ class Scheduler {
         updateData.error_message = errorMessage;
       }
 
-      await updateRow('posts', { id: postId }, updateData);
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  /**
-   * Update specific post field
-   */
-  async updatePostField(postId, field, value) {
-    try {
-      const updateData = {};
-      updateData[field] = value;
-      await updateRow('posts', { id: postId }, updateData);
+      await updatePost(postId, updateData);
     } catch (error) {
       throw error;
     }
@@ -295,7 +317,7 @@ class Scheduler {
    */
   async postNow(postId) {
     try {
-      const post = await get('posts', { id: postId });
+      const post = await getPostById(postId);
 
       if (!post) {
         throw new Error('Post not found');
@@ -309,4 +331,7 @@ class Scheduler {
   }
 }
 
-module.exports = new Scheduler();
+const scheduler = new Scheduler();
+module.exports = scheduler;
+/** Class export for unit tests (credential resolution, etc.). */
+module.exports.Scheduler = Scheduler;

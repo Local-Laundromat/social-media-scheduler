@@ -180,7 +180,7 @@ async function postReply(commentId, platform) {
   const replyText = replyTextarea.value.trim();
 
   if (!replyText) {
-    alert('Please enter a reply');
+    notify('Please enter a reply', 'warning');
     return;
   }
 
@@ -207,16 +207,16 @@ async function postReply(commentId, platform) {
     const data = await response.json();
 
     if (data.success) {
-      alert('Reply posted successfully!');
+      notify('Reply posted successfully!', 'success');
       // Remove comment from list
       allComments = allComments.filter(c => c.commentId !== commentId);
       filterComments();
     } else {
-      alert('Failed to post reply: ' + data.error);
+      notify('Failed to post reply: ' + data.error, 'error');
     }
   } catch (error) {
     console.error('Failed to post reply:', error);
-    alert('Failed to post reply. Please try again.');
+    notify('Failed to post reply. Please try again.', 'error');
   }
 }
 
@@ -226,7 +226,7 @@ async function autoReplyComment(commentId, platform) {
   const replyText = replyTextarea.value.trim();
 
   if (!replyText) {
-    alert('No suggested reply available');
+    notify('No suggested reply available', 'warning');
     return;
   }
 
@@ -249,16 +249,16 @@ async function autoReplyComment(commentId, platform) {
     const data = await response.json();
 
     if (data.success) {
-      alert('Auto-reply posted successfully!');
+      notify('Auto-reply posted successfully!', 'success');
       // Remove comment from list
       allComments = allComments.filter(c => c.commentId !== commentId);
       filterComments();
     } else {
-      alert('Failed to auto-reply: ' + data.error);
+      notify('Failed to auto-reply: ' + data.error, 'error');
     }
   } catch (error) {
     console.error('Failed to auto-reply:', error);
-    alert('Failed to auto-reply. Please try again.');
+    notify('Failed to auto-reply. Please try again.', 'error');
   }
 }
 
@@ -286,16 +286,19 @@ async function toggleAutoReply() {
     const data = await response.json();
 
     if (data.success) {
-      alert(enabled ? 'Auto-reply enabled! AI will automatically respond to safe comments.' : 'Auto-reply disabled.');
+      notify(
+        enabled ? 'Auto-reply enabled! AI will automatically respond to safe comments.' : 'Auto-reply disabled.',
+        enabled ? 'success' : 'info'
+      );
       reloadUserData();
     } else {
-      alert('Failed to toggle auto-reply');
+      notify('Failed to toggle auto-reply', 'error');
       // Revert checkbox
       document.getElementById('autoReplyToggle').checked = !enabled;
     }
   } catch (error) {
     console.error('Failed to toggle auto-reply:', error);
-    alert('Failed to toggle auto-reply');
+    notify('Failed to toggle auto-reply', 'error');
     // Revert checkbox
     document.getElementById('autoReplyToggle').checked = !enabled;
   }
@@ -319,7 +322,7 @@ async function showReplyHistory() {
     const replies = data.replies || [];
 
     if (replies.length === 0) {
-      alert('No reply history yet!');
+      notify('No reply history yet!', 'info');
       return;
     }
 
@@ -366,7 +369,7 @@ async function showReplyHistory() {
 
   } catch (error) {
     console.error('Failed to load history:', error);
-    alert('Failed to load reply history: ' + error.message);
+    notify('Failed to load reply history: ' + error.message, 'error');
   }
 }
 

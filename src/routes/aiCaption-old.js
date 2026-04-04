@@ -99,8 +99,7 @@ router.post('/generate-caption', authenticateToken, async (req, res) => {
 
     res.json({
       success: true,
-      caption: caption.trim(),
-      source: source // 'user' or 'system'
+      caption: caption.trim()
     });
 
   } catch (error) {
@@ -126,8 +125,7 @@ router.post('/generate-caption', authenticateToken, async (req, res) => {
 
         res.json({
           success: true,
-          caption: fallbackResponse.choices[0].message.content.trim(),
-          source
+          caption: fallbackResponse.choices[0].message.content.trim()
         });
       } catch (fallbackError) {
         res.status(500).json({
@@ -148,14 +146,12 @@ router.post('/generate-caption', authenticateToken, async (req, res) => {
 
 /**
  * POST /api/generate-template-caption - Generate caption from template
+ * (Simpler, cheaper alternative without image analysis)
  */
-router.post('/generate-template-caption', authenticateToken, async (req, res) => {
+router.post('/generate-template-caption', async (req, res) => {
   const { type, data, company } = req.body;
-  const userId = req.user?.id;
 
-  const { client: openai, source, error } = await getOpenAIClient(userId);
-
-  if (!openai) {
+  if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'not-configured') {
     // Provide a simple template fallback
     let caption = '';
 
@@ -197,8 +193,7 @@ router.post('/generate-template-caption', authenticateToken, async (req, res) =>
 
     res.json({
       success: true,
-      caption: response.choices[0].message.content.trim(),
-      source
+      caption: response.choices[0].message.content.trim()
     });
 
   } catch (error) {
@@ -213,13 +208,10 @@ router.post('/generate-template-caption', authenticateToken, async (req, res) =>
 /**
  * POST /api/generate-hashtags - Generate relevant hashtags for content
  */
-router.post('/generate-hashtags', authenticateToken, async (req, res) => {
+router.post('/generate-hashtags', async (req, res) => {
   const { caption, industry, platforms } = req.body;
-  const userId = req.user?.id;
 
-  const { client: openai, source, error } = await getOpenAIClient(userId);
-
-  if (!openai) {
+  if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'not-configured') {
     // Provide generic hashtag suggestions
     const genericTags = [
       '#socialmedia',
@@ -283,8 +275,7 @@ Return ONLY the hashtags as a comma-separated list, no explanations.`
         popular: hashtags.slice(0, 5),
         niche: hashtags.slice(5, 12),
         specific: hashtags.slice(12)
-      },
-      source
+      }
     });
 
   } catch (error) {
@@ -300,9 +291,8 @@ Return ONLY the hashtags as a comma-separated list, no explanations.`
 /**
  * POST /api/translate-caption - Translate caption to another language
  */
-router.post('/translate-caption', authenticateToken, async (req, res) => {
+router.post('/translate-caption', async (req, res) => {
   const { caption, targetLanguage, tone } = req.body;
-  const userId = req.user?.id;
 
   if (!caption || !targetLanguage) {
     return res.status(400).json({
@@ -311,12 +301,10 @@ router.post('/translate-caption', authenticateToken, async (req, res) => {
     });
   }
 
-  const { client: openai, source, error } = await getOpenAIClient(userId);
-
-  if (!openai) {
+  if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'not-configured') {
     return res.json({
       success: false,
-      error: error || 'OpenAI API key not configured'
+      error: 'OpenAI API key not configured'
     });
   }
 
@@ -347,8 +335,7 @@ Provide ONLY the translated caption, no explanations.`
       success: true,
       originalCaption: caption,
       translatedCaption,
-      targetLanguage,
-      source
+      targetLanguage
     });
 
   } catch (error) {
@@ -364,9 +351,8 @@ Provide ONLY the translated caption, no explanations.`
 /**
  * POST /api/optimize-caption - Optimize caption for specific platform
  */
-router.post('/optimize-caption', authenticateToken, async (req, res) => {
+router.post('/optimize-caption', async (req, res) => {
   const { caption, platform, goal } = req.body;
-  const userId = req.user?.id;
 
   if (!caption || !platform) {
     return res.status(400).json({
@@ -375,12 +361,10 @@ router.post('/optimize-caption', authenticateToken, async (req, res) => {
     });
   }
 
-  const { client: openai, source, error } = await getOpenAIClient(userId);
-
-  if (!openai) {
+  if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'not-configured') {
     return res.json({
       success: false,
-      error: error || 'OpenAI API key not configured'
+      error: 'OpenAI API key not configured'
     });
   }
 
@@ -420,8 +404,7 @@ Provide ONLY the optimized caption, no explanations.`
       originalCaption: caption,
       optimizedCaption,
       platform,
-      improvements: `Optimized for ${platform} best practices${goal ? ` with focus on ${goal}` : ''}`,
-      source
+      improvements: `Optimized for ${platform} best practices${goal ? ` with focus on ${goal}` : ''}`
     });
 
   } catch (error) {

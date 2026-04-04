@@ -1,22 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
-const { get, update, insert, isSupabase } = require('../database/helpers');
-
-// Helper functions for database queries
-async function getUserByField(field, value) {
-  return await get('users', { [field]: value });
-}
-
-async function updateUser(field, value, updates) {
-  // Add updated_at timestamp
-  updates.updated_at = new Date().toISOString();
-  await update('users', { [field]: value }, updates);
-}
-
-async function createUser(userData) {
-  await insert('users', userData);
-}
+const {
+  saveFacebookAccount,
+  saveInstagramAccount,
+  saveTikTokAccount
+} = require('../database/supabase');
 
 /**
  * OAuth Configuration
@@ -43,12 +32,12 @@ router.get('/facebook', (req, res) => {
   // Store user info in session/state
   const state = Buffer.from(JSON.stringify({ user_id, app, name })).toString('base64');
 
-  // New Pages Experience (NPE) permissions - granular and business_management required
+  // Request all permissions shown in the use case
   const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?` +
     `client_id=${FACEBOOK_APP_ID}` +
     `&redirect_uri=${encodeURIComponent(FACEBOOK_REDIRECT_URI)}` +
     `&state=${state}` +
-    `&scope=email,pages_manage_metadata,pages_read_user_content,pages_manage_posts,pages_manage_engagement,pages_read_engagement,business_management`;
+    `&scope=public_profile,email,pages_show_list,pages_manage_posts,pages_read_engagement,pages_manage_engagement,pages_manage_metadata,pages_read_user_content,business_management`;
 
   res.redirect(fbAuthUrl);
 });
@@ -128,88 +117,46 @@ router.get('/facebook/callback', async (req, res) => {
       console.log('No Instagram account linked to this Facebook page');
     }
 
-    // Save or update user in database
-    // Check if this is a direct login (user_id is actual database ID) or external integration
-    const isDirectUser = app === 'direct';
-    const lookupField = isDirectUser ? 'id' : 'external_user_id';
-    const lookupValue = isDirectUser ? user_id : `${app}_${user_id}`;
-
+    // Save to Supabase using proper tables
     try {
-      const existingUser = await getUserByField(lookupField, lookupValue);
+      // For testing, use user_id as the UUID (you'll need proper auth later)
+      const userId = user_id;
 
-      if (existingUser) {
-        // Update existing user
-        const updates = {
-          facebook_page_token: pageAccessToken,
-          facebook_page_id: pageId,
-          facebook_page_name: pageName,
-          facebook_connected: isSupabase ? true : 1,
-        };
+      // Save Facebook account
+      await saveFacebookAccount(userId, {
+        page_id: pageId,
+        page_name: pageName,
+        access_token: pageAccessToken
+      });
 
-        // Add Instagram data if available
-        if (instagramAccountId) {
-          updates.instagram_token = pageAccessToken;
-          updates.instagram_account_id = instagramAccountId;
-          updates.instagram_username = instagramUsername;
-          updates.instagram_connected = isSupabase ? true : 1;
-        }
-
-        await updateUser(lookupField, lookupValue, updates);
-
-        res.send(`
-          <html>
-          <body style="font-family: system-ui; text-align: center; padding: 40px;">
-            <h1 style="color: #10b981;">✓ Facebook Connected!</h1>
-            <p>Page: <strong>${pageName}</strong></p>
-            ${instagramUsername ? `<p>Instagram: <strong>@${instagramUsername}</strong> (also connected!)</p>` : ''}
-            <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
-            <script>
-              if (window.opener) {
-                window.opener.postMessage({ type: 'facebook_connected', page: '${pageName}' }, '*');
-              }
-              setTimeout(() => window.close(), 3000);
-            </script>
-          </body>
-          </html>
-        `);
-      } else {
-        // Create new user
-        const newUser = {
-          external_user_id: lookupValue,
-          name,
-          app_name: app,
-          facebook_page_token: pageAccessToken,
-          facebook_page_id: pageId,
-          facebook_page_name: pageName,
-          facebook_connected: isSupabase ? true : 1,
-          instagram_token: pageAccessToken,
-          instagram_account_id: instagramAccountId,
-          instagram_username: instagramUsername,
-          instagram_connected: isSupabase ? (instagramAccountId ? true : false) : (instagramAccountId ? 1 : 0),
-        };
-
-        await createUser(newUser);
-
-        res.send(`
-          <html>
-          <body style="font-family: system-ui; text-align: center; padding: 40px;">
-            <h1 style="color: #10b981;">✓ Facebook Connected!</h1>
-            <p>Page: <strong>${pageName}</strong></p>
-            ${instagramUsername ? `<p>Instagram: <strong>@${instagramUsername}</strong> (also connected!)</p>` : ''}
-            <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
-            <script>
-              if (window.opener) {
-                window.opener.postMessage({ type: 'facebook_connected', page: '${pageName}' }, '*');
-              }
-              setTimeout(() => window.close(), 3000);
-            </script>
-          </body>
-          </html>
-        `);
+      // Save Instagram account if available
+      if (instagramAccountId && instagramUsername) {
+        await saveInstagramAccount(userId, {
+          account_id: instagramAccountId,
+          username: instagramUsername,
+          access_token: pageAccessToken
+        });
       }
+
+      res.send(`
+        <html>
+        <body style="font-family: system-ui; text-align: center; padding: 40px;">
+          <h1 style="color: #10b981;">✓ Facebook Connected!</h1>
+          <p>Page: <strong>${pageName}</strong></p>
+          ${instagramUsername ? `<p>Instagram: <strong>@${instagramUsername}</strong> (also connected!)</p>` : ''}
+          <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
+          <script>
+            if (window.opener) {
+              window.opener.postMessage({ type: 'facebook_connected', page: '${pageName}' }, '*');
+            }
+            setTimeout(() => window.close(), 3000);
+          </script>
+        </body>
+        </html>
+      `);
     } catch (err) {
       console.error('Database error:', err);
-      return res.send('<html><body><h1>❌ Database Error</h1><script>setTimeout(() => window.close(), 3000);</script></body></html>');
+      return res.send(`<html><body><h1>❌ Database Error</h1><p>${err.message}</p><script>setTimeout(() => window.close(), 3000);</script></body></html>`);
     }
   } catch (error) {
     console.error('Facebook OAuth error:', error.response?.data || error.message);
@@ -239,12 +186,13 @@ router.get('/instagram', (req, res) => {
   // For Instagram Business accounts, we use Facebook OAuth with Instagram permissions
   const state = Buffer.from(JSON.stringify({ user_id, app, name, instagram_flow: true })).toString('base64');
 
-  // New Pages Experience (NPE) permissions for Instagram
+  // Instagram uses same permissions as Facebook Pages (no separate Instagram permissions needed)
+  // Instagram Business Accounts are accessed through the connected Facebook Page
   const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?` +
     `client_id=${FACEBOOK_APP_ID}` +
     `&redirect_uri=${encodeURIComponent(INSTAGRAM_REDIRECT_URI)}` +
     `&state=${state}` +
-    `&scope=email,pages_manage_metadata,pages_read_user_content,pages_manage_posts,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights,business_management`;
+    `&scope=public_profile,email,pages_show_list,pages_manage_posts,pages_read_engagement,pages_manage_engagement,pages_manage_metadata,pages_read_user_content,business_management`;
 
   res.redirect(fbAuthUrl);
 });
@@ -534,6 +482,66 @@ router.get('/tiktok/callback', async (req, res) => {
       </body>
       </html>
     `);
+  }
+});
+
+/**
+ * POST /auth/unlink/:platform - Unlink a social media account
+ */
+router.post('/unlink/:platform', async (req, res) => {
+  const { platform } = req.params;
+  const { user_id, account_id } = req.body;
+
+  if (!user_id) {
+    return res.status(400).json({ error: 'user_id is required' });
+  }
+
+  try {
+    const { supabase } = require('../database/supabase');
+
+    if (platform === 'facebook') {
+      // Delete specific Facebook account or all if no account_id
+      let query = supabase.from('facebook_accounts').delete();
+
+      if (account_id) {
+        query = query.eq('id', account_id);
+      } else {
+        query = query.eq('user_id', user_id);
+      }
+
+      await query;
+
+      res.json({ success: true, message: 'Facebook account(s) unlinked' });
+    } else if (platform === 'instagram') {
+      let query = supabase.from('instagram_accounts').delete();
+
+      if (account_id) {
+        query = query.eq('id', account_id);
+      } else {
+        query = query.eq('user_id', user_id);
+      }
+
+      await query;
+
+      res.json({ success: true, message: 'Instagram account(s) unlinked' });
+    } else if (platform === 'tiktok') {
+      let query = supabase.from('tiktok_accounts').delete();
+
+      if (account_id) {
+        query = query.eq('id', account_id);
+      } else {
+        query = query.eq('user_id', user_id);
+      }
+
+      await query;
+
+      res.json({ success: true, message: 'TikTok account(s) unlinked' });
+    } else {
+      res.status(400).json({ error: 'Invalid platform' });
+    }
+  } catch (error) {
+    console.error('Unlink error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

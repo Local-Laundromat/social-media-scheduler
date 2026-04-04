@@ -5,15 +5,14 @@ const path = require('path');
 const fs = require('fs');
 
 // Import routes and services
-const apiRoutes = require('./routes/api');
+const apiRoutes = require('./routes/api'); // External API for OmniBroker/Sun Production
 const authRoutes = require('./routes/auth'); // OAuth routes (Facebook/Instagram)
 const authApiRoutes = require('./routes/authApi'); // Supabase Auth routes
-const userRoutes = require('./routes/users');
+const userRoutes = require('./routes/users'); // External user management API
 const uploadRoutes = require('./routes/upload');
 const aiCaptionRoutes = require('./routes/aiCaption');
 const csvRoutes = require('./routes/csv');
 const commentsRoutes = require('./routes/comments');
-const db = require('./database/db');
 const scheduler = require('./services/scheduler');
 
 const app = express();
@@ -34,10 +33,10 @@ if (!fs.existsSync(dataDir)) {
 app.use(express.static(path.join(__dirname, '../public')));
 
 // Routes
-app.use('/api', apiRoutes);
+app.use('/api', apiRoutes); // External API for OmniBroker/Sun Production
 app.use('/api', aiCaptionRoutes);
 app.use('/api/auth', authApiRoutes); // Supabase Auth (signup, login, password reset)
-app.use('/api/users', userRoutes);
+app.use('/api/users', userRoutes); // External user management
 app.use('/api/upload', uploadRoutes);
 app.use('/api/csv', csvRoutes);
 app.use('/api/comments', commentsRoutes);
@@ -54,6 +53,10 @@ app.get('/login', (req, res) => {
 
 app.get('/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/dashboard.html'));
+});
+
+app.get('/reset-password', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/reset-password.html'));
 });
 
 app.get('/embed', (req, res) => {
@@ -98,10 +101,8 @@ app.listen(PORT, () => {
 process.on('SIGINT', () => {
   console.log('\nShutting down gracefully...');
   scheduler.stop();
-  db.close(() => {
-    console.log('Database connection closed');
-    process.exit(0);
-  });
+  console.log('Server stopped');
+  process.exit(0);
 });
 
 module.exports = app;

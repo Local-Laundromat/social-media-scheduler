@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { get, getAll, insert, update: updateRow, deleteRows, customQuery, customGet, run, isSupabase } = require('../database/helpers');
+const { supabase, getPostsByUser } = require('../database/supabase');
 
 /**
  * GET /api/users/:userId - Get user by external_user_id
@@ -10,9 +10,13 @@ router.get('/:userId', async (req, res) => {
   const externalUserId = req.params.userId;
 
   try {
-    const user = await get('users', { external_user_id: externalUserId });
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('external_user_id', externalUserId)
+      .single();
 
-    if (!user) {
+    if (error || !profile) {
       // User doesn't exist yet, return empty state
       return res.json({
         user: null,
@@ -20,21 +24,36 @@ router.get('/:userId', async (req, res) => {
       });
     }
 
+    // Get connected social accounts
+    const { data: fbAccounts } = await supabase
+      .from('facebook_accounts')
+      .select('page_id, page_name')
+      .eq('user_id', profile.id)
+      .eq('is_active', true)
+      .limit(1);
+
+    const { data: igAccounts } = await supabase
+      .from('instagram_accounts')
+      .select('account_id, username')
+      .eq('user_id', profile.id)
+      .eq('is_active', true)
+      .limit(1);
+
     // Don't expose tokens in response
     const safeUser = {
-      id: user.id,
-      external_user_id: user.external_user_id,
-      name: user.name,
-      email: user.email,
-      app_name: user.app_name,
-      facebook_page_id: user.facebook_page_id,
-      facebook_page_name: user.facebook_page_name,
-      facebook_connected: user.facebook_connected,
-      instagram_account_id: user.instagram_account_id,
-      instagram_username: user.instagram_username,
-      instagram_connected: user.instagram_connected,
-      created_at: user.created_at,
-      updated_at: user.updated_at,
+      id: profile.id,
+      external_user_id: profile.external_user_id,
+      name: profile.name,
+      email: profile.email,
+      app_name: profile.app_name,
+      facebook_page_id: fbAccounts && fbAccounts.length > 0 ? fbAccounts[0].page_id : null,
+      facebook_page_name: fbAccounts && fbAccounts.length > 0 ? fbAccounts[0].page_name : null,
+      facebook_connected: fbAccounts && fbAccounts.length > 0,
+      instagram_account_id: igAccounts && igAccounts.length > 0 ? igAccounts[0].account_id : null,
+      instagram_username: igAccounts && igAccounts.length > 0 ? igAccounts[0].username : null,
+      instagram_connected: igAccounts && igAccounts.length > 0,
+      created_at: profile.created_at,
+      updated_at: profile.updated_at,
     };
 
     res.json({
@@ -51,36 +70,81 @@ router.get('/:userId', async (req, res) => {
  * GET /api/users/:userId/posts - Get all posts for a user
  */
 router.get('/:userId/posts', async (req, res) => {
-  const externalUserId = req.params.userId;
+  const userId = req.params.userId;
   const { status, limit = 50 } = req.query;
 
-  try {
-    // First get the user's internal ID
-    const user = await get('users', { external_user_id: externalUserId });
+  console.log(`📊 GET /api/users/${userId}/posts - Fetching posts...`);
 
-    if (!user) {
+  try {
+    // Try to find user by Supabase auth ID first (for dashboard users)
+    let { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    // If not found, try external_user_id (for API users)
+    if (profileError || !profile) {
+      console.log('  → User not found by Supabase ID, trying external_user_id...');
+      const result = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('external_user_id', userId)
+        .single();
+
+      profile = result.data;
+      profileError = result.error;
+    }
+
+    if (profileError || !profile) {
+      console.log(`  ❌ User not found: ${userId}`);
       return res.json({ posts: [] });
     }
 
+    console.log(`  ✓ Found user: ${profile.name || profile.email} (ID: ${profile.id}, Team: ${profile.team_id || 'none'})`);
+
     // Get posts for this user's team (if they have one) or just their posts
-    let posts;
-    const whereClause = user.team_id ? { team_id: user.team_id } : { user_id: user.id };
+    let query = supabase
+      .from('posts')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(parseInt(limit));
+
+    if (profile.team_id) {
+      console.log(`  → Querying posts for team_id: ${profile.team_id}`);
+      query = query.eq('team_id', profile.team_id);
+    } else {
+      console.log(`  → Querying posts for user_id: ${profile.id}`);
+      query = query.eq('user_id', profile.id);
+    }
 
     if (status) {
-      posts = await getAll('posts', { ...whereClause, status }, {
-        orderBy: 'created_at DESC',
-        limit: parseInt(limit)
-      });
-    } else {
-      posts = await getAll('posts', whereClause, {
-        orderBy: 'created_at DESC',
-        limit: parseInt(limit)
+      query = query.eq('status', status);
+    }
+
+    const { data: posts, error } = await query;
+
+    if (error) throw error;
+
+    console.log(`  ✅ Found ${posts?.length || 0} posts`);
+
+    // Log first post details for debugging
+    if (posts && posts.length > 0) {
+      const firstPost = posts[0];
+      console.log(`  📝 Sample post:`, {
+        id: firstPost.id,
+        filename: firstPost.filename,
+        caption: firstPost.caption?.substring(0, 30),
+        platforms: firstPost.platforms,
+        scheduled_time: firstPost.scheduled_time,
+        status: firstPost.status,
+        created_at: firstPost.created_at
       });
     }
 
-    res.json({ posts });
+    res.json({ posts: posts || [] });
   } catch (error) {
-    console.error('Get posts error:', error);
+    console.error('❌ Get posts error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -99,53 +163,47 @@ router.post('/', async (req, res) => {
   const externalUserId = `${app_name}_${user_id}`;
 
   try {
-    // Check if user exists
-    const existingUser = await get('users', { external_user_id: externalUserId });
+    // Check if profile exists
+    const { data: existingProfile, error: findError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('external_user_id', externalUserId)
+      .single();
 
-    if (existingUser) {
-      // Update existing user
-      const updateData = {};
-      if (name) updateData.name = name;
-      if (email) updateData.email = email;
+    if (existingProfile && !findError) {
+      // Update existing profile
+      const updates = {};
+      if (name) updates.name = name;
+      if (email) updates.email = email;
+      updates.updated_at = new Date().toISOString();
 
-      await customQuery(
-        `UPDATE users SET
-          name = COALESCE(?, name),
-          email = COALESCE(?, email),
-          updated_at = CURRENT_TIMESTAMP
-        WHERE external_user_id = ?`,
-        [name, email, externalUserId],
-        async () => {
-          const { db } = require('../database/helpers');
-          const updates = {};
-          if (name) updates.name = name;
-          if (email) updates.email = email;
-          updates.updated_at = new Date().toISOString();
+      const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('external_user_id', externalUserId);
 
-          const { error } = await db
-            .from('users')
-            .update(updates)
-            .eq('external_user_id', externalUserId);
-
-          if (error) throw error;
-          return [];
-        }
-      );
+      if (error) throw error;
 
       res.json({
         success: true,
-        id: existingUser.id,
+        id: existingProfile.id,
         external_user_id: externalUserId,
         message: 'User updated successfully',
       });
     } else {
-      // Create new user
-      const result = await insert('users', {
-        external_user_id: externalUserId,
-        app_name,
-        name,
-        email
-      });
+      // Create new profile
+      const { data: result, error } = await supabase
+        .from('profiles')
+        .insert({
+          external_user_id: externalUserId,
+          app_name,
+          name,
+          email
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
 
       res.json({
         success: true,
@@ -172,43 +230,33 @@ router.post('/:userId/disconnect/:platform', async (req, res) => {
   }
 
   try {
-    let updateData;
-    if (platform === 'facebook') {
-      updateData = {
-        facebook_page_token: null,
-        facebook_page_id: null,
-        facebook_page_name: null,
-        facebook_connected: isSupabase ? false : 0
-      };
-    } else {
-      updateData = {
-        instagram_token: null,
-        instagram_account_id: null,
-        instagram_username: null,
-        instagram_connected: isSupabase ? false : 0
-      };
+    // Get user profile ID
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('external_user_id', externalUserId)
+      .single();
+
+    if (profileError || !profile) {
+      return res.status(404).json({ error: 'User not found' });
     }
 
-    await customQuery(
-      `UPDATE users SET
-        ${Object.keys(updateData).map(k => `${k} = ?`).join(', ')},
-        updated_at = CURRENT_TIMESTAMP
-      WHERE external_user_id = ?`,
-      [...Object.values(updateData), externalUserId],
-      async () => {
-        const { db } = require('../database/helpers');
-        updateData.updated_at = new Date().toISOString();
+    // Deactivate social account
+    if (platform === 'facebook') {
+      const { error } = await supabase
+        .from('facebook_accounts')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq('user_id', profile.id);
 
-        const { error, count } = await db
-          .from('users')
-          .update(updateData)
-          .eq('external_user_id', externalUserId);
+      if (error) throw error;
+    } else if (platform === 'instagram') {
+      const { error } = await supabase
+        .from('instagram_accounts')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq('user_id', profile.id);
 
-        if (error) throw error;
-        if (count === 0) throw new Error('User not found');
-        return [];
-      }
-    );
+      if (error) throw error;
+    }
 
     res.json({
       success: true,
@@ -216,9 +264,6 @@ router.post('/:userId/disconnect/:platform', async (req, res) => {
     });
   } catch (error) {
     console.error('Disconnect error:', error);
-    if (error.message === 'User not found') {
-      return res.status(404).json({ error: 'User not found' });
-    }
     res.status(500).json({ error: error.message });
   }
 });
@@ -230,30 +275,44 @@ router.get('/', async (req, res) => {
   const { app_name, limit = 100 } = req.query;
 
   try {
-    const users = await customQuery(
-      `SELECT id, external_user_id, name, email, app_name, facebook_connected, instagram_connected, created_at FROM users
-       ${app_name ? 'WHERE app_name = ?' : ''}
-       ORDER BY created_at DESC LIMIT ?`,
-      app_name ? [app_name, parseInt(limit)] : [parseInt(limit)],
-      async () => {
-        const { db } = require('../database/helpers');
-        let query = db
-          .from('users')
-          .select('id, external_user_id, name, email, app_name, facebook_connected, instagram_connected, created_at');
+    let query = supabase
+      .from('profiles')
+      .select('id, external_user_id, name, email, app_name, created_at')
+      .order('created_at', { ascending: false })
+      .limit(parseInt(limit));
 
-        if (app_name) {
-          query = query.eq('app_name', app_name);
-        }
+    if (app_name) {
+      query = query.eq('app_name', app_name);
+    }
 
-        query = query.order('created_at', { ascending: false }).limit(parseInt(limit));
+    const { data: profiles, error } = await query;
 
-        const { data, error } = await query;
-        if (error) throw error;
-        return data;
-      }
-    );
+    if (error) throw error;
 
-    res.json({ users });
+    // Get social account connection status for each profile
+    const usersWithConnections = await Promise.all((profiles || []).map(async (profile) => {
+      const { data: fbAccounts } = await supabase
+        .from('facebook_accounts')
+        .select('id')
+        .eq('user_id', profile.id)
+        .eq('is_active', true)
+        .limit(1);
+
+      const { data: igAccounts } = await supabase
+        .from('instagram_accounts')
+        .select('id')
+        .eq('user_id', profile.id)
+        .eq('is_active', true)
+        .limit(1);
+
+      return {
+        ...profile,
+        facebook_connected: fbAccounts && fbAccounts.length > 0,
+        instagram_connected: igAccounts && igAccounts.length > 0
+      };
+    }));
+
+    res.json({ users: usersWithConnections });
   } catch (error) {
     console.error('List users error:', error);
     res.status(500).json({ error: error.message });
@@ -286,23 +345,14 @@ router.put('/:userId', async (req, res) => {
   }
 
   try {
-    const result = await customQuery(
-      `UPDATE users SET ${Object.keys(updateData).map(k => `${k} = ?`).join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [...Object.values(updateData), userId],
-      async () => {
-        const { db } = require('../database/helpers');
-        updateData.updated_at = new Date().toISOString();
+    updateData.updated_at = new Date().toISOString();
 
-        const { error, count } = await db
-          .from('users')
-          .update(updateData)
-          .eq('id', userId);
+    const { error } = await supabase
+      .from('profiles')
+      .update(updateData)
+      .eq('id', userId);
 
-        if (error) throw error;
-        if (count === 0) throw new Error('User not found');
-        return [];
-      }
-    );
+    if (error) throw error;
 
     res.json({
       success: true,
@@ -310,9 +360,6 @@ router.put('/:userId', async (req, res) => {
     });
   } catch (error) {
     console.error('Update user error:', error);
-    if (error.message === 'User not found') {
-      return res.status(404).json({ error: 'User not found' });
-    }
     res.status(500).json({ error: error.message });
   }
 });
@@ -324,22 +371,48 @@ router.delete('/:userId', async (req, res) => {
   const externalUserId = req.params.userId;
 
   try {
-    // First get user ID
-    const user = await get('users', { external_user_id: externalUserId });
+    // First get profile ID
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('external_user_id', externalUserId)
+      .single();
 
-    if (!user) {
+    if (profileError || !profile) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     // Delete all posts for this user
-    await deleteRows('posts', { user_id: user.id });
+    await supabase
+      .from('posts')
+      .delete()
+      .eq('user_id', profile.id);
 
-    // Delete user
-    await deleteRows('users', { id: user.id });
+    // Delete social accounts
+    await supabase
+      .from('facebook_accounts')
+      .delete()
+      .eq('user_id', profile.id);
+
+    await supabase
+      .from('instagram_accounts')
+      .delete()
+      .eq('user_id', profile.id);
+
+    await supabase
+      .from('tiktok_accounts')
+      .delete()
+      .eq('user_id', profile.id);
+
+    // Delete profile
+    await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', profile.id);
 
     res.json({
       success: true,
-      message: 'User and all their posts deleted successfully',
+      message: 'User and all their data deleted successfully',
     });
   } catch (error) {
     console.error('Delete user error:', error);

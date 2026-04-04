@@ -1,5 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
-const { get, getAll, update: updateRow, isSupabase } = require('../database/helpers');
+const { supabase: supabaseHelper, getProfileById } = require('../database/supabase');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
@@ -35,7 +35,7 @@ const authenticateSupabase = async (req, res, next) => {
     req.user = user;
 
     // Get profile info
-    const profile = await get('profiles', { id: user.id });
+    const profile = await getProfileById(user.id);
     if (profile) {
       req.profile = profile;
       req.teamId = profile.team_id;
@@ -70,7 +70,7 @@ const optionalSupabaseAuth = async (req, res, next) => {
       req.user = user;
 
       // Get profile info
-      const profile = await get('profiles', { id: user.id });
+      const profile = await getProfileById(user.id);
       if (profile) {
         req.profile = profile;
         req.teamId = profile.team_id;
@@ -116,7 +116,7 @@ const requireSameTeam = async (req, res, next) => {
   }
 
   try {
-    const resourceProfile = await get('profiles', { id: resourceUserId });
+    const resourceProfile = await getProfileById(resourceUserId);
 
     if (!resourceProfile) {
       return res.status(404).json({ error: 'User not found' });
@@ -136,6 +136,8 @@ const requireSameTeam = async (req, res, next) => {
 
 module.exports = {
   authenticateSupabase,
+  /** Alias used by aiCaption and other routes (Supabase JWT) */
+  authenticateToken: authenticateSupabase,
   optionalSupabaseAuth,
   requireRole,
   requireSameTeam,

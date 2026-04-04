@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Facebook Connections</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #1877f2;
+      margin-bottom: 10px;
+    }
+    .section {
+      margin: 30px 0;
+      padding: 20px;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+    }
+    .section h2 {
+      margin-top: 0;
+      color: #374151;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 12px 24px;
+      margin: 5px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .btn-danger {
+      background: #ef4444;
+      color: white;
+    }
+    .btn-danger:hover {
+      background: #dc2626;
+    }
+    .btn-primary {
+      background: #1877f2;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #166fe5;
+    }
+    .success {
+      background: #d1fae5;
+      border-left: 4px solid #10b981;
+      color: #065f46;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+      display: none;
+    }
+    .error {
+      background: #fee2e2;
+      border-left: 4px solid #ef4444;
+      color: #991b1b;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+      display: none;
+    }
+    .info {
+      background: #dbeafe;
+      border-left: 4px solid #3b82f6;
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    label {
+      font-weight: 600;
+      color: #374151;
+      display: block;
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔧 Manage Facebook Connections</h1>
+    <p>Use this page to unlink test Facebook pages and reconnect them to your real account.</p>
+
+    <!-- Step 1: Unlink Test Connections -->
+    <div class="section">
+      <h2>Step 1: Unlink Test Facebook Pages</h2>
+      <div class="info">
+        <strong>Current Test User ID:</strong> d9d4c74a-3581-4005-92e5-1c7263d8aba0<br>
+        <strong>Connected Pages:</strong> Binta Studios, PK Property Inc
+      </div>
+
+      <label>User ID (UUID):</label>
+      <input type="text" id="unlinkUserId" value="d9d4c74a-3581-4005-92e5-1c7263d8aba0" placeholder="User UUID">
+
+      <button class="btn-danger" onclick="unlinkFacebook()">
+        🗑️ Unlink All Facebook Pages
+      </button>
+
+      <div id="unlinkSuccess" class="success"></div>
+      <div id="unlinkError" class="error"></div>
+    </div>
+
+    <!-- Step 2: Create Real Account -->
+    <div class="section">
+      <h2>Step 2: Create Your Real Account</h2>
+      <div class="info">
+        Go to <a href="/login" target="_blank">http://localhost:3000/login</a> and sign up with your real email.
+        After signing up, copy your User ID from the URL or dashboard.
+      </div>
+    </div>
+
+    <!-- Step 3: Reconnect to Real Account -->
+    <div class="section">
+      <h2>Step 3: Reconnect Facebook Pages to Real Account</h2>
+
+      <label>Your Real Account User ID:</label>
+      <input type="text" id="realUserId" placeholder="Paste your real User UUID here">
+
+      <label>Your Name:</label>
+      <input type="text" id="realUserName" placeholder="Your name">
+
+      <button class="btn-primary" onclick="connectFacebookToReal('Binta Studios')">
+        📘 Connect Binta Studios
+      </button>
+
+      <button class="btn-primary" onclick="connectFacebookToReal('PK Property Inc')">
+        📘 Connect PK Property Inc
+      </button>
+
+      <div id="connectSuccess" class="success"></div>
+      <div id="connectError" class="error"></div>
+    </div>
+  </div>
+
+  <script>
+    async function unlinkFacebook() {
+      const userId = document.getElementById('unlinkUserId').value;
+
+      if (!userId) {
+        showError('unlinkError', 'Please enter a User ID');
+        return;
+      }
+
+      try {
+        const response = await fetch('/auth/unlink/facebook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showSuccess('unlinkSuccess', '✓ All Facebook pages unlinked successfully!');
+        } else {
+          showError('unlinkError', data.error || 'Failed to unlink');
+        }
+      } catch (error) {
+        showError('unlinkError', error.message);
+      }
+    }
+
+    function connectFacebookToReal(pageName) {
+      const userId = document.getElementById('realUserId').value;
+      const userName = document.getElementById('realUserName').value;
+
+      if (!userId) {
+        showError('connectError', 'Please enter your real User ID first');
+        return;
+      }
+
+      // Open Facebook OAuth
+      const width = 600;
+      const height = 700;
+      const left = (screen.width - width) / 2;
+      const top = (screen.height - height) / 2;
+
+      const authUrl = `/auth/facebook?user_id=${encodeURIComponent(userId)}&app=direct&name=${encodeURIComponent(userName)}`;
+
+      const popup = window.open(
+        authUrl,
+        'Facebook Login',
+        `width=${width},height=${height},left=${left},top=${top}`
+      );
+
+      window.addEventListener('message', function(event) {
+        if (event.data.type === 'facebook_connected') {
+          showSuccess('connectSuccess', `✓ Facebook Page "${event.data.page}" connected to your account!`);
+          popup.close();
+        }
+      });
+    }
+
+    function showSuccess(id, message) {
+      const successDiv = document.getElementById(id);
+      successDiv.textContent = message;
+      successDiv.style.display = 'block';
+
+      const errorId = id.replace('Success', 'Error');
+      document.getElementById(errorId).style.display = 'none';
+    }
+
+    function showError(id, message) {
+      const errorDiv = document.getElementById(id);
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+
+      const successId = id.replace('Error', 'Success');
+      document.getElementById(successId).style.display = 'none';
+    }
+  </script>
+</body>
+</html>

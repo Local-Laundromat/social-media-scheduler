@@ -4,7 +4,7 @@
  */
 
 const OpenAI = require('openai');
-const { get, getAll, insert, update: updateRow, deleteRows, customQuery, customGet, run, isSupabase } = require('../database/helpers');
+const { supabase } = require('../database/supabase');
 
 // Helper function to get OpenAI client for a user
 function getOpenAIClient(userApiKey) {
@@ -282,61 +282,72 @@ async function postInstagramReply(commentId, replyText, accessToken) {
  */
 async function monitorUserComments(userId) {
   try {
-    // Get user's social media credentials
-    const user = await get('users', { id: userId });
+    // Get user profile
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
 
-    if (!user) {
-      throw new Error('User not found');
+    if (profileError || !profile) {
+      throw new Error('User profile not found');
     }
 
-    // Get user's recent posts
-    const posts = await customQuery(
-      `SELECT * FROM posts
-       WHERE user_id = ?
-       AND status = 'posted'
-       AND (facebook_post_id IS NOT NULL OR instagram_post_id IS NOT NULL)
-       ORDER BY posted_at DESC
-       LIMIT 10`,
-      [userId],
-      async () => {
-        const { db } = require('../database/helpers');
-        const { data, error } = await db
-          .from('posts')
-          .select('*')
-          .eq('user_id', userId)
-          .eq('status', 'posted')
-          .or('facebook_post_id.not.is.null,instagram_post_id.not.is.null')
-          .order('posted_at', { ascending: false })
-          .limit(10);
+    // Get Facebook credentials
+    const { data: fbAccounts } = await supabase
+      .from('facebook_accounts')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .limit(1);
 
-        if (error) throw error;
-        return data || [];
-      }
-    );
+    const facebookAccessToken = fbAccounts && fbAccounts.length > 0 ? fbAccounts[0].access_token : null;
+
+    // Get Instagram credentials
+    const { data: igAccounts } = await supabase
+      .from('instagram_accounts')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .limit(1);
+
+    const instagramAccessToken = igAccounts && igAccounts.length > 0 ? igAccounts[0].access_token : null;
+
+    // Get user's recent posts
+    const { data: posts, error: postsError } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'posted')
+      .or('facebook_post_id.not.is.null,instagram_post_id.not.is.null')
+      .order('posted_at', { ascending: false })
+      .limit(10);
+
+    if (postsError) throw postsError;
 
     const commentsWithSuggestions = [];
 
-    for (const post of posts) {
+    for (const post of (posts || [])) {
       // Fetch Facebook comments
-      if (post.facebook_post_id && user.facebook_access_token) {
+      if (post.facebook_post_id && facebookAccessToken) {
         const fbComments = await fetchFacebookComments(
           post.facebook_post_id,
-          user.facebook_access_token
+          facebookAccessToken
         );
 
         for (const comment of fbComments) {
-          const analysis = await analyzeComment(comment.message, user.openai_api_key);
+          const analysis = await analyzeComment(comment.message, profile.openai_api_key);
           const suggestedReply = await generateReply(
             { text: comment.message },
             analysis,
             {
-              company: user.company,
+              company: profile.company || profile.name,
               contactInfo: {
-                email: user.email,
-                phone: user.phone
+                email: profile.email,
+                phone: profile.phone
               }
             },
-            user.openai_api_key
+            profile.openai_api_key
           );
 
           commentsWithSuggestions.push({
@@ -354,24 +365,24 @@ async function monitorUserComments(userId) {
       }
 
       // Fetch Instagram comments
-      if (post.instagram_post_id && user.instagram_access_token) {
+      if (post.instagram_post_id && instagramAccessToken) {
         const igComments = await fetchInstagramComments(
           post.instagram_post_id,
-          user.instagram_access_token
+          instagramAccessToken
         );
 
         for (const comment of igComments) {
-          const analysis = await analyzeComment(comment.text, user.openai_api_key);
+          const analysis = await analyzeComment(comment.text, profile.openai_api_key);
           const suggestedReply = await generateReply(
             { text: comment.text },
             analysis,
             {
-              company: user.company,
+              company: profile.company || profile.name,
               contactInfo: {
-                email: user.email
+                email: profile.email
               }
             },
-            user.openai_api_key
+            profile.openai_api_key
           );
 
           commentsWithSuggestions.push({

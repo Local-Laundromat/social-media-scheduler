@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticateSupabase } = require('../middleware/auth');
 const commentMonitor = require('../services/commentMonitor');
-const { get, getAll, insert, update: updateRow, deleteRows, customQuery, customGet, run, isSupabase } = require('../database/helpers');
+const { supabase } = require('../database/supabase');
 
 /**
  * GET /api/comments/monitor - Get new comments with AI suggestions
@@ -52,29 +52,59 @@ router.post('/reply', authenticateSupabase, async (req, res) => {
       });
     }
 
-    // Get user's access tokens
-    const user = await get('users', { id: userId });
+    // Get user's access tokens from social accounts
+    let facebookToken = null;
+    let instagramToken = null;
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: 'User not found'
-      });
+    if (platform === 'facebook') {
+      const { data: fbAccounts } = await supabase
+        .from('facebook_accounts')
+        .select('access_token')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .limit(1);
+
+      if (fbAccounts && fbAccounts.length > 0) {
+        facebookToken = fbAccounts[0].access_token;
+      }
+    } else if (platform === 'instagram') {
+      const { data: igAccounts } = await supabase
+        .from('instagram_accounts')
+        .select('access_token')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .limit(1);
+
+      if (igAccounts && igAccounts.length > 0) {
+        instagramToken = igAccounts[0].access_token;
+      }
     }
 
     let result;
 
     if (platform === 'facebook') {
+      if (!facebookToken) {
+        return res.status(400).json({
+          success: false,
+          error: 'Facebook account not connected'
+        });
+      }
       result = await commentMonitor.postFacebookReply(
         commentId,
         replyText,
-        user.facebook_page_token || user.facebook_access_token
+        facebookToken
       );
     } else if (platform === 'instagram') {
+      if (!instagramToken) {
+        return res.status(400).json({
+          success: false,
+          error: 'Instagram account not connected'
+        });
+      }
       result = await commentMonitor.postInstagramReply(
         commentId,
         replyText,
-        user.instagram_token || user.instagram_access_token
+        instagramToken
       );
     } else {
       return res.status(400).json({
@@ -85,14 +115,16 @@ router.post('/reply', authenticateSupabase, async (req, res) => {
 
     if (result.success) {
       // Log the reply
-      await insert('comment_replies', {
-        user_id: userId,
-        platform,
-        comment_id: commentId,
-        reply_text: replyText,
-        reply_id: result.id,
-        created_at: isSupabase ? new Date().toISOString() : null
-      });
+      await supabase
+        .from('comment_replies')
+        .insert({
+          user_id: userId,
+          platform,
+          comment_id: commentId,
+          reply_text: replyText,
+          reply_id: result.id,
+          created_at: new Date().toISOString()
+        });
 
       res.json({
         success: true,
@@ -132,15 +164,19 @@ router.post('/analyze', authenticateSupabase, async (req, res) => {
     }
 
     // Get user profile for personalized responses
-    const user = await get('users', { id: userId });
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
 
     const analysis = await commentMonitor.analyzeComment(commentText);
     const suggestedReply = await commentMonitor.generateReply(
       { text: commentText },
       analysis,
       {
-        company: user?.company,
-        contactInfo: { email: user?.email }
+        company: profile?.company || profile?.name,
+        contactInfo: { email: profile?.email }
       }
     );
 
@@ -168,10 +204,14 @@ router.get('/history', authenticateSupabase, async (req, res) => {
     const userId = req.userId;
     const limit = parseInt(req.query.limit) || 50;
 
-    const replies = await getAll('comment_replies', { user_id: userId }, {
-      orderBy: 'created_at DESC',
-      limit
-    });
+    const { data: replies, error } = await supabase
+      .from('comment_replies')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
 
     res.json({
       success: true,
@@ -197,9 +237,10 @@ router.post('/auto-reply/toggle', authenticateSupabase, async (req, res) => {
     const { enabled } = req.body;
     const userId = req.userId;
 
-    await updateRow('users', { id: userId }, {
-      auto_reply_enabled: isSupabase ? enabled : (enabled ? 1 : 0)
-    });
+    await supabase
+      .from('profiles')
+      .update({ auto_reply_enabled: enabled })
+      .eq('id', userId);
 
     res.json({
       success: true,

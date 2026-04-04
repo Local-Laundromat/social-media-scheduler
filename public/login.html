@@ -397,7 +397,10 @@
           }
 
           // Store token and user data
-          localStorage.setItem('auth_token', data.token);
+          const token = data.session?.access_token || data.token;
+          if (token) {
+            localStorage.setItem('auth_token', token);
+          }
           localStorage.setItem('user', JSON.stringify(data.user));
           if (data.team) {
             localStorage.setItem('team', JSON.stringify(data.team));
@@ -424,7 +427,10 @@
           }
 
           // Store token and user data
-          localStorage.setItem('auth_token', data.token);
+          const token = data.session?.access_token || data.token;
+          if (token) {
+            localStorage.setItem('auth_token', token);
+          }
           localStorage.setItem('user', JSON.stringify(data.user));
           if (data.team) {
             localStorage.setItem('team', JSON.stringify(data.team));

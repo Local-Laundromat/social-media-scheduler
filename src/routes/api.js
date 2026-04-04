@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { get, getAll, insert, update: updateRow, deleteRows, customQuery, customGet, run, isSupabase } = require('../database/helpers');
+const { supabase, getPostById, getPostsByUser, createPost, updatePost } = require('../database/supabase');
 const scheduler = require('../services/scheduler');
 const webhookService = require('../services/webhooks');
 const { authenticateApiKey, optionalApiKey } = require('../middleware/auth');
@@ -14,13 +14,25 @@ const path = require('path');
 router.get('/posts', optionalApiKey, async (req, res) => {
   try {
     const { status, limit = 100 } = req.query;
-    const where = status ? { status } : {};
-    const posts = await getAll('posts', where, {
-      orderBy: 'created_at DESC',
-      limit: parseInt(limit)
-    });
-    res.json({ posts });
+
+    let query = supabase
+      .from('posts')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(parseInt(limit));
+
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    const { data: posts, error } = await query;
+
+    if (error) throw error;
+
+    console.log(`📊 GET /api/posts - Found ${posts?.length || 0} posts`);
+    res.json({ posts: posts || [] });
   } catch (err) {
+    console.error('❌ GET /api/posts error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -30,7 +42,7 @@ router.get('/posts', optionalApiKey, async (req, res) => {
  */
 router.get('/posts/:id', optionalApiKey, async (req, res) => {
   try {
-    const post = await get('posts', { id: req.params.id });
+    const post = await getPostById(req.params.id);
     if (!post) {
       return res.status(404).json({ error: 'Post not found' });
     }
@@ -45,15 +57,26 @@ router.get('/posts/:id', optionalApiKey, async (req, res) => {
  */
 router.post('/posts', optionalApiKey, async (req, res) => {
   try {
-    const { user_id, filename, filepath, filetype, caption, platforms, scheduled_time, webhook_url } = req.body;
+    console.log('📝 POST /api/posts request received:', req.body);
+    const {
+      user_id,
+      filename,
+      filepath,
+      filetype,
+      caption,
+      platforms,
+      scheduled_time,
+      webhook_url,
+      facebook_account_id,
+      instagram_account_id,
+      tiktok_account_id,
+    } = req.body;
 
     if (!filename || !filepath || !platforms) {
       return res.status(400).json({ error: 'Missing required fields: filename, filepath, platforms' });
     }
 
-    const platformsJson = JSON.stringify(platforms);
-    const accountId = req.account?.id || null;
-    const apiKey = req.apiKey?.api_key || null;
+    // Don't stringify - PostgreSQL arrays expect native arrays
     const webhook = webhook_url || req.apiKey?.webhook_url || null;
 
     let internalUserId = null;
@@ -61,33 +84,79 @@ router.post('/posts', optionalApiKey, async (req, res) => {
 
     // If user_id is provided, look up the user's internal ID and team_id
     if (user_id) {
-      const user = await get('users', { external_user_id: user_id });
+      // First try to find by Supabase auth ID (for dashboard users)
+      let { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user_id)
+        .single();
 
-      if (!user) {
+      // If not found, try to find by external_user_id (for external API users)
+      if (error || !profile) {
+        const result = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('external_user_id', user_id)
+          .single();
+
+        profile = result.data;
+        error = result.error;
+      }
+
+      if (error || !profile) {
         return res.status(404).json({
           error: 'User not found',
-          message: 'Please connect your social media accounts first in the embed page'
+          message: 'Please connect your social media accounts first in the dashboard'
         });
       }
 
-      internalUserId = user.id;
-      teamId = user.team_id || null;
+      internalUserId = profile.id;
+      teamId = profile.team_id || null;
     }
 
-    // Create post
-    const result = await insert('posts', {
+    // Create post - map to both old and new column names for compatibility
+    const postPayload = {
+      // New column names (for after migration)
       filename,
       filepath,
       filetype: filetype || 'image',
       caption: caption || '',
-      platforms: platformsJson,
-      scheduled_time: scheduled_time || null,
+      // Old column names (current database schema)
+      content: caption || '',
+      media_url: filepath,
+      media_type: filetype || 'image',
+      // Common fields
+      platforms: platforms, // Pass array directly, not JSON string
+      scheduled_time: scheduled_time || new Date().toISOString(), // Default to now if not scheduled
       user_id: internalUserId,
       team_id: teamId,
-      account_id: accountId,
-      api_key: apiKey,
       webhook_url: webhook
-    });
+    };
+
+    if (facebook_account_id != null && facebook_account_id !== '') {
+      postPayload.facebook_account_id = Number(facebook_account_id);
+    }
+    if (instagram_account_id != null && instagram_account_id !== '') {
+      postPayload.instagram_account_id = Number(instagram_account_id);
+    }
+    if (tiktok_account_id != null && tiktok_account_id !== '') {
+      postPayload.tiktok_account_id = Number(tiktok_account_id);
+    }
+
+    console.log('💾 Creating post with payload:', postPayload);
+    const result = await createPost(postPayload);
+    console.log('✅ Post created successfully! ID:', result.id);
+
+    // Publish now when due (so Facebook works without waiting for hourly cron + AUTO_START_SCHEDULER)
+    const dueAt = new Date(result.scheduled_time || Date.now());
+    const immediateEnabled = process.env.IMMEDIATE_POST_ON_CREATE !== 'false';
+    if (immediateEnabled && dueAt.getTime() <= Date.now()) {
+      setImmediate(() => {
+        scheduler.postNow(result.id).catch((err) => {
+          console.error(`Immediate post failed for post ${result.id}:`, err);
+        });
+      });
+    }
 
     res.json({
       success: true,
@@ -96,6 +165,7 @@ router.post('/posts', optionalApiKey, async (req, res) => {
       webhook_url: webhook,
     });
   } catch (err) {
+    console.error('❌ Post creation error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -128,11 +198,7 @@ router.put('/posts/:id', optionalApiKey, async (req, res) => {
       return res.status(400).json({ error: 'No fields to update' });
     }
 
-    const result = await updateRow('posts', { id: req.params.id }, data);
-
-    if (result.changes === 0) {
-      return res.status(404).json({ error: 'Post not found' });
-    }
+    await updatePost(req.params.id, data);
 
     res.json({ message: 'Post updated successfully' });
   } catch (err) {
@@ -145,11 +211,12 @@ router.put('/posts/:id', optionalApiKey, async (req, res) => {
  */
 router.delete('/posts/:id', optionalApiKey, async (req, res) => {
   try {
-    const result = await deleteRows('posts', { id: req.params.id });
+    const { error } = await supabase
+      .from('posts')
+      .delete()
+      .eq('id', req.params.id);
 
-    if (result.changes === 0) {
-      return res.status(404).json({ error: 'Post not found' });
-    }
+    if (error) throw error;
 
     res.json({ message: 'Post deleted successfully' });
   } catch (err) {
@@ -188,16 +255,20 @@ router.post('/api/import-folder', optionalApiKey, async (req, res) => {
 
     // If user_id provided, look up internal ID first
     if (user_id) {
-      const user = await get('users', { external_user_id: user_id });
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('external_user_id', user_id)
+        .single();
 
-      if (!user) {
+      if (error || !profile) {
         return res.status(404).json({
           error: 'User not found',
           message: 'Please connect your social media accounts first'
         });
       }
 
-      internalUserId = user.id;
+      internalUserId = profile.id;
     }
 
     const files = fs.readdirSync(folderPath);
@@ -223,7 +294,7 @@ router.post('/api/import-folder', optionalApiKey, async (req, res) => {
         }
 
         try {
-          const result = await insert('posts', {
+          const result = await createPost({
             filename,
             filepath,
             filetype,
@@ -256,33 +327,19 @@ router.post('/api/import-folder', optionalApiKey, async (req, res) => {
  */
 router.get('/stats', optionalApiKey, async (req, res) => {
   try {
-    const stats = await customGet(
-      `SELECT
-        COUNT(*) as total,
-        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-        SUM(CASE WHEN status = 'posted' THEN 1 ELSE 0 END) as posted,
-        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
-       FROM posts`,
-      [],
-      async () => {
-        const { db } = require('../database/helpers');
-        const { data, error } = await db
-          .from('posts')
-          .select('status')
-          .then(({ data, error }) => {
-            if (error) throw error;
-            const stats = {
-              total: data.length,
-              pending: data.filter(p => p.status === 'pending').length,
-              posted: data.filter(p => p.status === 'posted').length,
-              failed: data.filter(p => p.status === 'failed').length
-            };
-            return { data: stats, error: null };
-          });
-        if (error) throw error;
-        return data;
-      }
-    );
+    const { data, error } = await supabase
+      .from('posts')
+      .select('status');
+
+    if (error) throw error;
+
+    const stats = {
+      total: data.length,
+      pending: data.filter(p => p.status === 'pending').length,
+      posted: data.filter(p => p.status === 'posted').length,
+      failed: data.filter(p => p.status === 'failed').length
+    };
+
     res.json({ stats });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -322,10 +379,14 @@ router.post('/scheduler/stop', (req, res) => {
  */
 router.get('/keys', async (req, res) => {
   try {
-    const keys = await getAll('api_keys', {}, {
-      orderBy: 'created_at DESC'
-    });
-    res.json({ keys });
+    const { data: keys, error } = await supabase
+      .from('api_keys')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({ keys: keys || [] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -345,12 +406,18 @@ router.post('/keys', async (req, res) => {
     // Generate API key
     const apiKey = 'sk_' + crypto.randomBytes(32).toString('hex');
 
-    const result = await insert('api_keys', {
-      name,
-      api_key: apiKey,
-      account_id: account_id || null,
-      webhook_url: webhook_url || null
-    });
+    const { data: result, error } = await supabase
+      .from('api_keys')
+      .insert({
+        name,
+        api_key: apiKey,
+        account_id: account_id || null,
+        webhook_url: webhook_url || null
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
 
     res.json({
       success: true,
@@ -380,18 +447,19 @@ router.put('/keys/:id', async (req, res) => {
     }
 
     if (is_active !== undefined) {
-      data.is_active = is_active ? 1 : 0;
+      data.is_active = is_active;
     }
 
     if (Object.keys(data).length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
 
-    const result = await updateRow('api_keys', { id: req.params.id }, data);
+    const { error } = await supabase
+      .from('api_keys')
+      .update({ ...data, updated_at: new Date().toISOString() })
+      .eq('id', req.params.id);
 
-    if (result.changes === 0) {
-      return res.status(404).json({ error: 'API key not found' });
-    }
+    if (error) throw error;
 
     res.json({ message: 'API key updated successfully' });
   } catch (err) {
@@ -404,11 +472,12 @@ router.put('/keys/:id', async (req, res) => {
  */
 router.delete('/keys/:id', async (req, res) => {
   try {
-    const result = await deleteRows('api_keys', { id: req.params.id });
+    const { error } = await supabase
+      .from('api_keys')
+      .delete()
+      .eq('id', req.params.id);
 
-    if (result.changes === 0) {
-      return res.status(404).json({ error: 'API key not found' });
-    }
+    if (error) throw error;
 
     res.json({ message: 'API key deleted successfully' });
   } catch (err) {
@@ -423,10 +492,15 @@ router.delete('/keys/:id', async (req, res) => {
  */
 router.get('/accounts', async (req, res) => {
   try {
-    const accounts = await getAll('accounts', {}, {
-      orderBy: 'is_default DESC, created_at DESC'
-    });
-    res.json({ accounts });
+    const { data: accounts, error } = await supabase
+      .from('accounts')
+      .select('*')
+      .order('is_default', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({ accounts: accounts || [] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -445,26 +519,26 @@ router.post('/accounts', async (req, res) => {
 
     // If setting as default, unset other defaults
     if (is_default) {
-      await run(
-        'UPDATE accounts SET is_default = 0',
-        [],
-        async () => {
-          const { db } = require('../database/helpers');
-          const { error } = await db.from('accounts').update({ is_default: false });
-          if (error) throw error;
-        }
-      );
+      await supabase
+        .from('accounts')
+        .update({ is_default: false });
     }
 
-    const result = await insert('accounts', {
-      name,
-      type,
-      facebook_page_token: facebook_page_token || null,
-      facebook_page_id: facebook_page_id || null,
-      instagram_token: instagram_token || null,
-      instagram_account_id: instagram_account_id || null,
-      is_default: is_default ? 1 : 0
-    });
+    const { data: result, error } = await supabase
+      .from('accounts')
+      .insert({
+        name,
+        type,
+        facebook_page_token: facebook_page_token || null,
+        facebook_page_id: facebook_page_id || null,
+        instagram_token: instagram_token || null,
+        instagram_account_id: instagram_account_id || null,
+        is_default: is_default || false
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
 
     res.json({
       success: true,
@@ -506,36 +580,23 @@ router.put('/accounts/:id', async (req, res) => {
 
     if (is_default !== undefined) {
       if (is_default) {
-        await run(
-          'UPDATE accounts SET is_default = 0',
-          [],
-          async () => {
-            const { db } = require('../database/helpers');
-            const { error } = await db.from('accounts').update({ is_default: false });
-            if (error) throw error;
-          }
-        );
+        await supabase
+          .from('accounts')
+          .update({ is_default: false });
       }
-      data.is_default = is_default ? 1 : 0;
+      data.is_default = is_default;
     }
 
     if (Object.keys(data).length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
 
-    const result = await run(
-      `UPDATE accounts SET ${Object.keys(data).map(k => `${k} = ?`).join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [...Object.values(data), req.params.id],
-      async () => {
-        const { db } = require('../database/helpers');
-        const { error } = await db.from('accounts').update({ ...data, updated_at: new Date().toISOString() }).eq('id', req.params.id);
-        if (error) throw error;
-      }
-    );
+    const { error } = await supabase
+      .from('accounts')
+      .update({ ...data, updated_at: new Date().toISOString() })
+      .eq('id', req.params.id);
 
-    if (result.changes === 0) {
-      return res.status(404).json({ error: 'Account not found' });
-    }
+    if (error) throw error;
 
     res.json({ message: 'Account updated successfully' });
   } catch (err) {
@@ -548,11 +609,12 @@ router.put('/accounts/:id', async (req, res) => {
  */
 router.delete('/accounts/:id', async (req, res) => {
   try {
-    const result = await deleteRows('accounts', { id: req.params.id });
+    const { error } = await supabase
+      .from('accounts')
+      .delete()
+      .eq('id', req.params.id);
 
-    if (result.changes === 0) {
-      return res.status(404).json({ error: 'Account not found' });
-    }
+    if (error) throw error;
 
     res.json({ message: 'Account deleted successfully' });
   } catch (err) {
@@ -569,12 +631,15 @@ router.get('/webhook-logs', async (req, res) => {
   try {
     const { limit = 50 } = req.query;
 
-    const logs = await getAll('webhook_logs', {}, {
-      orderBy: 'created_at DESC',
-      limit: parseInt(limit)
-    });
+    const { data: logs, error } = await supabase
+      .from('webhook_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(parseInt(limit));
 
-    res.json({ logs });
+    if (error) throw error;
+
+    res.json({ logs: logs || [] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

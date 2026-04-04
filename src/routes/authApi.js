@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
-const { getAll, insert: insertRow, update: updateRow, get, isSupabase } = require('../database/helpers');
+const { supabase: supabaseHelper, getProfileById, updateProfile } = require('../database/supabase');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
@@ -46,12 +46,17 @@ router.post('/signup', async (req, res) => {
 
     if (inviteCode) {
       // Joining existing team
-      team = await get('teams', { invite_code: inviteCode });
+      const { data: foundTeam, error: teamError } = await supabaseHelper
+        .from('teams')
+        .select('*')
+        .eq('invite_code', inviteCode)
+        .single();
 
-      if (!team) {
+      if (teamError || !foundTeam) {
         return res.status(400).json({ error: 'Invalid invite code' });
       }
 
+      team = foundTeam;
       teamId = team.id;
       role = 'member';
     } else if (teamName) {
@@ -59,26 +64,37 @@ router.post('/signup', async (req, res) => {
       const crypto = require('crypto');
       const newInviteCode = crypto.randomBytes(6).toString('hex').toUpperCase();
 
-      team = await insertRow('teams', {
-        name: teamName,
-        invite_code: newInviteCode,
-        created_by: userId
-      });
+      const { data: newTeam, error: teamError } = await supabaseHelper
+        .from('teams')
+        .insert({
+          name: teamName,
+          invite_code: newInviteCode,
+          created_by: userId
+        })
+        .select()
+        .single();
 
+      if (teamError) throw teamError;
+
+      team = newTeam;
       teamId = team.id;
       role = 'owner';
     }
 
     // Update profile with team info
     // Note: The trigger already created the profile, we just need to update it
-    await updateRow('profiles', { id: userId }, {
+    await updateProfile(userId, {
       name: name || null,
       team_id: teamId,
       role: role
     });
 
     // Get team info for response
-    const teamInfo = await get('teams', { id: teamId });
+    const { data: teamInfo } = await supabaseHelper
+      .from('teams')
+      .select('*')
+      .eq('id', teamId)
+      .single();
 
     res.json({
       success: true,
@@ -126,20 +142,31 @@ router.post('/login', async (req, res) => {
     const userId = authData.user.id;
 
     // Get profile data
-    const profile = await get('profiles', { id: userId });
+    const profile = await getProfileById(userId);
 
     // Get Facebook accounts
-    const facebookAccounts = await getAll('facebook_accounts', { user_id: userId });
-    const facebookConnected = facebookAccounts.length > 0;
+    const { data: facebookAccounts } = await supabaseHelper
+      .from('facebook_accounts')
+      .select('*')
+      .eq('user_id', userId);
+    const facebookConnected = facebookAccounts?.length > 0;
 
     // Get Instagram accounts
-    const instagramAccounts = await getAll('instagram_accounts', { user_id: userId });
-    const instagramConnected = instagramAccounts.length > 0;
+    const { data: instagramAccounts } = await supabaseHelper
+      .from('instagram_accounts')
+      .select('*')
+      .eq('user_id', userId);
+    const instagramConnected = instagramAccounts?.length > 0;
 
     // Get team info if user has a team
     let team = null;
     if (profile && profile.team_id) {
-      team = await get('teams', { id: profile.team_id });
+      const { data: foundTeam } = await supabaseHelper
+        .from('teams')
+        .select('*')
+        .eq('id', profile.team_id)
+        .single();
+      team = foundTeam;
     }
 
     res.json({
@@ -211,20 +238,31 @@ router.get('/verify', async (req, res) => {
     }
 
     // Get profile data
-    const profile = await get('profiles', { id: user.id });
+    const profile = await getProfileById(user.id);
 
     // Get Facebook accounts
-    const facebookAccounts = await getAll('facebook_accounts', { user_id: user.id });
-    const facebookConnected = facebookAccounts.length > 0;
+    const { data: facebookAccounts } = await supabaseHelper
+      .from('facebook_accounts')
+      .select('*')
+      .eq('user_id', user.id);
+    const facebookConnected = facebookAccounts?.length > 0;
 
     // Get Instagram accounts
-    const instagramAccounts = await getAll('instagram_accounts', { user_id: user.id });
-    const instagramConnected = instagramAccounts.length > 0;
+    const { data: instagramAccounts } = await supabaseHelper
+      .from('instagram_accounts')
+      .select('*')
+      .eq('user_id', user.id);
+    const instagramConnected = instagramAccounts?.length > 0;
 
     // Get team info
     let team = null;
     if (profile && profile.team_id) {
-      team = await get('teams', { id: profile.team_id });
+      const { data: foundTeam } = await supabaseHelper
+        .from('teams')
+        .select('*')
+        .eq('id', profile.team_id)
+        .single();
+      team = foundTeam;
     }
 
     res.json({
@@ -255,21 +293,54 @@ router.get('/verify', async (req, res) => {
  */
 router.get('/me', authenticateSupabaseToken, async (req, res) => {
   try {
-    const profile = await get('profiles', { id: req.userId });
+    const profile = await getProfileById(req.userId);
 
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
-    // Get Facebook accounts
-    const facebookAccounts = await getAll('facebook_accounts', { user_id: req.userId });
-    const facebookConnected = facebookAccounts.length > 0;
-    const facebookPageName = facebookAccounts[0]?.page_name;
+    // Get Facebook accounts for user or their team
+    let facebookQuery = supabaseHelper
+      .from('facebook_accounts')
+      .select('*')
+      .eq('is_active', true);
 
-    // Get Instagram accounts
-    const instagramAccounts = await getAll('instagram_accounts', { user_id: req.userId });
-    const instagramConnected = instagramAccounts.length > 0;
-    const instagramUsername = instagramAccounts[0]?.username;
+    if (profile.team_id) {
+      // Get all team accounts
+      facebookQuery = facebookQuery.or(`user_id.eq.${req.userId},team_id.eq.${profile.team_id}`);
+    } else {
+      facebookQuery = facebookQuery.eq('user_id', req.userId);
+    }
+
+    const { data: facebookAccounts } = await facebookQuery;
+
+    // Get Instagram accounts for user or their team
+    let instagramQuery = supabaseHelper
+      .from('instagram_accounts')
+      .select('*')
+      .eq('is_active', true);
+
+    if (profile.team_id) {
+      instagramQuery = instagramQuery.or(`user_id.eq.${req.userId},team_id.eq.${profile.team_id}`);
+    } else {
+      instagramQuery = instagramQuery.eq('user_id', req.userId);
+    }
+
+    const { data: instagramAccounts } = await instagramQuery;
+
+    // Get TikTok accounts for user or their team
+    let tiktokQuery = supabaseHelper
+      .from('tiktok_accounts')
+      .select('*')
+      .eq('is_active', true);
+
+    if (profile.team_id) {
+      tiktokQuery = tiktokQuery.or(`user_id.eq.${req.userId},team_id.eq.${profile.team_id}`);
+    } else {
+      tiktokQuery = tiktokQuery.eq('user_id', req.userId);
+    }
+
+    const { data: tiktokAccounts } = await tiktokQuery;
 
     res.json({
       user: {
@@ -277,13 +348,36 @@ router.get('/me', authenticateSupabaseToken, async (req, res) => {
         email: req.user.email,
         name: profile.name,
         company: profile.company,
-        facebook_page_name: facebookPageName,
-        instagram_username: instagramUsername,
-        facebook_connected: facebookConnected,
-        instagram_connected: instagramConnected,
+        facebook_page_name: facebookAccounts?.[0]?.page_name, // Keep for backwards compatibility
+        instagram_username: instagramAccounts?.[0]?.username, // Keep for backwards compatibility
+        facebook_connected: facebookAccounts?.length > 0,
+        instagram_connected: instagramAccounts?.length > 0,
+        tiktok_connected: tiktokAccounts?.length > 0,
         api_key: profile.api_key,
         webhook_url: profile.webhook_url,
-        created_at: profile.created_at
+        created_at: profile.created_at,
+        team_id: profile.team_id,
+        role: profile.role
+      },
+      // All connected accounts (for multi-account management)
+      social_accounts: {
+        facebook: facebookAccounts?.map(acc => ({
+          id: acc.id,
+          page_id: acc.page_id,
+          page_name: acc.page_name,
+          user_id: acc.user_id
+        })) || [],
+        instagram: instagramAccounts?.map(acc => ({
+          id: acc.id,
+          account_id: acc.account_id,
+          username: acc.username,
+          user_id: acc.user_id
+        })) || [],
+        tiktok: tiktokAccounts?.map(acc => ({
+          id: acc.id,
+          display_name: acc.display_name,
+          user_id: acc.user_id
+        })) || []
       }
     });
   } catch (error) {
