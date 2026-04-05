@@ -455,6 +455,62 @@ router.post('/reset-password', async (req, res) => {
 });
 
 /**
+ * PUT /api/auth/update-openai-key - Update user's OpenAI API key
+ */
+router.put('/update-openai-key', authenticateSupabaseToken, async (req, res) => {
+  const { openai_api_key } = req.body;
+
+  if (!openai_api_key) {
+    return res.status(400).json({ error: 'OpenAI API key is required' });
+  }
+
+  try {
+    // Update the user's profile with their OpenAI key
+    const { error } = await supabaseHelper
+      .from('profiles')
+      .update({ openai_api_key })
+      .eq('id', req.userId);
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      success: true,
+      message: 'OpenAI API key updated successfully'
+    });
+  } catch (error) {
+    console.error('Update OpenAI key error:', error);
+    res.status(500).json({ error: 'Failed to update OpenAI API key' });
+  }
+});
+
+/**
+ * DELETE /api/auth/delete-openai-key - Remove user's OpenAI API key
+ */
+router.delete('/delete-openai-key', authenticateSupabaseToken, async (req, res) => {
+  try {
+    // Remove the user's OpenAI key
+    const { error } = await supabaseHelper
+      .from('profiles')
+      .update({ openai_api_key: null })
+      .eq('id', req.userId);
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      success: true,
+      message: 'OpenAI API key removed successfully'
+    });
+  } catch (error) {
+    console.error('Delete OpenAI key error:', error);
+    res.status(500).json({ error: 'Failed to remove OpenAI API key' });
+  }
+});
+
+/**
  * Middleware to authenticate Supabase JWT token
  */
 async function authenticateSupabaseToken(req, res, next) {

@@ -1,14 +1,20 @@
 const { createClient } = require('@supabase/supabase-js');
 
-// Initialize Supabase client
+/**
+ * Supabase Postgres — single source of truth for app data (profiles, posts,
+ * facebook_accounts, instagram_accounts, etc.). There is no local SQLite or
+ * on-disk SQL database in this codebase; the Node server talks to your
+ * hosted Supabase project via SUPABASE_URL + SUPABASE_SERVICE_KEY.
+ */
+
+// Server-side client (service role for API routes / scheduler)
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
 
 /**
- * Supabase Database Helper
- * Clean, modern helper for all database operations
+ * Database helpers — all operations go through Supabase tables above.
  */
 
 // ============================================
