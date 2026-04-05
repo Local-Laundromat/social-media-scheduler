@@ -786,14 +786,42 @@
         min-height: 80px;
       }
 
-      /* Calendar navigation buttons */
+      /* Calendar navigation - improved mobile layout */
       #calendarTab > div:first-child {
         flex-direction: column;
+        gap: 16px;
+        align-items: stretch !important;
+      }
+
+      #calendarTab > div:first-child > div:last-child {
+        flex-direction: column;
         gap: 12px;
+        width: 100%;
+      }
+
+      #calendarTab h3 {
+        font-size: 16px;
+      }
+
+      #calendarMonthYear {
+        min-width: auto !important;
+        text-align: center;
+        font-size: 16px;
       }
 
       #calendarTab .btn-secondary {
         width: 100%;
+        padding: 10px 16px;
+      }
+
+      /* Calendar legend - better wrapping on mobile */
+      #calendarTab > div:nth-child(2) {
+        gap: 12px;
+        font-size: 12px;
+      }
+
+      #calendarTab > div:nth-child(2) > div {
+        flex: 0 0 auto;
       }
 
       /* Bulk upload grid */
@@ -869,11 +897,18 @@
         font-size: 13px;
       }
 
-      /* Make calendar list view default on small screens */
+      /* Calendar view toggle buttons - better mobile sizing */
       #gridViewBtn,
       #listViewBtn {
-        padding: 6px 10px;
+        padding: 8px 12px;
         font-size: 12px;
+        flex: 1;
+        min-width: 0;
+      }
+
+      /* Calendar view toggle container */
+      #calendarTab > div:first-child > div:last-child > div:first-child {
+        width: 100%;
       }
 
       /* Adjust bulk upload thumbnails */
