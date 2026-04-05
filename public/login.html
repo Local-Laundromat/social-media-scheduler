@@ -487,10 +487,13 @@
 
     // Check if already logged in
     const authToken = localStorage.getItem('auth_token');
-    if (authToken) {
+    if (authToken && authToken.length > 20) {
+      // Clean the token (remove any whitespace)
+      const cleanToken = authToken.trim();
+
       // Verify token is still valid
       fetch('/api/auth/verify', {
-        headers: { 'Authorization': `Bearer ${authToken}` }
+        headers: { 'Authorization': `Bearer ${cleanToken}` }
       })
       .then(res => res.json())
       .then(data => {
@@ -507,6 +510,11 @@
         localStorage.removeItem('user');
         localStorage.removeItem('team');
       });
+    } else if (authToken) {
+      // Invalid token, clear it
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('team');
     }
   </script>
 </body>
