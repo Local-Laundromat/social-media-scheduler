@@ -114,6 +114,8 @@ router.post('/posts', optionalApiKey, async (req, res) => {
       teamId = profile.team_id || null;
     }
 
+    // Track if this is a "post now" request (no scheduled_time provided)
+    const isPostNow = !scheduled_time;
     const scheduledTimeIso = scheduled_time || new Date().toISOString();
     const scheduleDate = new Date(scheduledTimeIso);
     const oneMinuteFromNow = Date.now() + 60 * 1000;
@@ -157,7 +159,24 @@ router.post('/posts', optionalApiKey, async (req, res) => {
     // Publish now when due (so Facebook works without waiting for hourly cron + AUTO_START_SCHEDULER)
     const dueAt = new Date(result.scheduled_time || Date.now());
     const immediateEnabled = process.env.IMMEDIATE_POST_ON_CREATE !== 'false';
-    if (immediateEnabled && dueAt.getTime() <= Date.now() + 5000) {
+    const nowMs = Date.now();
+    const dueMs = dueAt.getTime();
+    // If this was a "post now" request OR scheduled within 60 seconds, post immediately
+    const shouldPostNow = immediateEnabled && (isPostNow || dueMs <= nowMs + 60000);
+
+    console.log('🔍 Immediate post check:', {
+      postId: result.id,
+      isPostNow,
+      immediateEnabled,
+      scheduledTime: result.scheduled_time,
+      dueMs,
+      nowMs,
+      diff: dueMs - nowMs,
+      shouldPostNow
+    });
+
+    if (shouldPostNow) {
+      console.log(`📤 Triggering immediate post for post id=${result.id}`);
       // Run soon after insert (DB row must exist). Log clearly if publishing fails.
       Promise.resolve()
         .then(() => scheduler.postNow(result.id))
@@ -174,6 +193,8 @@ router.post('/posts', optionalApiKey, async (req, res) => {
             err?.stack || ''
           );
         });
+    } else {
+      console.log(`⏰ Post id=${result.id} will be processed by scheduler (due in ${Math.round((dueMs - nowMs) / 1000)}s)`);
     }
 
     res.json({
@@ -292,8 +313,6 @@ router.post('/api/import-folder', optionalApiKey, async (req, res) => {
     const files = fs.readdirSync(folderPath);
     const imported = [];
     const errors = [];
-    const accountId = req.account?.id || null;
-    const platformsJson = JSON.stringify(platforms);
 
     // Import files
     for (const filename of files) {
@@ -317,9 +336,13 @@ router.post('/api/import-folder', optionalApiKey, async (req, res) => {
             filepath,
             filetype,
             caption: caption || '',
-            platforms: platformsJson,
-            account_id: accountId,
-            user_id: internalUserId
+            content: caption || '',
+            media_url: filepath,
+            media_type: filetype,
+            platforms: platforms, // Pass as array, not JSON string
+            user_id: internalUserId,
+            status: 'pending',
+            scheduled_time: new Date().toISOString()
           });
 
           imported.push({ id: result.id, filename });

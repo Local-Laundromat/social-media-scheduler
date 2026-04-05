@@ -325,7 +325,7 @@ class Scheduler {
       instagram: null,
     };
 
-    // Post to Facebook
+    // Post to Facebook (with retry logic)
     if (platforms.includes('facebook')) {
       if (!credentials.facebookToken || !credentials.facebookPageId) {
         results.facebook = {
@@ -340,25 +340,51 @@ class Scheduler {
           credentials.facebookPageId
         );
 
-        results.facebook = await fbService.post(post.filepath, post.caption || '', {
-          filetype: post.filetype,
-          filename: post.filename,
-        });
+        // Retry logic: 3 attempts with exponential backoff (1s, 2s, 4s)
+        const maxRetries = 3;
+        let lastError = null;
 
-        if (results.facebook.success) {
-          logPostPipeline(post.id, 'facebook.ok', { postId: results.facebook.postId });
-          await updatePost(post.id, { facebook_post_id: results.facebook.postId });
-        } else {
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          results.facebook = await fbService.post(post.filepath, post.caption || '', {
+            filetype: post.filetype,
+            filename: post.filename,
+          });
+
+          if (results.facebook.success) {
+            if (attempt > 1) {
+              logPostPipeline(post.id, 'facebook.ok', { postId: results.facebook.postId, retriedAttempts: attempt - 1 });
+            } else {
+              logPostPipeline(post.id, 'facebook.ok', { postId: results.facebook.postId });
+            }
+            await updatePost(post.id, { facebook_post_id: results.facebook.postId });
+            break; // Success, exit retry loop
+          } else {
+            lastError = results.facebook;
+            if (attempt < maxRetries) {
+              const delayMs = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
+              logPostPipeline(post.id, 'facebook.retry', {
+                attempt,
+                delayMs,
+                error: results.facebook.error
+              });
+              await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+          }
+        }
+
+        // If all retries failed, log the final failure
+        if (!results.facebook.success) {
           logPostPipeline(post.id, 'facebook.fail', {
             stage: results.facebook.stage,
             error: results.facebook.error,
             graphCode: results.facebook.graph?.code,
+            retriedAttempts: maxRetries - 1
           });
         }
       }
     }
 
-    // Post to Instagram (requires public URL)
+    // Post to Instagram (requires public URL) (with retry logic)
     if (platforms.includes('instagram')) {
       if (!credentials.instagramToken || !credentials.instagramAccountId) {
         results.instagram = {
@@ -385,18 +411,44 @@ class Scheduler {
           };
           logPostPipeline(post.id, 'instagram.fail', { stage: 'scheduler_instagram_public_url' });
         } else {
-          results.instagram = await igService.post(publicUrl, post.caption || '', isVideo);
-        }
+          // Retry logic: 3 attempts with exponential backoff (1s, 2s, 4s)
+          const maxRetries = 3;
+          let lastError = null;
 
-        if (results.instagram.success) {
-          logPostPipeline(post.id, 'instagram.ok', { postId: results.instagram.postId });
-          await updatePost(post.id, { instagram_post_id: results.instagram.postId });
-        } else if (results.instagram && !results.instagram.success) {
-          logPostPipeline(post.id, 'instagram.fail', {
-            stage: results.instagram.stage,
-            error: results.instagram.error,
-            graphCode: results.instagram.graph?.code,
-          });
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            results.instagram = await igService.post(publicUrl, post.caption || '', isVideo);
+
+            if (results.instagram.success) {
+              if (attempt > 1) {
+                logPostPipeline(post.id, 'instagram.ok', { postId: results.instagram.postId, retriedAttempts: attempt - 1 });
+              } else {
+                logPostPipeline(post.id, 'instagram.ok', { postId: results.instagram.postId });
+              }
+              await updatePost(post.id, { instagram_post_id: results.instagram.postId });
+              break; // Success, exit retry loop
+            } else {
+              lastError = results.instagram;
+              if (attempt < maxRetries) {
+                const delayMs = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
+                logPostPipeline(post.id, 'instagram.retry', {
+                  attempt,
+                  delayMs,
+                  error: results.instagram.error
+                });
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+              }
+            }
+          }
+
+          // If all retries failed, log the final failure
+          if (results.instagram && !results.instagram.success) {
+            logPostPipeline(post.id, 'instagram.fail', {
+              stage: results.instagram.stage,
+              error: results.instagram.error,
+              graphCode: results.instagram.graph?.code,
+              retriedAttempts: maxRetries - 1
+            });
+          }
         }
       }
     }
@@ -503,8 +555,7 @@ class Scheduler {
   async updatePostStatus(postId, status, errorMessage = null) {
     try {
       const updateData = {
-        status,
-        posted_time: new Date().toISOString()
+        status
       };
 
       if (errorMessage) {
