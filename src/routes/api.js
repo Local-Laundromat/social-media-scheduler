@@ -114,6 +114,12 @@ router.post('/posts', optionalApiKey, async (req, res) => {
       teamId = profile.team_id || null;
     }
 
+    const scheduledTimeIso = scheduled_time || new Date().toISOString();
+    const scheduleDate = new Date(scheduledTimeIso);
+    const oneMinuteFromNow = Date.now() + 60 * 1000;
+    // "Post now" (no scheduled_time) → pending + due immediately; future picks → scheduled
+    const initialStatus = scheduleDate.getTime() > oneMinuteFromNow ? 'scheduled' : 'pending';
+
     // Create post - map to both old and new column names for compatibility
     const postPayload = {
       // New column names (for after migration)
@@ -127,7 +133,8 @@ router.post('/posts', optionalApiKey, async (req, res) => {
       media_type: filetype || 'image',
       // Common fields
       platforms: platforms, // Pass array directly, not JSON string
-      scheduled_time: scheduled_time || new Date().toISOString(), // Default to now if not scheduled
+      scheduled_time: scheduledTimeIso,
+      status: initialStatus,
       user_id: internalUserId,
       team_id: teamId,
       webhook_url: webhook
@@ -150,12 +157,23 @@ router.post('/posts', optionalApiKey, async (req, res) => {
     // Publish now when due (so Facebook works without waiting for hourly cron + AUTO_START_SCHEDULER)
     const dueAt = new Date(result.scheduled_time || Date.now());
     const immediateEnabled = process.env.IMMEDIATE_POST_ON_CREATE !== 'false';
-    if (immediateEnabled && dueAt.getTime() <= Date.now()) {
-      setImmediate(() => {
-        scheduler.postNow(result.id).catch((err) => {
-          console.error(`Immediate post failed for post ${result.id}:`, err);
+    if (immediateEnabled && dueAt.getTime() <= Date.now() + 5000) {
+      // Run soon after insert (DB row must exist). Log clearly if publishing fails.
+      Promise.resolve()
+        .then(() => scheduler.postNow(result.id))
+        .then((publishResult) => {
+          console.log(
+            `✓ Immediate post finished for post id=${result.id}`,
+            JSON.stringify(publishResult).slice(0, 1200)
+          );
+        })
+        .catch((err) => {
+          console.error(
+            `✗ Immediate post failed for post id=${result.id}:`,
+            err?.message || err,
+            err?.stack || ''
+          );
         });
-      });
     }
 
     res.json({

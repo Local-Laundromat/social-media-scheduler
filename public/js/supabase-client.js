@@ -9,8 +9,9 @@
 const SUPABASE_URL = 'https://nnvxkooiwyrlqbxhqxac.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5udnhrb29pd3lybHFieGhxeGFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3Njg3ODYsImV4cCI6MjA4OTM0NDc4Nn0.aRFw3ysejLtacYxT1b6ulQa_OFeD2cwnF752ig_6mzA';
 
-// Initialize Supabase client
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Auth below uses /api/auth/* via fetch and does not need a browser Supabase client.
+// If you need supabase-js (Realtime, etc.), load the CDN script from the comment at the top, then:
+//   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /**
  * Auth Helper Functions

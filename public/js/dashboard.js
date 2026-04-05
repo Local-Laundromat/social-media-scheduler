@@ -4,6 +4,16 @@ let currentUser = null;
 let uploadedFile = null;
 let socialAccounts = { facebook: [], instagram: [], tiktok: [] };
 
+/** Ensure social_accounts from API always has array fields (avoids .forEach on undefined). */
+function normalizeSocialAccounts(sa) {
+  const d = sa && typeof sa === 'object' ? sa : {};
+  return {
+    facebook: Array.isArray(d.facebook) ? d.facebook : [],
+    instagram: Array.isArray(d.instagram) ? d.instagram : [],
+    tiktok: Array.isArray(d.tiktok) ? d.tiktok : []
+  };
+}
+
 // Helper function to safely get platforms array
 function getPlatformsArray(platforms) {
   if (Array.isArray(platforms)) {
@@ -42,7 +52,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     const data = await response.json();
     currentUser = data.user;
-    socialAccounts = data.social_accounts || { facebook: [], instagram: [], tiktok: [] };
+    socialAccounts = normalizeSocialAccounts(data.social_accounts);
 
     // Update UI
     initializeDashboard();
@@ -214,7 +224,7 @@ async function reloadUserData() {
 
     const data = await response.json();
     currentUser = data.user;
-    socialAccounts = data.social_accounts || { facebook: [], instagram: [], tiktok: [] };
+    socialAccounts = normalizeSocialAccounts(data.social_accounts);
 
     updateConnectionStatus('facebook', currentUser.facebook_connected, currentUser.facebook_page_name);
     updateConnectionStatus('instagram', currentUser.instagram_connected, currentUser.instagram_username);
@@ -318,7 +328,7 @@ async function loadStats() {
       // "pending" or "scheduled" = waiting to be posted
       pending: posts.filter(p => p.status === 'pending' || p.status === 'scheduled').length,
       posted: posts.filter(p => p.status === 'posted').length,
-      failed: posts.filter(p => p.status === 'failed').length
+      failed: posts.filter(p => p.status === 'failed' || p.status === 'partial').length
     };
 
     document.getElementById('statTotal').textContent = stats.total;
@@ -1498,6 +1508,24 @@ function nextMonth() {
   renderCalendar(currentCalendarDate);
 }
 
+/** Pretty-print structured posting errors (JSON) or plain text; safe for innerHTML. */
+function formatPostErrorForDisplay(raw) {
+  if (raw == null || raw === '') return '';
+  const s = String(raw).trim();
+  if (s.startsWith('{')) {
+    try {
+      const o = JSON.parse(s);
+      return JSON.stringify(o, null, 2)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    } catch (_) {
+      /* fall through */
+    }
+  }
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 // Show post details in modal
 function showPostDetails(post) {
   const modal = document.getElementById('postDetailsModal');
@@ -1505,6 +1533,7 @@ function showPostDetails(post) {
 
   const platforms = getPlatformsArray(post.platforms);
   const scheduledTime = post.scheduled_time ? new Date(post.scheduled_time).toLocaleString() : 'Not scheduled';
+  const errHtml = formatPostErrorForDisplay(post.error_message);
   
   content.innerHTML = `
     <div style="margin-bottom: 16px;">
@@ -1527,10 +1556,8 @@ function showPostDetails(post) {
     </div>
     ${post.error_message ? `
     <div style="margin-bottom: 16px;">
-      <strong>Error:</strong><br>
-      <div style="background: #fee2e2; padding: 12px; border-radius: 6px; margin-top: 8px; color: #991b1b;">
-        ${post.error_message}
-      </div>
+      <strong>Error details:</strong> <span style="color:#6b7280;font-size:12px;">(stage codes help locate the failure)</span><br>
+      <pre style="background: #fee2e2; padding: 12px; border-radius: 6px; margin-top: 8px; color: #991b1b; white-space: pre-wrap; font-size: 12px; font-family: ui-monospace, monospace; max-height: 280px; overflow: auto;">${errHtml}</pre>
     </div>
     ` : ''}
     <div style="display: flex; gap: 12px; margin-top: 24px;">
@@ -1604,18 +1631,84 @@ async function postNow(postId) {
 
 // ===== ANALYTICS DASHBOARD =====
 
+/** Explains "stuck" queue + where to read errors (shown on Analytics tab). */
+function setAnalyticsPublishingHint({
+  queueCount,
+  health,
+  pendingDue,
+  scheduledOnly,
+  failedOnly,
+  partialOnly
+}) {
+  const el = document.getElementById('analyticsPublishingHint');
+  if (!el) return;
+
+  const show = queueCount > 0 || failedOnly > 0 || partialOnly > 0;
+  if (!show) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+
+  el.style.display = 'block';
+  const pub = health?.publishing || {};
+  const parts = [];
+
+  if (queueCount > 0) {
+    parts.push(
+      `<strong>In queue (${queueCount})</strong> — not published to social networks yet. ` +
+        `Breakdown: <strong>${pendingDue} due now</strong> (status "pending") · <strong>${scheduledOnly}</strong> scheduled for a future time.`
+    );
+  }
+
+  if (pendingDue > 0) {
+    parts.push(
+      `Posts <strong>due now</strong> need the server to publish them: either <code style="background:#fff7ed;padding:2px 6px;border-radius:4px;">AUTO_START_SCHEDULER=true</code> with a restart (hourly cron), or open a post in the calendar and use <strong>Post Now</strong>. New posts usually publish within seconds if immediate publish is on (default).`
+    );
+  }
+
+  if (!pub.immediatePostOnCreate && pendingDue > 0) {
+    parts.push(
+      `<strong>Immediate publish is off</strong> (<code>IMMEDIATE_POST_ON_CREATE=false</code>). New posts stay pending until the scheduler runs or you click Post Now.`
+    );
+  }
+
+  if (!health?.scheduler && !pub.autoStartScheduler && queueCount > 0) {
+    parts.push(
+      `<strong>Scheduler is not running.</strong> Set <code>AUTO_START_SCHEDULER=true</code> in the server environment and restart the Node process.`
+    );
+  }
+
+  if (failedOnly > 0 || partialOnly > 0) {
+    parts.push(
+      `<strong>Where errors appear:</strong> Calendar → click a post → <strong>Details</strong> → "Error details" (JSON with <code>stage</code> and Meta <code>fbtrace_id</code> when available). Check the server terminal for <code>[post:ID]</code> or <code>Facebook post error</code>.`
+    );
+  }
+
+  el.innerHTML = `<div style="max-width: 920px;">${parts.join(' ')}</div>`;
+}
+
 // Load analytics when tab is switched
 async function loadAnalytics() {
   const token = localStorage.getItem('auth_token');
   const timeRange = document.getElementById('analyticsTimeRange').value;
 
   try {
-    // Fetch all posts
-    const response = await fetch(`/api/users/${currentUser.id}/posts`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+    const [postsRes, healthRes] = await Promise.all([
+      fetch(`/api/users/${currentUser.id}/posts`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      }),
+      fetch('/health')
+    ]);
 
-    const data = await response.json();
+    let health = { scheduler: false, publishing: {} };
+    try {
+      if (healthRes.ok) health = await healthRes.json();
+    } catch (_) {
+      /* ignore */
+    }
+
+    const data = await postsRes.json();
     let posts = data.posts || [];
 
     // Filter by time range
@@ -1628,10 +1721,39 @@ async function loadAnalytics() {
     // Calculate metrics
     const totalPosts = posts.length;
     const successfulPosts = posts.filter(p => p.status === 'posted').length;
-    // "pending" or "scheduled" = waiting to be posted
-    const pendingPosts = posts.filter(p => p.status === 'pending' || p.status === 'scheduled').length;
-    const failedPosts = posts.filter(p => p.status === 'failed').length;
+    const pendingDue = posts.filter(p => p.status === 'pending').length;
+    const scheduledOnly = posts.filter(p => p.status === 'scheduled').length;
+    const queueCount = pendingDue + scheduledOnly;
+    const failedOnly = posts.filter(p => p.status === 'failed').length;
+    const partialOnly = posts.filter(p => p.status === 'partial').length;
+    const failedForChart = failedOnly + partialOnly;
+
     const successRate = totalPosts > 0 ? Math.round((successfulPosts / totalPosts) * 100) : 0;
+
+    setAnalyticsPublishingHint({
+      queueCount,
+      health,
+      pendingDue,
+      scheduledOnly,
+      failedOnly,
+      partialOnly
+    });
+
+    const subPending = document.getElementById('analyticsPendingSubline');
+    if (subPending) {
+      subPending.textContent =
+        pendingDue || scheduledOnly
+          ? `Breakdown: ${pendingDue} due now · ${scheduledOnly} scheduled for later`
+          : '';
+    }
+    const subFailed = document.getElementById('analyticsFailedSubline');
+    if (subFailed) {
+      if (failedOnly > 0 || partialOnly > 0) {
+        subFailed.textContent = `Breakdown: ${failedOnly} failed · ${partialOnly} partial`;
+      } else {
+        subFailed.textContent = '';
+      }
+    }
 
     // Platform breakdown
     const platformCounts = { facebook: 0, instagram: 0, tiktok: 0 };
@@ -1669,10 +1791,10 @@ async function loadAnalytics() {
         `${Math.round((platformCounts.tiktok / totalPlatformPosts) * 100)}% of total posts`;
     }
 
-    // Update status counts
+    // Update status counts (chart: posted | in queue | failed+partial)
     document.getElementById('analyticsPostedCount').textContent = successfulPosts;
-    document.getElementById('analyticsPendingCount').textContent = pendingPosts;
-    document.getElementById('analyticsFailedCount').textContent = failedPosts;
+    document.getElementById('analyticsPendingCount').textContent = queueCount;
+    document.getElementById('analyticsFailedCount').textContent = failedForChart;
 
     // Posting patterns
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -1701,7 +1823,7 @@ async function loadAnalytics() {
     document.getElementById('analyticsAvgPerDay').textContent = avgPerDay;
 
     // Render charts
-    renderStatusChart(successfulPosts, pendingPosts, failedPosts);
+    renderStatusChart(successfulPosts, queueCount, failedForChart);
     renderActivityChart(posts, parseInt(timeRange === 'all' ? 30 : timeRange));
 
   } catch (error) {
@@ -1712,7 +1834,9 @@ async function loadAnalytics() {
 // Render status distribution chart (simple bar chart)
 function renderStatusChart(posted, pending, failed) {
   const canvas = document.getElementById('statusChart');
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
+  if (!ctx) return;
   
   const total = posted + pending + failed;
   if (total === 0) {
@@ -1768,7 +1892,9 @@ function renderStatusChart(posted, pending, failed) {
 // Render activity chart (line chart)
 function renderActivityChart(posts, days) {
   const canvas = document.getElementById('activityChart');
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
+  if (!ctx) return;
 
   // Set canvas size
   canvas.width = canvas.offsetWidth;
@@ -1967,6 +2093,16 @@ function renderCalendarList() {
               statusColor = '#ef4444';
               statusBg = '#fee2e2';
               statusText = 'failed';
+            } else if (post.status === 'partial') {
+              statusColor = '#d97706';
+              statusBg = '#ffedd5';
+              statusText = 'partial';
+            } else if (post.status === 'pending') {
+              statusColor = '#ca8a04';
+              statusBg = '#fef9c3';
+              statusText = 'queued';
+            } else if (post.status === 'scheduled') {
+              statusText = 'scheduled';
             }
 
             const platformIcons = platforms.map(p => {

@@ -29,6 +29,18 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
+// Default browser request; serve SVG so we don't need a binary .ico file
+app.get('/favicon.ico', (req, res) => {
+  res.type('image/svg+xml');
+  res.sendFile(path.join(__dirname, '../public/favicon.svg'));
+});
+
+// Some setups mistakenly request /dashboard.js; the real asset is /js/dashboard.js
+app.get('/dashboard.js', (req, res) => {
+  res.type('application/javascript; charset=utf-8');
+  res.sendFile(path.join(__dirname, '../public/js/dashboard.js'));
+});
+
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, '../public')));
 
@@ -63,12 +75,16 @@ app.get('/embed', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/embed.html'));
 });
 
-// Health check endpoint
+// Health check endpoint (used by dashboard Analytics to explain stuck "pending" posts)
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     scheduler: scheduler.isRunning,
+    publishing: {
+      autoStartScheduler: process.env.AUTO_START_SCHEDULER === 'true',
+      immediatePostOnCreate: process.env.IMMEDIATE_POST_ON_CREATE !== 'false',
+    },
   });
 });
 
@@ -94,6 +110,17 @@ app.listen(PORT, () => {
     const cronExpression = process.env.CRON_SCHEDULE || '0 * * * *';
     scheduler.start(cronExpression);
     console.log(`✓ Scheduler auto-started with cron: ${cronExpression}`);
+
+    // Drain due posts once shortly after boot (don't rely only on next cron tick)
+    const drainDelayMs = parseInt(process.env.SCHEDULER_STARTUP_DRAIN_DELAY_MS || '3000', 10);
+    setTimeout(() => {
+      scheduler
+        .processPendingPosts()
+        .then((r) => {
+          console.log(`✓ Startup queue drain: processed ${r.processed} post(s)`);
+        })
+        .catch((e) => console.error('✗ Startup queue drain failed:', e.message || e));
+    }, drainDelayMs);
   }
 });
 

@@ -1,5 +1,6 @@
 const axios = require('axios');
 const path = require('path');
+const { normalizeAxiosGraphError } = require('../utils/postingErrors');
 
 class InstagramService {
   constructor(accessToken, instagramAccountId) {
@@ -37,10 +38,20 @@ class InstagramService {
         containerId: response.data.id,
       };
     } catch (error) {
-      console.error('Instagram container error:', error.response?.data || error.message);
+      const g = normalizeAxiosGraphError(error);
+      console.error('[instagram_graph_media_create]', g.message, g.fbtrace_id ? `trace=${g.fbtrace_id}` : '');
       return {
         success: false,
-        error: error.response?.data?.error?.message || error.message,
+        error: g.message,
+        stage: 'instagram_graph_media_create',
+        graph: {
+          code: g.code,
+          error_subcode: g.error_subcode,
+          type: g.type,
+          fbtrace_id: g.fbtrace_id,
+          httpStatus: g.httpStatus,
+          isNetwork: g.isNetwork,
+        },
       };
     }
   }
@@ -93,10 +104,20 @@ class InstagramService {
         postId: response.data.id,
       };
     } catch (error) {
-      console.error('Instagram publish error:', error.response?.data || error.message);
+      const g = normalizeAxiosGraphError(error);
+      console.error('[instagram_graph_media_publish]', g.message, g.fbtrace_id ? `trace=${g.fbtrace_id}` : '');
       return {
         success: false,
-        error: error.response?.data?.error?.message || error.message,
+        error: g.message,
+        stage: 'instagram_graph_media_publish',
+        graph: {
+          code: g.code,
+          error_subcode: g.error_subcode,
+          type: g.type,
+          fbtrace_id: g.fbtrace_id,
+          httpStatus: g.httpStatus,
+          isNetwork: g.isNetwork,
+        },
       };
     }
   }
@@ -115,14 +136,22 @@ class InstagramService {
       if (status.statusCode === 'FINISHED') {
         return { success: true };
       } else if (status.statusCode === 'ERROR') {
-        return { success: false, error: 'Video processing failed' };
+        return {
+          success: false,
+          error: 'Video processing failed',
+          stage: 'instagram_video_container_status',
+        };
       }
 
       // Wait 2 seconds before checking again
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
-    return { success: false, error: 'Video processing timeout' };
+    return {
+      success: false,
+      error: 'Video processing timeout',
+      stage: 'instagram_video_processing_timeout',
+    };
   }
 
   /**
@@ -141,7 +170,10 @@ class InstagramService {
       if (isVideo) {
         const processingResult = await this.waitForVideoProcessing(container.containerId);
         if (!processingResult.success) {
-          return processingResult;
+          return {
+            ...processingResult,
+            stage: processingResult.stage || 'instagram_video_processing',
+          };
         }
       }
 
@@ -150,10 +182,20 @@ class InstagramService {
 
       return published;
     } catch (error) {
-      console.error('Instagram post error:', error.message);
+      const g = normalizeAxiosGraphError(error);
+      console.error('[instagram_post_orchestration]', g.message);
       return {
         success: false,
-        error: error.message,
+        error: g.message,
+        stage: 'instagram_post_orchestration',
+        graph: {
+          code: g.code,
+          error_subcode: g.error_subcode,
+          type: g.type,
+          fbtrace_id: g.fbtrace_id,
+          httpStatus: g.httpStatus,
+          isNetwork: g.isNetwork,
+        },
       };
     }
   }

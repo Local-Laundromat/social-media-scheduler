@@ -2,9 +2,37 @@ const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
 const path = require('path');
+const { normalizeAxiosGraphError } = require('../utils/postingErrors');
 
 function isRemoteMediaUrl(filePath) {
   return typeof filePath === 'string' && /^https?:\/\//i.test(filePath.trim());
+}
+
+/**
+ * Resolve file extension for routing to image vs video Graph endpoints.
+ * path.extname('https://host/a.jpg?v=1') wrongly returns '.jpg?v=1'; URLs must use pathname only.
+ */
+function inferMediaExtension(filePath, hint = {}) {
+  let ext = '';
+  if (filePath && typeof filePath === 'string') {
+    let s = filePath.trim();
+    if (/^https?:\/\//i.test(s)) {
+      try {
+        s = new URL(s).pathname;
+      } catch (_) {
+        /* keep full string */
+      }
+    }
+    ext = path.extname(s).toLowerCase();
+    if (ext.includes('?')) ext = ext.split('?')[0];
+  }
+  if (!ext && hint.filename) {
+    ext = path.extname(String(hint.filename)).toLowerCase();
+    if (ext.includes('?')) ext = ext.split('?')[0];
+  }
+  if (!ext && hint.filetype === 'video') return '.mp4';
+  if (!ext && hint.filetype === 'image') return '.jpg';
+  return ext;
 }
 
 class FacebookService {
@@ -19,10 +47,13 @@ class FacebookService {
    * Post an image to Facebook Page
    */
   async postImage(imagePath, caption = '') {
+    const remote = isRemoteMediaUrl(imagePath);
+    const stage = remote ? 'facebook_graph_photos_url' : 'facebook_graph_photos_multipart';
+
     try {
       let response;
 
-      if (isRemoteMediaUrl(imagePath)) {
+      if (remote) {
         // Supabase Storage / CDN URLs — Graph API cannot read local fs paths for these
         response = await axios.post(`${this.baseUrl}/${this.pageId}/photos`, null, {
           params: {
@@ -32,6 +63,13 @@ class FacebookService {
           },
         });
       } else {
+        if (!fs.existsSync(imagePath)) {
+          return {
+            success: false,
+            error: `Local media file not found (server path): ${imagePath}`,
+            stage: 'facebook_local_file_missing',
+          };
+        }
         const form = new FormData();
         form.append('source', fs.createReadStream(imagePath));
         form.append('message', caption);
@@ -50,10 +88,20 @@ class FacebookService {
         data: response.data,
       };
     } catch (error) {
-      console.error('Facebook post error:', error.response?.data || error.message);
+      const g = normalizeAxiosGraphError(error);
+      console.error(`[${stage}]`, g.message, g.fbtrace_id ? `trace=${g.fbtrace_id}` : '');
       return {
         success: false,
-        error: error.response?.data?.error?.message || error.message,
+        error: g.message,
+        stage,
+        graph: {
+          code: g.code,
+          error_subcode: g.error_subcode,
+          type: g.type,
+          fbtrace_id: g.fbtrace_id,
+          httpStatus: g.httpStatus,
+          isNetwork: g.isNetwork,
+        },
       };
     }
   }
@@ -62,10 +110,13 @@ class FacebookService {
    * Post a video to Facebook Page
    */
   async postVideo(videoPath, caption = '') {
+    const remote = isRemoteMediaUrl(videoPath);
+    const stage = remote ? 'facebook_graph_videos_url' : 'facebook_graph_videos_multipart';
+
     try {
       let response;
 
-      if (isRemoteMediaUrl(videoPath)) {
+      if (remote) {
         response = await axios.post(`${this.baseUrl}/${this.pageId}/videos`, null, {
           params: {
             file_url: videoPath.trim(),
@@ -76,6 +127,13 @@ class FacebookService {
           maxBodyLength: Infinity,
         });
       } else {
+        if (!fs.existsSync(videoPath)) {
+          return {
+            success: false,
+            error: `Local media file not found (server path): ${videoPath}`,
+            stage: 'facebook_local_file_missing',
+          };
+        }
         const form = new FormData();
         form.append('source', fs.createReadStream(videoPath));
         form.append('description', caption);
@@ -94,30 +152,45 @@ class FacebookService {
         data: response.data,
       };
     } catch (error) {
-      console.error('Facebook video post error:', error.response?.data || error.message);
+      const g = normalizeAxiosGraphError(error);
+      console.error(`[${stage}]`, g.message, g.fbtrace_id ? `trace=${g.fbtrace_id}` : '');
       return {
         success: false,
-        error: error.response?.data?.error?.message || error.message,
+        error: g.message,
+        stage,
+        graph: {
+          code: g.code,
+          error_subcode: g.error_subcode,
+          type: g.type,
+          fbtrace_id: g.fbtrace_id,
+          httpStatus: g.httpStatus,
+          isNetwork: g.isNetwork,
+        },
       };
     }
   }
 
   /**
    * Post content based on file type
+   * @param {string} filePath - Local path or public https URL
+   * @param {string} caption
+   * @param {{ filetype?: string, filename?: string }} hint - DB fields when URL has no clear extension
    */
-  async post(filePath, caption = '') {
-    const ext = path.extname(filePath).toLowerCase();
+  async post(filePath, caption = '', hint = {}) {
+    const ext = inferMediaExtension(filePath, hint);
 
-    if (['.jpg', '.jpeg', '.png', '.gif'].includes(ext)) {
+    if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
       return await this.postImage(filePath, caption);
-    } else if (['.mp4', '.mov', '.avi'].includes(ext)) {
-      return await this.postVideo(filePath, caption);
-    } else {
-      return {
-        success: false,
-        error: 'Unsupported file type',
-      };
     }
+    if (['.mp4', '.mov', '.avi'].includes(ext)) {
+      return await this.postVideo(filePath, caption);
+    }
+    return {
+      success: false,
+      error: `Unsupported file type (${ext || 'unknown'}). Use jpg/png/gif/webp or mp4/mov/avi.`,
+      stage: 'facebook_media_type_routing',
+      inferredExtension: ext || null,
+    };
   }
 
   /**
@@ -151,3 +224,4 @@ class FacebookService {
 module.exports = FacebookService;
 /** Exposed for unit tests (URL vs local file branching). */
 module.exports.isRemoteMediaUrl = isRemoteMediaUrl;
+module.exports.inferMediaExtension = inferMediaExtension;

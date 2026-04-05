@@ -6,6 +6,94 @@ const {
   applyFacebookAccountFilter,
   applyInstagramAccountFilter,
 } = require('./socialAccountQuery');
+const { logPostPipeline, stringifyPostingFailure } = require('../utils/postingErrors');
+
+// Instagram requires a public HTTPS URL; uploads may already be on Supabase (filepath).
+function resolveInstagramMediaUrl(post) {
+  const fp = (post.filepath || '').trim();
+  if (/^https?:\/\//i.test(fp)) {
+    return fp;
+  }
+  const base = process.env.PUBLIC_FILE_URL;
+  if (!base) {
+    return null;
+  }
+  return `${base.replace(/\/$/, '')}/${post.filename}`;
+}
+
+/**
+ * Normalize platforms from DB: JS array, JSON string, or Postgres text[] literal "{a,b}".
+ */
+function parsePlatformsField(post) {
+  const raw = post.platforms;
+  if (Array.isArray(raw)) {
+    return raw.map((p) => String(p).trim().toLowerCase()).filter(Boolean);
+  }
+  if (typeof raw === 'string') {
+    const s = raw.trim();
+    try {
+      const parsed = JSON.parse(s);
+      if (Array.isArray(parsed)) {
+        return parsed.map((p) => String(p).trim().toLowerCase()).filter(Boolean);
+      }
+    } catch (_) {
+      /* fall through */
+    }
+    if (s.startsWith('{') && s.endsWith('}')) {
+      return s
+        .slice(1, -1)
+        .split(',')
+        .map((p) => p.replace(/^"|"$/g, '').trim().toLowerCase())
+        .filter(Boolean);
+    }
+  }
+  return [];
+}
+
+/**
+ * Load posts that might be due (pending/scheduled). Uses two queries so we never miss
+ * rows with NULL scheduled_time (excluded by .lte) and avoid fragile OR filters.
+ */
+async function fetchDuePostCandidates() {
+  const nowIso = new Date().toISOString();
+
+  const { data: withTime, error: err1 } = await supabase
+    .from('posts')
+    .select('*')
+    .in('status', ['pending', 'scheduled'])
+    .lte('scheduled_time', nowIso)
+    .order('scheduled_time', { ascending: true })
+    .order('id', { ascending: true })
+    .limit(500);
+
+  if (err1) throw err1;
+
+  const { data: noTime, error: err2 } = await supabase
+    .from('posts')
+    .select('*')
+    .in('status', ['pending', 'scheduled'])
+    .is('scheduled_time', null)
+    .order('id', { ascending: true })
+    .limit(500);
+
+  if (err2) throw err2;
+
+  const seen = new Set();
+  const merged = [];
+  for (const p of [...(withTime || []), ...(noTime || [])]) {
+    if (!seen.has(p.id)) {
+      seen.add(p.id);
+      merged.push(p);
+    }
+  }
+  merged.sort((a, b) => {
+    const ta = a.scheduled_time ? new Date(a.scheduled_time).getTime() : 0;
+    const tb = b.scheduled_time ? new Date(b.scheduled_time).getTime() : 0;
+    if (ta !== tb) return ta - tb;
+    return (a.id || 0) - (b.id || 0);
+  });
+  return merged;
+}
 const fs = require('fs');
 const path = require('path');
 
@@ -50,33 +138,30 @@ class Scheduler {
    */
   async processPendingPosts() {
     try {
-      const now = new Date().toISOString();
+      const nowMs = Date.now();
 
-      const { data: posts, error } = await supabase
-        .from('posts')
-        .select('*')
-        .in('status', ['pending', 'scheduled'])
-        .or(`scheduled_time.is.null,scheduled_time.lte.${now}`)
-        .order('scheduled_time', { ascending: true })
-        .order('id', { ascending: true })
-        .limit(1);
+      const candidates = await fetchDuePostCandidates();
 
-      if (error) throw error;
+      const due = (candidates || []).filter((p) => {
+        if (!p.scheduled_time) return true;
+        return new Date(p.scheduled_time).getTime() <= nowMs;
+      });
 
-      if (!posts || posts.length === 0) {
+      if (due.length === 0) {
         console.log('No pending posts to process');
         return { processed: 0 };
       }
 
-      console.log(`Processing ${posts.length} post(s)...`);
+      const maxPerRun = Math.min(due.length, parseInt(process.env.SCHEDULER_MAX_POSTS_PER_RUN || '10', 10));
+      console.log(`Processing ${maxPerRun} due post(s) (${due.length} total due in queue)...`);
       let processed = 0;
 
-      for (const post of posts) {
+      for (let i = 0; i < maxPerRun; i++) {
         try {
-          await this.processPost(post);
+          await this.processPost(due[i]);
           processed++;
         } catch (error) {
-          console.error(`Error processing post ${post.id}:`, error);
+          console.error(`Error processing post ${due[i].id}:`, error);
         }
       }
 
@@ -188,24 +273,53 @@ class Scheduler {
    * Process a single post
    */
   async processPost(post) {
-    console.log(`Processing post #${post.id}: ${post.filename}`);
+    const platformsEarly = parsePlatformsField(post);
+    logPostPipeline(post.id, 'pipeline.start', {
+      filename: post.filename,
+      filepathPreview: (post.filepath || '').slice(0, 96),
+      platforms: platformsEarly,
+      filetype: post.filetype || null,
+    });
 
-    // Update status to posting
-    await this.updatePostStatus(post.id, 'posting');
+    // Do not use an intermediate "posting" status — many DB schemas only allow
+    // pending | scheduled | posted | failed | partial, and a rejected update
+    // would leave posts stuck on "scheduled" forever.
 
     // Get credentials (user-specific, account-based, or env)
     let credentials;
     try {
       credentials = await this.getCredentials(post);
-      console.log(`Using credentials from: ${credentials.source}`);
+      logPostPipeline(post.id, 'credentials.ok', {
+        source: credentials.source,
+        hasFacebook: !!(credentials.facebookToken && credentials.facebookPageId),
+        hasInstagram: !!(credentials.instagramToken && credentials.instagramAccountId),
+      });
     } catch (error) {
       console.error(`Failed to get credentials for post ${post.id}:`, error.message);
-      await this.updatePostStatus(post.id, 'failed', error.message);
-      return { error: error.message };
+      const credErr = stringifyPostingFailure({
+        at: new Date().toISOString(),
+        postId: post.id,
+        stage: 'scheduler_credentials',
+        error: error.message,
+      });
+      await this.updatePostStatus(post.id, 'failed', credErr);
+      return { error: error.message, stage: 'scheduler_credentials' };
     }
 
-    // Handle platforms - could be array or JSON string
-    const platforms = Array.isArray(post.platforms) ? post.platforms : JSON.parse(post.platforms);
+    const platforms = parsePlatformsField(post);
+
+    if (!platforms || platforms.length === 0) {
+      const msg = stringifyPostingFailure({
+        at: new Date().toISOString(),
+        postId: post.id,
+        stage: 'scheduler_platforms',
+        error: 'No platforms selected for this post',
+      });
+      await this.updatePostStatus(post.id, 'failed', msg);
+      return { error: 'No platforms selected for this post', stage: 'scheduler_platforms' };
+    }
+
+    try {
     const results = {
       facebook: null,
       instagram: null,
@@ -217,17 +331,29 @@ class Scheduler {
         results.facebook = {
           success: false,
           error: 'Facebook credentials not configured. Please connect your Facebook account.',
+          stage: 'scheduler_missing_facebook_credentials',
         };
+        logPostPipeline(post.id, 'facebook.skip', { reason: 'no_token_or_page_id' });
       } else {
         const fbService = new FacebookService(
           credentials.facebookToken,
           credentials.facebookPageId
         );
 
-        results.facebook = await fbService.post(post.filepath, post.caption || '');
+        results.facebook = await fbService.post(post.filepath, post.caption || '', {
+          filetype: post.filetype,
+          filename: post.filename,
+        });
 
         if (results.facebook.success) {
+          logPostPipeline(post.id, 'facebook.ok', { postId: results.facebook.postId });
           await updatePost(post.id, { facebook_post_id: results.facebook.postId });
+        } else {
+          logPostPipeline(post.id, 'facebook.fail', {
+            stage: results.facebook.stage,
+            error: results.facebook.error,
+            graphCode: results.facebook.graph?.code,
+          });
         }
       }
     }
@@ -238,58 +364,137 @@ class Scheduler {
         results.instagram = {
           success: false,
           error: 'Instagram credentials not configured. Please connect your Instagram account.',
+          stage: 'scheduler_missing_instagram_credentials',
         };
+        logPostPipeline(post.id, 'instagram.skip', { reason: 'no_token_or_account_id' });
       } else {
         const igService = new InstagramService(
           credentials.instagramToken,
           credentials.instagramAccountId
         );
 
-        // Note: Instagram requires publicly accessible URLs
-        // You'll need to implement a file hosting solution or use ngrok for local testing
-        const publicUrl = process.env.PUBLIC_FILE_URL + '/' + post.filename;
+        const publicUrl = resolveInstagramMediaUrl(post);
         const isVideo = post.filetype === 'video';
 
-        results.instagram = await igService.post(publicUrl, post.caption || '', isVideo);
+        if (!publicUrl) {
+          results.instagram = {
+            success: false,
+            error:
+              'Instagram needs a public image URL. Use Supabase uploads or set PUBLIC_FILE_URL to your app base (e.g. https://yourapp.com/uploads).',
+            stage: 'scheduler_instagram_public_url',
+          };
+          logPostPipeline(post.id, 'instagram.fail', { stage: 'scheduler_instagram_public_url' });
+        } else {
+          results.instagram = await igService.post(publicUrl, post.caption || '', isVideo);
+        }
 
         if (results.instagram.success) {
+          logPostPipeline(post.id, 'instagram.ok', { postId: results.instagram.postId });
           await updatePost(post.id, { instagram_post_id: results.instagram.postId });
+        } else if (results.instagram && !results.instagram.success) {
+          logPostPipeline(post.id, 'instagram.fail', {
+            stage: results.instagram.stage,
+            error: results.instagram.error,
+            graphCode: results.instagram.graph?.code,
+          });
         }
       }
     }
 
-    // Determine final status
-    const allFailed =
-      (platforms.includes('facebook') && !results.facebook?.success) &&
-      (platforms.includes('instagram') && !results.instagram?.success);
-
-    const someFailed =
-      (platforms.includes('facebook') && !results.facebook?.success) ||
-      (platforms.includes('instagram') && !results.instagram?.success);
-
+    // Final status: all attempted platforms failed → failed; mix → partial; all ok → posted
     let finalStatus = 'posted';
     let errorMessage = null;
 
-    if (allFailed) {
+    const attempted = [];
+    if (platforms.includes('facebook')) attempted.push('facebook');
+    if (platforms.includes('instagram')) attempted.push('instagram');
+
+    let ok = 0;
+    let bad = 0;
+    if (platforms.includes('facebook')) {
+      if (results.facebook?.success) ok++;
+      else bad++;
+    }
+    if (platforms.includes('instagram')) {
+      if (results.instagram?.success) ok++;
+      else bad++;
+    }
+
+    function summarizePlatform(label, raw) {
+      if (raw == null) return null;
+      return {
+        success: !!raw.success,
+        error: raw.error || null,
+        stage: raw.stage || null,
+        graph: raw.graph || null,
+        postId: raw.postId || null,
+      };
+    }
+
+    if (attempted.length > 0 && bad === attempted.length) {
       finalStatus = 'failed';
-      errorMessage = JSON.stringify({
-        facebook: results.facebook?.error,
-        instagram: results.instagram?.error,
+      errorMessage = stringifyPostingFailure({
+        at: new Date().toISOString(),
+        postId: post.id,
+        outcome: 'failed',
+        summary: 'Every selected platform failed',
+        platforms: {
+          facebook: platforms.includes('facebook')
+            ? summarizePlatform('facebook', results.facebook)
+            : undefined,
+          instagram: platforms.includes('instagram')
+            ? summarizePlatform('instagram', results.instagram)
+            : undefined,
+        },
       });
-    } else if (someFailed) {
+    } else if (ok > 0 && bad > 0) {
       finalStatus = 'partial';
-      errorMessage = JSON.stringify({
-        facebook: results.facebook?.error,
-        instagram: results.instagram?.error,
+      errorMessage = stringifyPostingFailure({
+        at: new Date().toISOString(),
+        postId: post.id,
+        outcome: 'partial',
+        summary: 'Some platforms failed',
+        platforms: {
+          facebook: platforms.includes('facebook')
+            ? summarizePlatform('facebook', results.facebook)
+            : undefined,
+          instagram: platforms.includes('instagram')
+            ? summarizePlatform('instagram', results.instagram)
+            : undefined,
+        },
       });
     }
 
     // Update final status
-    await this.updatePostStatus(post.id, finalStatus, errorMessage);
+    try {
+      await this.updatePostStatus(post.id, finalStatus, errorMessage);
+    } catch (e) {
+      console.error(`Failed to save final status for post ${post.id}:`, e);
+      throw e;
+    }
 
     console.log(`Post #${post.id} processed with status: ${finalStatus}`);
 
     return results;
+    } catch (error) {
+      console.error(`processPost unexpected error for post ${post.id}:`, error);
+      try {
+        await this.updatePostStatus(
+          post.id,
+          'failed',
+          stringifyPostingFailure({
+            at: new Date().toISOString(),
+            postId: post.id,
+            stage: 'scheduler_unhandled_exception',
+            error: error.message || String(error),
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+          })
+        );
+      } catch (_) {
+        /* ignore */
+      }
+      return { error: error.message, stage: 'scheduler_unhandled_exception' };
+    }
   }
 
   /**

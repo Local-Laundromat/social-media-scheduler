@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard - Quu</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -858,7 +859,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-value" id="statPending">0</div>
-        <div class="stat-label">Pending</div>
+        <div class="stat-label">In queue</div>
       </div>
       <div class="stat-card">
         <div class="stat-value" id="statPosted">0</div>
@@ -866,7 +867,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-value" id="statFailed">0</div>
-        <div class="stat-label">Failed</div>
+        <div class="stat-label">Failed / partial</div>
       </div>
     </div>
 
@@ -1277,6 +1278,8 @@
           <h3>Analytics Dashboard</h3>
           <p style="color: #6b7280; margin-bottom: 24px;">Track your posting performance across all platforms</p>
 
+          <div id="analyticsPublishingHint" style="display: none; margin-bottom: 20px; padding: 14px 16px; background: #fefce8; border: 1px solid #eab308; border-radius: 8px; color: #713f12; font-size: 14px; line-height: 1.55;"></div>
+
           <!-- Time Range Selector -->
           <div style="margin-bottom: 24px;">
             <label style="font-weight: 600; margin-right: 12px;">Time Range:</label>
@@ -1357,15 +1360,17 @@
                 <div style="display: flex; align-items: center; gap: 12px;">
                   <div style="width: 40px; height: 40px; border-radius: 50%; background: #fbbf24; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 14px;" id="analyticsPendingCount">0</div>
                   <div>
-                    <div style="font-weight: 600;">Pending</div>
-                    <div style="font-size: 13px; color: #6b7280;">Scheduled for future</div>
+                    <div style="font-weight: 600;">In queue</div>
+                    <div style="font-size: 13px; color: #6b7280;">Not published yet (pending + scheduled)</div>
+                    <div style="font-size: 12px; color: #92400e; margin-top: 4px;" id="analyticsPendingSubline"></div>
                   </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 12px;">
                   <div style="width: 40px; height: 40px; border-radius: 50%; background: #ef4444; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 14px;" id="analyticsFailedCount">0</div>
                   <div>
-                    <div style="font-weight: 600;">Failed</div>
-                    <div style="font-size: 13px; color: #6b7280;">Need attention</div>
+                    <div style="font-weight: 600;">Failed / partial</div>
+                    <div style="font-size: 13px; color: #6b7280;">Publish errors or only some platforms worked</div>
+                    <div style="font-size: 12px; color: #991b1b; margin-top: 4px;" id="analyticsFailedSubline"></div>
                   </div>
                 </div>
               </div>
@@ -1554,7 +1559,7 @@
   </div>
 
   <script src="/js/app-notify.js?v=1.0"></script>
-  <script src="/js/dashboard.js?v=2.0"></script>
+  <script src="/js/dashboard.js?v=2.3"></script>
   <script src="/js/comments.js?v=2.0"></script>
 </body>
 </html>
