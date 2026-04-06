@@ -341,6 +341,9 @@ async function loadStats() {
 }
 
 // Load posts
+// Track selected posts for bulk delete
+let selectedPostIds = new Set();
+
 async function loadPosts() {
   const token = localStorage.getItem('auth_token');
   const postsList = document.getElementById('postsList');
@@ -363,7 +366,23 @@ async function loadPosts() {
       return;
     }
 
-    postsList.innerHTML = posts.map(post => {
+    // Clear selections when reloading
+    selectedPostIds.clear();
+
+    // Add bulk actions header
+    const bulkActionsHeader = `
+      <div id="bulkActionsHeader" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #f9fafb; border-radius: 8px; margin-bottom: 16px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500;">
+          <input type="checkbox" id="selectAllPosts" onchange="toggleSelectAll()" style="cursor: pointer; width: 16px; height: 16px;">
+          <span>Select All (<span id="selectedCount">0</span>/<span id="totalCount">${posts.length}</span>)</span>
+        </label>
+        <button id="bulkDeleteBtn" onclick="bulkDeletePosts()" class="btn btn-danger" style="width: auto; padding: 8px 16px; display: none;">
+          Delete Selected
+        </button>
+      </div>
+    `;
+
+    const postsHTML = posts.map(post => {
       // Handle platforms - could be array or JSON string
       let platforms = post.platforms;
       if (typeof platforms === 'string') {
@@ -373,7 +392,8 @@ async function loadPosts() {
       const date = new Date(post.created_at).toLocaleDateString();
 
       return `
-        <div class="post-item">
+        <div class="post-item" style="cursor: pointer;" onclick="togglePostSelection(${post.id}, event)">
+          <input type="checkbox" class="post-checkbox" data-post-id="${post.id}" onchange="handlePostCheckbox(${post.id})" onclick="event.stopPropagation()" style="cursor: pointer; width: 18px; height: 18px; margin-right: 12px;">
           <div class="post-image"></div>
           <div class="post-info">
             <div class="post-caption">${post.caption || post.filename}</div>
@@ -386,9 +406,133 @@ async function loadPosts() {
         </div>
       `;
     }).join('');
+
+    postsList.innerHTML = bulkActionsHeader + '<div class="post-list">' + postsHTML + '</div>';
   } catch (error) {
     console.error('Failed to load posts:', error);
     postsList.innerHTML = '<div class="empty-state"><p>Failed to load posts</p></div>';
+  }
+}
+
+// Toggle select all posts
+function toggleSelectAll() {
+  const selectAllCheckbox = document.getElementById('selectAllPosts');
+  const postCheckboxes = document.querySelectorAll('.post-checkbox');
+
+  postCheckboxes.forEach(checkbox => {
+    checkbox.checked = selectAllCheckbox.checked;
+    const postId = parseInt(checkbox.dataset.postId);
+
+    if (selectAllCheckbox.checked) {
+      selectedPostIds.add(postId);
+    } else {
+      selectedPostIds.delete(postId);
+    }
+  });
+
+  updateBulkDeleteButton();
+}
+
+// Toggle individual post selection
+function togglePostSelection(postId, event) {
+  // Don't toggle if clicking on checkbox itself
+  if (event.target.type === 'checkbox') return;
+
+  const checkbox = document.querySelector(`.post-checkbox[data-post-id="${postId}"]`);
+  checkbox.checked = !checkbox.checked;
+  handlePostCheckbox(postId);
+}
+
+// Handle individual checkbox change
+function handlePostCheckbox(postId) {
+  const checkbox = document.querySelector(`.post-checkbox[data-post-id="${postId}"]`);
+
+  if (checkbox.checked) {
+    selectedPostIds.add(postId);
+  } else {
+    selectedPostIds.delete(postId);
+  }
+
+  updateSelectAllCheckbox();
+  updateBulkDeleteButton();
+}
+
+// Update select all checkbox state
+function updateSelectAllCheckbox() {
+  const selectAllCheckbox = document.getElementById('selectAllPosts');
+  const postCheckboxes = document.querySelectorAll('.post-checkbox');
+  const totalPosts = postCheckboxes.length;
+  const selectedCount = selectedPostIds.size;
+
+  if (selectedCount === 0) {
+    selectAllCheckbox.checked = false;
+    selectAllCheckbox.indeterminate = false;
+  } else if (selectedCount === totalPosts) {
+    selectAllCheckbox.checked = true;
+    selectAllCheckbox.indeterminate = false;
+  } else {
+    selectAllCheckbox.checked = false;
+    selectAllCheckbox.indeterminate = true;
+  }
+
+  document.getElementById('selectedCount').textContent = selectedCount;
+}
+
+// Update bulk delete button visibility
+function updateBulkDeleteButton() {
+  const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+  const selectedCount = document.getElementById('selectedCount');
+
+  selectedCount.textContent = selectedPostIds.size;
+
+  if (selectedPostIds.size > 0) {
+    bulkDeleteBtn.style.display = 'block';
+    bulkDeleteBtn.textContent = `Delete ${selectedPostIds.size} Selected`;
+  } else {
+    bulkDeleteBtn.style.display = 'none';
+  }
+}
+
+// Bulk delete selected posts
+async function bulkDeletePosts() {
+  if (selectedPostIds.size === 0) {
+    notify('No posts selected', 'warning');
+    return;
+  }
+
+  const count = selectedPostIds.size;
+  if (!confirm(`Are you sure you want to delete ${count} post${count > 1 ? 's' : ''}? This will also attempt to delete them from Facebook, Instagram, and TikTok.`)) {
+    return;
+  }
+
+  const token = localStorage.getItem('auth_token');
+  const postIdsArray = Array.from(selectedPostIds);
+
+  try {
+    notify(`Deleting ${count} post${count > 1 ? 's' : ''}...`, 'info');
+
+    const response = await fetch('/api/posts/bulk-delete', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ post_ids: postIdsArray })
+    });
+
+    const result = await response.json();
+
+    if (response.ok) {
+      notify(`Successfully deleted ${result.results.deleted} post${result.results.deleted > 1 ? 's' : ''}${result.results.failed > 0 ? ` (${result.results.failed} failed)` : ''}`, 'success');
+      selectedPostIds.clear();
+      loadPosts();
+      loadStats();
+      renderCalendar(currentCalendarDate);
+    } else {
+      notify('Failed to delete posts: ' + (result.error || 'Unknown error'), 'error');
+    }
+  } catch (error) {
+    notify('Failed to delete posts: ' + error.message, 'error');
   }
 }
 

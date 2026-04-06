@@ -3,6 +3,7 @@ const router = express.Router();
 const { supabase, getPostById, getPostsByUser, createPost, updatePost } = require('../database/supabase');
 const scheduler = require('../services/scheduler');
 const webhookService = require('../services/webhooks');
+const { deleteFromPlatforms, getPlatformTokens } = require('../services/deletePost');
 const { authenticateApiKey, optionalApiKey } = require('../middleware/auth');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -246,18 +247,113 @@ router.put('/posts/:id', optionalApiKey, async (req, res) => {
 });
 
 /**
- * DELETE /api/posts/:id - Delete post
+ * DELETE /api/posts/:id - Delete post from database and social media platforms
  */
 router.delete('/posts/:id', optionalApiKey, async (req, res) => {
   try {
+    // Get post details first
+    const post = await getPostById(req.params.id);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const deletionResults = {
+      database: false,
+      platforms: {}
+    };
+
+    // If post was already posted to platforms, try to delete from there too
+    if (post.status === 'posted' && post.user_id) {
+      const tokens = await getPlatformTokens(post.user_id);
+      deletionResults.platforms = await deleteFromPlatforms(post, tokens);
+    }
+
+    // Delete from database
     const { error } = await supabase
       .from('posts')
       .delete()
       .eq('id', req.params.id);
 
     if (error) throw error;
+    deletionResults.database = true;
 
-    res.json({ message: 'Post deleted successfully' });
+    res.json({
+      message: 'Post deleted successfully',
+      details: deletionResults
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/posts/bulk-delete - Bulk delete posts from database and social media
+ */
+router.post('/posts/bulk-delete', optionalApiKey, async (req, res) => {
+  try {
+    const { post_ids } = req.body;
+
+    if (!post_ids || !Array.isArray(post_ids) || post_ids.length === 0) {
+      return res.status(400).json({ error: 'post_ids array is required' });
+    }
+
+    const results = {
+      total: post_ids.length,
+      deleted: 0,
+      failed: 0,
+      details: []
+    };
+
+    // Process each post deletion
+    for (const postId of post_ids) {
+      try {
+        const post = await getPostById(postId);
+        if (!post) {
+          results.failed++;
+          results.details.push({
+            id: postId,
+            success: false,
+            error: 'Post not found'
+          });
+          continue;
+        }
+
+        const deletionResult = {
+          id: postId,
+          success: true,
+          platforms: {}
+        };
+
+        // Delete from platforms if posted
+        if (post.status === 'posted' && post.user_id) {
+          const tokens = await getPlatformTokens(post.user_id);
+          deletionResult.platforms = await deleteFromPlatforms(post, tokens);
+        }
+
+        // Delete from database
+        const { error } = await supabase
+          .from('posts')
+          .delete()
+          .eq('id', postId);
+
+        if (error) throw error;
+
+        results.deleted++;
+        results.details.push(deletionResult);
+      } catch (error) {
+        results.failed++;
+        results.details.push({
+          id: postId,
+          success: false,
+          error: error.message
+        });
+      }
+    }
+
+    res.json({
+      message: `Bulk delete complete: ${results.deleted} deleted, ${results.failed} failed`,
+      results
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
