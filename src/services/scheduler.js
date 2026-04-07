@@ -281,6 +281,16 @@ class Scheduler {
       filetype: post.filetype || null,
     });
 
+    // SAFETY CHECK: Skip posts that already have platform post IDs (prevent duplicates)
+    if (post.facebook_post_id || post.instagram_post_id || post.tiktok_post_id) {
+      console.warn(`Post ${post.id} already has platform post IDs - skipping to prevent duplicates`);
+      // Mark as posted if not already
+      if (post.status !== 'posted') {
+        await this.updatePostStatus(post.id, 'posted', null);
+      }
+      return { skipped: true, reason: 'already_posted' };
+    }
+
     // Do not use an intermediate "posting" status — many DB schemas only allow
     // pending | scheduled | posted | failed | partial, and a rejected update
     // would leave posts stuck on "scheduled" forever.
