@@ -645,8 +645,16 @@ function handlePostTypeChange() {
     if (instagramCheckbox) instagramCheckbox.checked = true;
     if (facebookCheckbox) facebookCheckbox.checked = false;
     if (tiktokCheckbox) tiktokCheckbox.checked = false;
+  } else if (postType === 'story') {
+    hint.textContent = 'Stories are 24-hour posts and can only be posted to Facebook';
+    hint.style.color = '#ca8a04';
+
+    // Auto-select Facebook and deselect others for Stories
+    if (facebookCheckbox) facebookCheckbox.checked = true;
+    if (instagramCheckbox) instagramCheckbox.checked = false;
+    if (tiktokCheckbox) tiktokCheckbox.checked = false;
   } else {
-    hint.textContent = 'Choose "Instagram Reel" for vertical videos posted to Instagram';
+    hint.textContent = 'Choose "Instagram Reel" for vertical videos or "Facebook Story" for 24-hour posts';
     hint.style.color = '#6b7280';
   }
 }
@@ -737,6 +745,14 @@ async function createPost(event) {
     }
     if (platforms.length > 1 || !platforms.includes('instagram')) {
       notify('Instagram Reels can only be posted to Instagram. Please select only Instagram as the platform.', 'warning');
+      return;
+    }
+  }
+
+  // Validate Stories: only for Facebook
+  if (postType === 'story') {
+    if (platforms.length > 1 || !platforms.includes('facebook')) {
+      notify('Facebook Stories can only be posted to Facebook. Please select only Facebook as the platform.', 'warning');
       return;
     }
   }

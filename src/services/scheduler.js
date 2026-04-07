@@ -358,6 +358,7 @@ class Scheduler {
           results.facebook = await fbService.post(post.filepath, post.caption || '', {
             filetype: post.filetype,
             filename: post.filename,
+            postType: post.post_type,
           });
 
           if (results.facebook.success) {

@@ -171,12 +171,102 @@ class FacebookService {
   }
 
   /**
+   * Post a story to Facebook Page (24-hour ephemeral content)
+   * @param {string} mediaPath - Local path or public https URL
+   * @param {string} postType - 'story' to post as story
+   */
+  async postStory(mediaPath, postType = 'story') {
+    const remote = isRemoteMediaUrl(mediaPath);
+    const ext = inferMediaExtension(mediaPath, {});
+    const isImage = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext);
+    const isVideo = ['.mp4', '.mov', '.avi'].includes(ext);
+
+    if (!isImage && !isVideo) {
+      return {
+        success: false,
+        error: `Unsupported file type for story (${ext || 'unknown'}). Use jpg/png/gif/webp or mp4/mov/avi.`,
+        stage: 'facebook_story_media_type',
+      };
+    }
+
+    const endpoint = isImage ? 'photo_stories' : 'video_stories';
+    const stage = remote ? `facebook_${endpoint}_url` : `facebook_${endpoint}_multipart`;
+
+    try {
+      let response;
+
+      if (remote) {
+        const params = {
+          access_token: this.pageAccessToken,
+        };
+
+        if (isImage) {
+          params.url = mediaPath.trim();
+        } else {
+          params.file_url = mediaPath.trim();
+        }
+
+        response = await axios.post(`${this.baseUrl}/${this.pageId}/${endpoint}`, null, {
+          params,
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity,
+        });
+      } else {
+        if (!fs.existsSync(mediaPath)) {
+          return {
+            success: false,
+            error: `Local media file not found (server path): ${mediaPath}`,
+            stage: 'facebook_local_file_missing',
+          };
+        }
+
+        const form = new FormData();
+        form.append('source', fs.createReadStream(mediaPath));
+        form.append('access_token', this.pageAccessToken);
+
+        response = await axios.post(`${this.baseUrl}/${this.pageId}/${endpoint}`, form, {
+          headers: form.getHeaders(),
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity,
+        });
+      }
+
+      return {
+        success: true,
+        postId: response.data.id || response.data.post_id,
+        data: response.data,
+      };
+    } catch (error) {
+      const g = normalizeAxiosGraphError(error);
+      console.error(`[${stage}]`, g.message, g.fbtrace_id ? `trace=${g.fbtrace_id}` : '');
+      return {
+        success: false,
+        error: g.message,
+        stage,
+        graph: {
+          code: g.code,
+          error_subcode: g.error_subcode,
+          type: g.type,
+          fbtrace_id: g.fbtrace_id,
+          httpStatus: g.httpStatus,
+          isNetwork: g.isNetwork,
+        },
+      };
+    }
+  }
+
+  /**
    * Post content based on file type
    * @param {string} filePath - Local path or public https URL
    * @param {string} caption
-   * @param {{ filetype?: string, filename?: string }} hint - DB fields when URL has no clear extension
+   * @param {{ filetype?: string, filename?: string, postType?: string }} hint - DB fields when URL has no clear extension
    */
   async post(filePath, caption = '', hint = {}) {
+    // If post_type is 'story', use story endpoint
+    if (hint.postType === 'story') {
+      return await this.postStory(filePath, 'story');
+    }
+
     const ext = inferMediaExtension(filePath, hint);
 
     if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
