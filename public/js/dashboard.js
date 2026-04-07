@@ -630,6 +630,27 @@ function toggleScheduleTime() {
   }
 }
 
+function handlePostTypeChange() {
+  const postType = document.getElementById('postType').value;
+  const hint = document.getElementById('postTypeHint');
+  const instagramCheckbox = document.querySelector('input[name="platform"][value="instagram"]');
+  const facebookCheckbox = document.querySelector('input[name="platform"][value="facebook"]');
+  const tiktokCheckbox = document.querySelector('input[name="platform"][value="tiktok"]');
+
+  if (postType === 'reel') {
+    hint.textContent = 'Reels must be vertical videos and can only be posted to Instagram';
+    hint.style.color = '#ca8a04';
+
+    // Auto-select Instagram and deselect others for Reels
+    if (instagramCheckbox) instagramCheckbox.checked = true;
+    if (facebookCheckbox) facebookCheckbox.checked = false;
+    if (tiktokCheckbox) tiktokCheckbox.checked = false;
+  } else {
+    hint.textContent = 'Choose "Instagram Reel" for vertical videos posted to Instagram';
+    hint.style.color = '#6b7280';
+  }
+}
+
 // Generate AI Caption
 async function generateAICaption() {
   if (!uploadedFile) {
@@ -697,6 +718,7 @@ async function createPost(event) {
   }
 
   const caption = document.getElementById('caption').value;
+  const postType = document.getElementById('postType').value;
   const platforms = Array.from(document.querySelectorAll('input[name="platform"]:checked'))
     .map(cb => cb.value);
   const scheduleType = document.getElementById('scheduleType').value;
@@ -705,6 +727,18 @@ async function createPost(event) {
   if (platforms.length === 0) {
     notify('Please select at least one platform', 'warning');
     return;
+  }
+
+  // Validate Reels: must be video and only for Instagram
+  if (postType === 'reel') {
+    if (uploadedFile && !uploadedFile.type.startsWith('video/')) {
+      notify('Instagram Reels must be a video file', 'error');
+      return;
+    }
+    if (platforms.length > 1 || !platforms.includes('instagram')) {
+      notify('Instagram Reels can only be posted to Instagram. Please select only Instagram as the platform.', 'warning');
+      return;
+    }
   }
 
   // Get selected account IDs
@@ -762,6 +796,7 @@ async function createPost(event) {
         caption,
         platforms,
         scheduled_time: scheduledTime,
+        post_type: postType,
         ...selectedAccounts  // Include selected account IDs
       })
     });

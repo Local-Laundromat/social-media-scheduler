@@ -12,18 +12,28 @@ class InstagramService {
 
   /**
    * Create a media container (step 1 of posting)
+   * @param {string} mediaUrl - Publicly accessible URL to the media
+   * @param {string} caption - Caption for the post
+   * @param {string} mediaType - Type of media: 'image', 'video', or 'reel'
    */
-  async createMediaContainer(mediaUrl, caption = '', isVideo = false) {
+  async createMediaContainer(mediaUrl, caption = '', mediaType = 'image') {
     try {
       const params = {
         access_token: this.accessToken,
         caption: caption,
       };
 
-      if (isVideo) {
+      // Handle different media types
+      if (mediaType === 'reel') {
+        params.media_type = 'REELS';
+        params.video_url = mediaUrl;
+        // Reels require share_to_feed parameter (defaults to true)
+        params.share_to_feed = true;
+      } else if (mediaType === 'video') {
         params.media_type = 'VIDEO';
         params.video_url = mediaUrl;
       } else {
+        // Image (default)
         params.image_url = mediaUrl;
       }
 
@@ -156,23 +166,33 @@ class InstagramService {
 
   /**
    * Post content to Instagram (requires publicly accessible URL)
+   * @param {string} mediaUrl - Publicly accessible URL to the media
+   * @param {string} caption - Caption for the post
+   * @param {string|boolean} mediaType - Type of media: 'image', 'video', 'reel', or boolean for backward compatibility
    */
-  async post(mediaUrl, caption = '', isVideo = false) {
+  async post(mediaUrl, caption = '', mediaType = 'image') {
     try {
+      // Handle backward compatibility with boolean isVideo parameter
+      let actualMediaType = mediaType;
+      if (typeof mediaType === 'boolean') {
+        actualMediaType = mediaType ? 'video' : 'image';
+      }
+
       // Step 1: Create media container
-      const container = await this.createMediaContainer(mediaUrl, caption, isVideo);
+      const container = await this.createMediaContainer(mediaUrl, caption, actualMediaType);
 
       if (!container.success) {
         return container;
       }
 
-      // Step 2: Wait for video processing if needed
-      if (isVideo) {
+      // Step 2: Wait for video/reel processing if needed
+      const needsProcessing = actualMediaType === 'video' || actualMediaType === 'reel';
+      if (needsProcessing) {
         const processingResult = await this.waitForVideoProcessing(container.containerId);
         if (!processingResult.success) {
           return {
             ...processingResult,
-            stage: processingResult.stage || 'instagram_video_processing',
+            stage: processingResult.stage || `instagram_${actualMediaType}_processing`,
           };
         }
       }

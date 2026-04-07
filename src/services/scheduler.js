@@ -410,7 +410,14 @@ class Scheduler {
         );
 
         const publicUrl = resolveInstagramMediaUrl(post);
-        const isVideo = post.filetype === 'video';
+
+        // Determine media type: 'reel', 'video', or 'image'
+        let mediaType = 'image';
+        if (post.post_type === 'reel') {
+          mediaType = 'reel';
+        } else if (post.filetype === 'video') {
+          mediaType = 'video';
+        }
 
         if (!publicUrl) {
           results.instagram = {
@@ -426,7 +433,7 @@ class Scheduler {
           let lastError = null;
 
           for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            results.instagram = await igService.post(publicUrl, post.caption || '', isVideo);
+            results.instagram = await igService.post(publicUrl, post.caption || '', mediaType);
 
             if (results.instagram.success) {
               if (attempt > 1) {
