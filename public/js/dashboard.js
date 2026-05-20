@@ -2396,6 +2396,282 @@ function handleBulkFileSelectNew(event) {
   document.getElementById('continueToConfigBtn').style.display = 'block';
 }
 
+// AI Auto-Plan: Use LangGraph multi-agent system to create optimized content calendar
+async function useAIPlan() {
+  if (bulkFilesNew.length === 0) {
+    notify('Please upload files first', 'warning');
+    return;
+  }
+
+  const token = localStorage.getItem('auth_token');
+  if (!token) {
+    notify('Authentication required', 'error');
+    return;
+  }
+
+  // Get selected platforms from checkboxes
+  const platformCheckboxes = document.querySelectorAll('input[name="bulkPlatform"]:checked');
+  const platforms = Array.from(platformCheckboxes).map(cb => cb.value);
+
+  if (platforms.length === 0) {
+    notify('Please select at least one platform below', 'warning');
+    return;
+  }
+
+  // Get schedule preset
+  const preset = document.getElementById('schedulePreset').value || 'daily';
+
+  // Map preset to API pattern
+  const patternMap = {
+    'daily': 'daily',
+    'weekdays': 'weekdays',
+    'three-week': '3x-week',
+    'twice-week': '2x-week',
+    'weekly': 'weekly'
+  };
+  const schedulePattern = patternMap[preset] || 'daily';
+
+  // Show loading modal
+  showAIPlanningModal('analyzing');
+
+  try {
+    // First, upload all files to get URLs
+    const uploadedFiles = [];
+    for (let i = 0; i < bulkFilesNew.length; i++) {
+      const file = bulkFilesNew[i];
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Failed to upload ${file.name}`);
+      }
+
+      const uploadData = await uploadResponse.json();
+      uploadedFiles.push({
+        name: file.name,
+        type: file.type,
+        url: uploadData.url,
+        preview: uploadData.url
+      });
+
+      updateAIPlanningProgress((i + 1) / bulkFilesNew.length * 0.3); // 0-30%
+    }
+
+    // Call AI planning API
+    updateAIPlanningModal('planning');
+    const planResponse = await fetch('/api/content-planner/auto-plan', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        files: uploadedFiles,
+        schedulePattern,
+        platforms,
+        startDate: new Date().toISOString(),
+        niche: 'general'
+      })
+    });
+
+    if (!planResponse.ok) {
+      const errorData = await planResponse.json();
+      throw new Error(errorData.error || 'AI planning failed');
+    }
+
+    const planData = await planResponse.json();
+
+    if (!planData.success) {
+      throw new Error(planData.error || 'AI planning failed');
+    }
+
+    updateAIPlanningProgress(1); // 100%
+
+    // Show strategy modal
+    showStrategyResults(planData);
+
+    // Populate bulk review with AI-generated calendar
+    populateReviewFromAIPlan(planData.calendar, uploadedFiles);
+
+  } catch (error) {
+    console.error('AI planning error:', error);
+    hideAIPlanningModal();
+    notify(error.message || 'AI planning failed. Please try manual configuration.', 'error');
+  }
+}
+
+// Show AI planning modal with status
+function showAIPlanningModal(status) {
+  let modal = document.getElementById('aiPlanningModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'aiPlanningModal';
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+
+    const content = document.createElement('div');
+    content.style.cssText = 'background: white; padding: 32px; border-radius: 12px; max-width: 500px; text-align: center;';
+
+    content.innerHTML = `
+      <div id="aiPlanningStatus"></div>
+      <div id="aiPlanningProgress" style="width: 100%; height: 6px; background: #e5e7eb; border-radius: 3px; margin-top: 20px; overflow: hidden;">
+        <div id="aiPlanningProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #8b5cf6, #7c3aed); transition: width 0.3s;"></div>
+      </div>
+    `;
+
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+  }
+
+  updateAIPlanningModal(status);
+  modal.style.display = 'flex';
+}
+
+// Update AI planning modal status
+function updateAIPlanningModal(status) {
+  const statusDiv = document.getElementById('aiPlanningStatus');
+  if (!statusDiv) return;
+
+  const messages = {
+    analyzing: {
+      icon: '📤',
+      title: 'Uploading Files...',
+      text: 'Preparing your content for AI analysis'
+    },
+    planning: {
+      icon: '🤖',
+      title: 'AI Planning in Progress...',
+      text: 'Multi-agent system analyzing content, creating narrative arcs, and optimizing timing'
+    }
+  };
+
+  const msg = messages[status] || messages.planning;
+  statusDiv.innerHTML = `
+    <div style="font-size: 48px; margin-bottom: 16px;">${msg.icon}</div>
+    <h3 style="margin: 0 0 8px 0; color: #1f2937;">${msg.title}</h3>
+    <p style="margin: 0; color: #6b7280; font-size: 14px;">${msg.text}</p>
+  `;
+}
+
+// Update progress bar
+function updateAIPlanningProgress(percent) {
+  const progressBar = document.getElementById('aiPlanningProgressBar');
+  if (progressBar) {
+    progressBar.style.width = (percent * 100) + '%';
+  }
+}
+
+// Hide planning modal
+function hideAIPlanningModal() {
+  const modal = document.getElementById('aiPlanningModal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+}
+
+// Show AI strategy results in a modal
+function showStrategyResults(planData) {
+  hideAIPlanningModal();
+
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 10000; padding: 20px;';
+
+  const content = document.createElement('div');
+  content.style.cssText = 'background: white; padding: 32px; border-radius: 12px; max-width: 700px; max-height: 80vh; overflow-y: auto;';
+
+  const narrativeGroups = planData.strategy?.narrativeGroups || [];
+  const narrativeGroupsHTML = narrativeGroups.length > 0
+    ? narrativeGroups.map(group => `
+        <div style="background: #f3f4f6; padding: 12px; border-radius: 8px; margin-bottom: 8px;">
+          <strong style="color: #7c3aed;">${group.name || 'Story Arc'}</strong>
+          <p style="margin: 4px 0 0 0; font-size: 13px; color: #6b7280;">${group.description || ''}</p>
+        </div>
+      `).join('')
+    : '<p style="color: #6b7280; font-size: 13px;">Content organized strategically</p>';
+
+  content.innerHTML = `
+    <div style="text-align: center; margin-bottom: 24px;">
+      <div style="font-size: 48px; margin-bottom: 12px;">✨</div>
+      <h2 style="margin: 0 0 8px 0; color: #1f2937;">AI Content Plan Ready</h2>
+      <p style="margin: 0; color: #6b7280;">Your optimized content calendar has been generated</p>
+    </div>
+
+    <div style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 24px;">
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; text-align: center;">
+        <div>
+          <div style="font-size: 28px; font-weight: 700;">${planData.summary?.totalPosts || 0}</div>
+          <div style="font-size: 12px; opacity: 0.9;">Total Posts</div>
+        </div>
+        <div>
+          <div style="font-size: 28px; font-weight: 700;">${planData.summary?.narrativeGroups || 0}</div>
+          <div style="font-size: 12px; opacity: 0.9;">Story Arcs</div>
+        </div>
+        <div>
+          <div style="font-size: 28px; font-weight: 700;">${planData.summary?.platforms?.length || 0}</div>
+          <div style="font-size: 12px; opacity: 0.9;">Platforms</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 20px;">
+      <h4 style="margin: 0 0 12px 0; color: #1f2937; font-size: 14px;">Narrative Strategy</h4>
+      ${narrativeGroupsHTML}
+    </div>
+
+    <div style="background: #ecfdf5; border-left: 4px solid #10b981; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+      <p style="margin: 0; color: #065f46; font-size: 13px;">
+        <strong>AI Insight:</strong> ${planData.tip || 'Content strategically organized for maximum engagement'}
+      </p>
+    </div>
+
+    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+      <button onclick="this.closest('[style*=fixed]').remove(); showBulkConfigStep();" style="background: #e5e7eb; color: #1f2937; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer;">
+        Cancel
+      </button>
+      <button onclick="this.closest('[style*=fixed]').remove(); showBulkReviewStep();" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer;">
+        Review Posts →
+      </button>
+    </div>
+  `;
+
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+}
+
+// Populate bulk review from AI-generated plan
+function populateReviewFromAIPlan(calendar, uploadedFiles) {
+  // Create file lookup by URL
+  const filesByUrl = {};
+  bulkFilesNew.forEach((file, index) => {
+    if (uploadedFiles[index]) {
+      filesByUrl[uploadedFiles[index].url] = file;
+    }
+  });
+
+  // Convert AI calendar to bulkPostsConfig format
+  bulkPostsConfig = calendar.map(item => {
+    const file = filesByUrl[item.fileUrl] || bulkFilesNew[0]; // Fallback to first file if lookup fails
+    return {
+      file: file,
+      caption: item.suggestedCaption || '',
+      platforms: item.platforms || [],
+      scheduledTime: item.scheduledTime ? new Date(item.scheduledTime).toISOString().slice(0, 16) : '',
+      metadata: {
+        narrativeGroup: item.narrativeGroup,
+        contentPillar: item.contentPillar,
+        reasoning: item.reasoning
+      }
+    };
+  });
+
+  // Review step will be shown when user clicks "Review Posts" button
+}
+
 // Show bulk config step
 function showBulkConfigStep() {
   document.getElementById('bulkUploadStep').style.display = 'none';

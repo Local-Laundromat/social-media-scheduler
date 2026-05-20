@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quu - Social Media Scheduling Made Simple</title>
+  <meta name="description" content="Manage Facebook, Instagram & TikTok from one dashboard. Schedule posts, monitor comments, and publish everywhere. AI features included.">
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      line-height: 1.6;
+      color: #1f2937;
+      background: #ffffff;
+      overflow-x: hidden;
+    }
+
+    /* Header & Navigation */
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(250, 204, 21, 0.15);
+      z-index: 1000;
+      transition: box-shadow 0.3s ease;
+    }
+
+    header.scrolled {
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    nav {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 70px;
+    }
+
+    .logo {
+      font-size: 1.8rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-decoration: none;
+      transition: transform 0.3s ease;
+    }
+
+    .logo:hover {
+      transform: scale(1.05);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 30px;
+      align-items: center;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: #4b5563;
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.3s ease;
+      position: relative;
+    }
+
+    .nav-links a:after {
+      content: '';
+      position: absolute;
+      bottom: -5px;
+      left: 0;
+      width: 0;
+      height: 2px;
+      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+      transition: width 0.3s ease;
+    }
+
+    .nav-links a:hover {
+      color: #ca8a04;
+    }
+
+    .nav-links a:hover:after {
+      width: 100%;
+    }
+
+    .nav-cta {
+      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+      color: #1f2937 !important;
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-weight: 700;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .nav-cta:after {
+      display: none;
+    }
+
+    .nav-cta:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(250, 204, 21, 0.4);
+    }
+
+    /* Mobile Menu Toggle */
+    .menu-toggle {
+      display: none;
+      flex-direction: column;
+      gap: 5px;
+      cursor: pointer;
+    }
+
+    .menu-toggle span {
+      width: 25px;
+      height: 3px;
+      background: #ca8a04;
+      border-radius: 2px;
+      transition: transform 0.3s ease;
+    }
+
+    /* Hero Section */
+    .hero {
+      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+      color: #1f2937;
+      padding: 140px 20px 80px;
+      text-align: center;
+      margin-top: 70px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 0;
+    }
+
+    .hero:after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, rgba(250, 204, 21, 0.85) 0%, rgba(202, 138, 4, 0.85) 100%);
+      z-index: 1;
+    }
+
+    .hero:before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: radial-gradient(circle at 30% 50%, rgba(255,255,255,0.1) 0%, transparent 60%);
+      animation: pulse 8s ease-in-out infinite;
+      z-index: 2;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 3;
+    }
+
+    .hero h1 {
+      font-size: 3.5rem;
+      font-weight: 800;
+      margin-bottom: 20px;
+      line-height: 1.2;
+      opacity: 0;
+      animation: fadeInUp 0.8s ease forwards;
+    }
+
+    .hero .tagline {
+      font-size: 1.3rem;
+      margin-bottom: 30px;
+      opacity: 0;
+      animation: fadeInUp 0.8s ease 0.2s forwards;
+    }
+
+    .hero .cta-buttons {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 40px;
+      opacity: 0;
+      animation: fadeInUp 0.8s ease 0.4s forwards;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .btn {
+      padding: 16px 32px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-radius: 12px;
+      text-decoration: none;
+      display: inline-block;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+
+    .btn-primary {
+      background: white;
+      color: #ca8a04;
+      box-shadow: 0 4px 12px rgba(250, 204, 21, 0.3);
+    }
+
+    .btn-secondary {
+      background: rgba(31,41,55,0.15);
+      color: #1f2937;
+      border: 2px solid #1f2937;
+    }
+
+    /* Container */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    /* Section */
+    section {
+      padding: 80px 20px;
+    }
+
+    section h2 {
+      font-size: 2.5rem;
+      text-align: center;
+      margin-bottom: 50px;
+      color: #1f2937;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+
+    section.visible h2 {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Features Grid */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 30px;
+      margin-top: 50px;
+    }
+
+    .feature-card {
+      background: #f9fafb;
+      padding: 40px;
+      border-radius: 16px;
+      border: 1px solid #e5e7eb;
+      transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+      opacity: 0;
+      transform: translateY(30px);
+    }
+
+    section.visible .feature-card {
+      animation: slideInUp 0.6s ease forwards;
+    }
+
+    .feature-card:nth-child(1) { animation-delay: 0.1s; }
+    .feature-card:nth-child(2) { animation-delay: 0.2s; }
+    .feature-card:nth-child(3) { animation-delay: 0.3s; }
+    .feature-card:nth-child(4) { animation-delay: 0.4s; }
+    .feature-card:nth-child(5) { animation-delay: 0.5s; }
+    .feature-card:nth-child(6) { animation-delay: 0.6s; }
+
+    @keyframes slideInUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .feature-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 12px 35px rgba(250, 204, 21, 0.2);
+      border-color: #facc15;
+    }
+
+    .feature-card .icon {
+      width: 60px;
+      height: 60px;
+      background: #f3f4f6;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      margin-bottom: 20px;
+      transition: transform 0.3s ease;
+    }
+
+    .feature-card:hover .icon {
+      transform: rotate(5deg) scale(1.1);
+    }
+
+    .feature-card h3 {
+      font-size: 1.5rem;
+      margin-bottom: 15px;
+      color: #1f2937;
+    }
+
+    .feature-card p {
+      color: #6b7280;
+      font-size: 1rem;
+      line-height: 1.8;
+    }
+
+    .feature-card .highlight {
+      margin-top: 15px;
+      font-weight: 600;
+      color: #ca8a04;
+      font-size: 0.95rem;
+    }
+
+    .feature-card.premium {
+      border: 2px solid #facc15;
+      background: linear-gradient(135deg, rgba(250, 204, 21, 0.05) 0%, rgba(202, 138, 4, 0.05) 100%);
+      position: relative;
+    }
+
+    .feature-card.premium:before {
+      content: 'PREMIUM';
+      position: absolute;
+      top: -12px;
+      right: 20px;
+      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+      color: #1f2937;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    /* Pricing Grid */
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 30px;
+      margin-top: 50px;
+    }
+
+    .pricing-card {
+      background: white;
+      border: 2px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 40px;
+      text-align: center;
+      transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+      position: relative;
+      opacity: 0;
+      transform: translateY(30px);
+    }
+
+    section.visible .pricing-card {
+      animation: slideInUp 0.6s ease forwards;
+    }
+
+    .pricing-card:nth-child(1) { animation-delay: 0.1s; }
+    .pricing-card:nth-child(2) { animation-delay: 0.2s; }
+    .pricing-card:nth-child(3) { animation-delay: 0.3s; }
+
+    .pricing-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 12px 40px rgba(250, 204, 21, 0.25);
+      border-color: #facc15;
+    }
+
+    .pricing-card.featured {
+      border-color: #facc15;
+      box-shadow: 0 10px 40px rgba(250, 204, 21, 0.2);
+    }
+
+    .pricing-card .badge {
+      position: absolute;
+      top: -15px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+      color: #1f2937;
+      padding: 6px 20px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .pricing-card h3 {
+      font-size: 1.8rem;
+      margin-bottom: 10px;
+      color: #1f2937;
+    }
+
+    .pricing-card .price {
+      font-size: 3rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin: 20px 0;
+    }
+
+    .pricing-card .price span {
+      font-size: 1.2rem;
+      color: #6b7280;
+      font-weight: 400;
+    }
+
+    .pricing-card ul {
+      list-style: none;
+      margin: 30px 0;
+      text-align: left;
+    }
+
+    .pricing-card ul li {
+      padding: 10px 0;
+      color: #4b5563;
+      font-size: 0.95rem;
+      position: relative;
+      padding-left: 28px;
+    }
+
+    .pricing-card ul li:before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #10b981;
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 40px;
+      margin-top: 50px;
+    }
+
+    .stat {
+      text-align: center;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    section.visible .stat {
+      animation: slideInUp 0.6s ease forwards;
+    }
+
+    .stat:nth-child(1) { animation-delay: 0.1s; }
+    .stat:nth-child(2) { animation-delay: 0.2s; }
+    .stat:nth-child(3) { animation-delay: 0.3s; }
+    .stat:nth-child(4) { animation-delay: 0.4s; }
+
+    .stat .number {
+      font-size: 3rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
+    }
+
+    .stat .label {
+      color: #6b7280;
+      font-size: 1rem;
+    }
+
+    /* CTA Section */
+    .cta-section {
+      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+      color: #1f2937;
+      text-align: center;
+      padding: 100px 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cta-section:before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: radial-gradient(circle at 70% 50%, rgba(255,255,255,0.15) 0%, transparent 60%);
+      animation: pulse 8s ease-in-out infinite;
+    }
+
+    .cta-section h2 {
+      color: #1f2937;
+      font-size: 3rem;
+      margin-bottom: 20px;
+    }
+
+    .cta-section p {
+      font-size: 1.3rem;
+      margin-bottom: 40px;
+      opacity: 0.9;
+    }
+
+    /* Footer */
+    footer {
+      background: #1f2937;
+      color: #9ca3af;
+      padding: 40px 20px;
+      text-align: center;
+    }
+
+    footer a {
+      color: #facc15;
+      text-decoration: none;
+      transition: color 0.3s ease;
+    }
+
+    footer a:hover {
+      color: #fde68a;
+    }
+
+    /* Loading Skeleton */
+    .skeleton {
+      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+      background-size: 200% 100%;
+      animation: loading 1.5s ease-in-out infinite;
+    }
+
+    @keyframes loading {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .nav-links {
+        display: none;
+        position: absolute;
+        top: 70px;
+        left: 0;
+        right: 0;
+        background: white;
+        flex-direction: column;
+        padding: 20px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      }
+
+      .nav-links.active {
+        display: flex;
+      }
+
+      .menu-toggle {
+        display: flex;
+      }
+
+      .hero h1 {
+        font-size: 2.5rem;
+      }
+
+      .hero .tagline {
+        font-size: 1.1rem;
+      }
+
+      section h2 {
+        font-size: 2rem;
+      }
+
+      .pricing-card .price {
+        font-size: 2.5rem;
+      }
+
+      .cta-section h2 {
+        font-size: 2rem;
+      }
+    }
+
+    /* Scroll Progress Bar */
+    .scroll-progress {
+      position: fixed;
+      top: 70px;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #facc15 0%, #ca8a04 100%);
+      z-index: 999;
+      transform-origin: left;
+      transform: scaleX(0);
+      transition: transform 0.1s ease;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Scroll Progress Bar -->
+  <div class="scroll-progress" id="scrollProgress"></div>
+
+  <!-- Header & Navigation -->
+  <header id="header">
+    <nav>
+      <a href="/" class="logo">Quu</a>
+
+      <div class="menu-toggle" onclick="toggleMenu()">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+
+      <ul class="nav-links" id="navLinks">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+        <li><a href="/login">Login</a></li>
+        <li><a href="/login" class="nav-cta">Get Started</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <video autoplay muted loop playsinline class="hero-video">
+      <source src="/hero-video.mp4" type="video/mp4">
+    </video>
+    <div class="hero-content">
+      <div class="container">
+        <h1>Stop Juggling Social Media Apps</h1>
+        <p class="tagline">One dashboard for Facebook, Instagram & TikTok. Schedule posts, reply to comments, and actually have time for your business.</p>
+
+        <div class="cta-buttons">
+          <a href="/login" class="btn btn-primary">Get Started</a>
+          <a href="#pricing" class="btn btn-secondary">See Pricing</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section id="features">
+    <div class="container">
+      <h2>What You Get</h2>
+
+      <div class="features-grid">
+        <!-- Feature 1 -->
+        <div class="feature-card">
+          <div class="icon">📱</div>
+          <h3>Everything in One Place</h3>
+          <p>Tired of switching between apps? Your Facebook, Instagram, and TikTok posts, comments, and stats all live here now.</p>
+          <div class="highlight">Seriously saves time</div>
+        </div>
+
+        <!-- Feature 2 -->
+        <div class="feature-card">
+          <div class="icon">📅</div>
+          <h3>Schedule & Forget</h3>
+          <p>Drop your images, pick when they go out, done. Posts automatically at the times you choose. Works while you sleep.</p>
+          <div class="highlight">Actual autopilot mode</div>
+        </div>
+
+        <!-- Feature 3 -->
+        <div class="feature-card">
+          <div class="icon">💬</div>
+          <h3>All Comments, One Feed</h3>
+          <p>Comments from all platforms show up in one list. Reply without hunting through three different apps.</p>
+          <div class="highlight">No more missed comments</div>
+        </div>
+
+        <!-- Feature 4 -->
+        <div class="feature-card">
+          <div class="icon">📤</div>
+          <h3>Bulk Upload</h3>
+          <p>Got 50 photos? Drag them all in at once. Or use a CSV if you're organized like that. Your choice.</p>
+          <div class="highlight">Month planned in 10 min</div>
+        </div>
+
+        <!-- Feature 5 -->
+        <div class="feature-card">
+          <div class="icon">🔗</div>
+          <h3>Post Everywhere at Once</h3>
+          <p>Connect your accounts once. Then post to Facebook, Instagram, TikTok with one click. Or pick and choose.</p>
+          <div class="highlight">3 platforms, 1 button</div>
+        </div>
+
+        <!-- Feature 6 - AI Premium -->
+        <div class="feature-card premium">
+          <div class="icon">✨</div>
+          <h3>AI Helper (Optional)</h3>
+          <p>Want captions written for you? A whole month planned automatically? Smart reply suggestions? That's the premium add-on.</p>
+          <div class="highlight">Upgrade when ready</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section style="background: #f9fafb;">
+    <div class="container">
+      <h2>How It Actually Works</h2>
+
+      <div class="features-grid">
+        <div class="feature-card" style="background: white;">
+          <div style="font-size: 2rem; font-weight: 800; color: #ca8a04; margin-bottom: 10px;">1.</div>
+          <h3>Connect Your Stuff</h3>
+          <p>Link Facebook, Instagram, TikTok. Takes like 2 minutes. No passwords saved on my end—it's all OAuth (the secure way).</p>
+        </div>
+
+        <div class="feature-card" style="background: white;">
+          <div style="font-size: 2rem; font-weight: 800; color: #ca8a04; margin-bottom: 10px;">2.</div>
+          <h3>Upload & Schedule</h3>
+          <p>Drag in your photos/videos. Pick when they post. Want daily? Weekly? Specific times? All good. Bulk upload 50+ at once if you want.</p>
+        </div>
+
+        <div class="feature-card" style="background: white;">
+          <div style="font-size: 2rem; font-weight: 800; color: #ca8a04; margin-bottom: 10px;">3.</div>
+          <h3>Let It Run</h3>
+          <p>Posts go out automatically. Comments show up in your dashboard. Reply when you want. Upgrade later for AI if you need it.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- AI Features Section -->
+  <section style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); position: relative; overflow: hidden;">
+    <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: radial-gradient(circle at 80% 20%, rgba(202, 138, 4, 0.1) 0%, transparent 50%); pointer-events: none;"></div>
+    <div class="container" style="position: relative; z-index: 1;">
+      <div style="display: inline-block; background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%); color: #1f2937; padding: 8px 20px; border-radius: 30px; font-size: 0.85rem; font-weight: 700; margin-bottom: 20px; letter-spacing: 0.5px;">✨ PREMIUM FEATURES</div>
+      <h2 style="margin-top: 10px;">AI Features (Growth & Agency Plans)</h2>
+      <p style="text-align: center; color: #78350f; font-size: 1.1rem; margin-bottom: 50px;">
+        The AI stuff is what makes this powerful. Not required, but it saves serious time.
+      </p>
+
+      <div class="features-grid">
+        <div class="feature-card" style="background: white; border: 2px solid rgba(202, 138, 4, 0.2); box-shadow: 0 4px 20px rgba(202, 138, 4, 0.1);">
+          <div class="icon">🤖</div>
+          <h3>Auto Content Planner</h3>
+          <p>Upload a batch of photos. AI analyzes them, groups them into story arcs, and builds a month-long posting calendar. Picks optimal times based on your history. Writes captions that actually make sense together.</p>
+          <div class="highlight">Month planned in 30 seconds</div>
+        </div>
+
+        <div class="feature-card" style="background: white; border: 2px solid rgba(202, 138, 4, 0.2); box-shadow: 0 4px 20px rgba(202, 138, 4, 0.1);">
+          <div class="icon">✍️</div>
+          <h3>Smart Caption Writer</h3>
+          <p>AI looks at your image and generates captions in your brand voice. Uses RAG to remember your style from previous posts. You can edit before posting, obviously.</p>
+          <div class="highlight">No more writer's block</div>
+        </div>
+
+        <div class="feature-card" style="background: white; border: 2px solid rgba(202, 138, 4, 0.2); box-shadow: 0 4px 20px rgba(202, 138, 4, 0.1);">
+          <div class="icon">💬</div>
+          <h3>Comment Responder</h3>
+          <p>AI monitors your comments, detects sentiment (positive/negative/question), and suggests replies. You review and edit before sending. Can auto-reply to simple stuff if you want.</p>
+          <div class="highlight">Never miss a comment</div>
+        </div>
+
+        <div class="feature-card" style="background: white; border: 2px solid rgba(202, 138, 4, 0.2); box-shadow: 0 4px 20px rgba(202, 138, 4, 0.1);">
+          <div class="icon">📊</div>
+          <h3>Multi-Agent System</h3>
+          <p>Behind the scenes: 4 specialized AI agents work together. One analyzes your assets, one builds narrative strategy, one optimizes timing, one assembles the calendar. LangGraph orchestration.</p>
+          <div class="highlight">Nerdy but it works</div>
+        </div>
+
+        <div class="feature-card" style="background: white; border: 2px solid rgba(202, 138, 4, 0.2); box-shadow: 0 4px 20px rgba(202, 138, 4, 0.1);">
+          <div class="icon">🧠</div>
+          <h3>Brand Voice Memory</h3>
+          <p>RAG system learns your writing style. Captions feel like YOU wrote them, not a robot. The more you use it, the better it gets at matching your voice.</p>
+          <div class="highlight">Sounds like you</div>
+        </div>
+
+        <div class="feature-card" style="background: white; border: 2px solid rgba(202, 138, 4, 0.2); box-shadow: 0 4px 20px rgba(202, 138, 4, 0.1);">
+          <div class="icon">🔑</div>
+          <h3>BYOK Option</h3>
+          <p>Starter plan lets you bring your own OpenAI API key. Get unlimited AI features on your own dime (~$5-10/month from OpenAI). Or upgrade to Growth/Agency and I cover the API costs.</p>
+          <div class="highlight">Your choice</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Social Proof -->
+  <section class="social-proof">
+    <div class="container">
+      <h2>By The Numbers</h2>
+
+      <div class="stats-grid">
+        <div class="stat">
+          <div class="number">3</div>
+          <div class="label">Platforms in<br>one dashboard</div>
+        </div>
+
+        <div class="stat">
+          <div class="number">50+</div>
+          <div class="label">Files at once<br>with bulk upload</div>
+        </div>
+
+        <div class="stat">
+          <div class="number">~10 min</div>
+          <div class="label">To plan out<br>a whole month</div>
+        </div>
+
+        <div class="stat">
+          <div class="number">0</div>
+          <div class="label">Manual posting<br>once it's set up</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing Section -->
+  <section id="pricing">
+    <div class="container">
+      <h2>Pricing (It's Straightforward)</h2>
+      <p style="text-align: center; color: #6b7280; font-size: 1.1rem; margin-bottom: 40px;">
+        Start with the basics. Add AI later if you want it.
+      </p>
+
+      <div class="pricing-grid">
+        <!-- Starter Tier -->
+        <div class="pricing-card">
+          <h3>Starter</h3>
+          <div class="price">$19<span>/mo</span></div>
+          <p style="color: #6b7280; margin-bottom: 20px;">For solo folks</p>
+          <ul>
+            <li>3 social accounts</li>
+            <li>Unlimited scheduling</li>
+            <li>Bulk upload (50 files)</li>
+            <li>Comment monitoring</li>
+            <li>2 AI plans/month included</li>
+            <li>Or bring your own OpenAI key for unlimited</li>
+            <li>Email support</li>
+          </ul>
+          <a href="/login" class="btn btn-secondary" style="width: 100%; text-align: center;">Get Started</a>
+        </div>
+
+        <!-- Growth Tier (Featured) -->
+        <div class="pricing-card featured">
+          <div class="badge">POPULAR</div>
+          <h3>Growth</h3>
+          <div class="price">$59<span>/mo</span></div>
+          <p style="color: #6b7280; margin-bottom: 20px;">For small businesses</p>
+          <ul>
+            <li>6 social accounts</li>
+            <li>Everything in Starter</li>
+            <li>10 AI plans/month (my OpenAI key)</li>
+            <li>Auto-caption generation</li>
+            <li>Smart reply suggestions</li>
+            <li>Faster support</li>
+          </ul>
+          <a href="/login" class="btn btn-primary" style="width: 100%; text-align: center;">Get Started</a>
+        </div>
+
+        <!-- Pro Tier -->
+        <div class="pricing-card">
+          <h3>Pro</h3>
+          <div class="price">$149<span>/mo</span></div>
+          <p style="color: #6b7280; margin-bottom: 20px;">For growing teams</p>
+          <ul>
+            <li>12 social accounts</li>
+            <li>Everything in Growth</li>
+            <li>50 AI plans/month</li>
+            <li>Priority support</li>
+            <li>Advanced analytics</li>
+            <li>Team collaboration</li>
+          </ul>
+          <a href="/login" class="btn btn-secondary" style="width: 100%; text-align: center;">Get Started</a>
+        </div>
+
+        <!-- Agency Tier -->
+        <div class="pricing-card">
+          <h3>Agency</h3>
+          <div class="price">$499<span>/mo</span></div>
+          <p style="color: #6b7280; margin-bottom: 20px;">For agencies managing clients</p>
+          <ul>
+            <li>Unlimited accounts</li>
+            <li>Everything in Pro</li>
+            <li>Unlimited AI plans</li>
+            <li>White-label branding</li>
+            <li>Multi-user teams</li>
+            <li>API access</li>
+            <li>Dedicated support</li>
+          </ul>
+          <a href="/login" class="btn btn-secondary" style="width: 100%; text-align: center;">Let's Talk</a>
+        </div>
+      </div>
+
+      <p style="text-align: center; color: #9ca3af; margin-top: 40px; font-size: 0.95rem;">
+        Cancel anytime. No long-term contracts.
+      </p>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section class="cta-section">
+    <div class="container">
+      <h2>Ready to Stop the Social Media Chaos?</h2>
+      <p>Get your time back. Start scheduling smarter.</p>
+      <a href="/login" class="btn btn-primary" style="font-size: 1.2rem; padding: 20px 40px;">Get Started Now</a>
+      <p style="margin-top: 20px; font-size: 0.95rem; opacity: 0.85;">Cancel anytime • No BS</p>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p>&copy; 2026 Quu by Binta Studios. All rights reserved.</p>
+      <p style="margin-top: 10px;">
+        <a href="/login">Login</a> •
+        <a href="/dashboard">Dashboard</a> •
+        <a href="mailto:support@bintastudios.com">Support</a>
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    // Scroll Progress Bar
+    window.addEventListener('scroll', () => {
+      const scrollProgress = document.getElementById('scrollProgress');
+      const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const scrolled = (window.scrollY / scrollHeight);
+      scrollProgress.style.transform = `scaleX(${scrolled})`;
+    });
+
+    // Header Scroll Effect
+    window.addEventListener('scroll', () => {
+      const header = document.getElementById('header');
+      if (window.scrollY > 50) {
+        header.classList.add('scrolled');
+      } else {
+        header.classList.remove('scrolled');
+      }
+    });
+
+    // Intersection Observer for Scroll Animations
+    const observerOptions = {
+      threshold: 0.1,
+      rootMargin: '0px 0px -100px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, observerOptions);
+
+    document.querySelectorAll('section').forEach(section => {
+      observer.observe(section);
+    });
+
+    // Mobile Menu Toggle
+    function toggleMenu() {
+      const navLinks = document.getElementById('navLinks');
+      navLinks.classList.toggle('active');
+    }
+
+    // Smooth Scroll for Anchor Links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          window.scrollTo({
+            top: target.offsetTop - 70,
+            behavior: 'smooth'
+          });
+        }
+      });
+    });
+  </script>
+
+</body>
+</html>

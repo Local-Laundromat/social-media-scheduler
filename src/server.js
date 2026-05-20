@@ -13,6 +13,10 @@ const uploadRoutes = require('./routes/upload');
 const aiCaptionRoutes = require('./routes/aiCaption');
 const csvRoutes = require('./routes/csv');
 const commentsRoutes = require('./routes/comments');
+const agentPostRoutes = require('./routes/agentPost'); // LangGraph autonomous agent
+const ragCaptionRoutes = require('./routes/ragCaption'); // RAG-powered brand voice
+const agentCommentsRoutes = require('./routes/agentComments'); // Multi-agent comment system
+const contentPlannerRoutes = require('./routes/contentPlanner'); // Content planning agent
 const scheduler = require('./services/scheduler');
 
 const app = express();
@@ -52,11 +56,15 @@ app.use('/api/users', userRoutes); // External user management
 app.use('/api/upload', uploadRoutes);
 app.use('/api/csv', csvRoutes);
 app.use('/api/comments', commentsRoutes);
+app.use('/api/agent', agentPostRoutes); // LangGraph autonomous post generation
+app.use('/api/agent', agentCommentsRoutes); // LangGraph multi-agent comment system
+app.use('/api/rag', ragCaptionRoutes); // RAG-powered caption generation
+app.use('/api/content-planner', contentPlannerRoutes); // LangGraph content planning agent
 app.use('/auth', authRoutes); // OAuth routes (Facebook/Instagram)
 
 // Page routes
 app.get('/', (req, res) => {
-  res.redirect('/login');
+  res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
 app.get('/login', (req, res) => {
