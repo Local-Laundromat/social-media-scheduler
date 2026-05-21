@@ -34,9 +34,13 @@
     }
 
     .topbar h1 {
-      font-size: 20px;
-      font-weight: 600;
-      color: #1f2937;
+      display: flex;
+      align-items: center;
+    }
+
+    .topbar h1 img {
+      height: 40px;
+      width: auto;
     }
 
     .topbar-right {
@@ -920,7 +924,9 @@
 </head>
 <body>
   <div class="topbar">
-    <h1>👋 Quu</h1>
+    <h1>
+      <img src="/logo.svg" alt="Quu">
+    </h1>
     <div class="topbar-right">
       <div class="user-menu" id="userMenu">
         <span id="userName">Loading...</span>

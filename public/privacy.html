@@ -44,14 +44,15 @@
     }
 
     .logo {
-      font-size: 1.8rem;
-      font-weight: 800;
-      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      display: flex;
+      align-items: center;
       text-decoration: none;
       transition: transform 0.3s ease;
+    }
+
+    .logo img {
+      height: 45px;
+      width: auto;
     }
 
     .logo:hover {
@@ -229,7 +230,9 @@
   <!-- Header & Navigation -->
   <header>
     <nav>
-      <a href="/" class="logo">Quu</a>
+      <a href="/" class="logo">
+        <img src="/logo.svg" alt="Quu">
+      </a>
       <ul class="nav-links">
         <li><a href="/">Home</a></li>
         <li><a href="/login">Login</a></li>

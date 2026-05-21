@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Quu Logo Converter</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 40px;
+      background: #f9fafb;
+      text-align: center;
+    }
+    h1 {
+      color: #1f2937;
+      margin-bottom: 30px;
+    }
+    .logo-preview {
+      margin: 30px auto;
+      max-width: 512px;
+    }
+    .logo-preview img {
+      width: 100%;
+      border-radius: 20px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+    button {
+      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+      color: #1f2937;
+      border: none;
+      padding: 16px 32px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      margin: 10px;
+      box-shadow: 0 4px 12px rgba(250, 204, 21, 0.3);
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(250, 204, 21, 0.5);
+    }
+    .instructions {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      max-width: 600px;
+      margin: 30px auto;
+      text-align: left;
+      border-left: 4px solid #facc15;
+    }
+    canvas {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>👋 Quu Logo Generator</h1>
+
+  <div class="logo-preview">
+    <img id="logoPreview" src="/logo.svg" alt="Quu Logo">
+  </div>
+
+  <button onclick="downloadPNG(512)">Download 512x512 PNG</button>
+  <button onclick="downloadPNG(1024)">Download 1024x1024 PNG</button>
+  <button onclick="downloadPNG(2048)">Download 2048x2048 PNG (High Res)</button>
+
+  <div class="instructions">
+    <h3>📋 Instructions:</h3>
+    <ol>
+      <li>Click one of the download buttons above</li>
+      <li>The PNG will download to your Downloads folder</li>
+      <li>Use the <strong>512x512</strong> for Pinterest app submission</li>
+      <li>Use the <strong>1024x1024</strong> for high-quality displays</li>
+    </ol>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+  <script>
+    async function downloadPNG(size) {
+      const img = document.getElementById('logoPreview');
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+
+      // Set canvas size
+      canvas.width = size;
+      canvas.height = size;
+
+      // Load SVG as image
+      const svgImg = new Image();
+      svgImg.src = '/logo.svg';
+
+      svgImg.onload = function() {
+        // Draw image on canvas
+        ctx.drawImage(svgImg, 0, 0, size, size);
+
+        // Convert to PNG and download
+        canvas.toBlob(function(blob) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `quu-logo-${size}x${size}.png`;
+          a.click();
+          URL.revokeObjectURL(url);
+
+          alert(`✅ Logo downloaded as quu-logo-${size}x${size}.png`);
+        }, 'image/png', 1.0);
+      };
+    }
+  </script>
+</body>
+</html>
