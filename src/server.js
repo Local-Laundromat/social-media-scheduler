@@ -83,6 +83,14 @@ app.get('/embed', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/embed.html'));
 });
 
+app.get('/privacy', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/privacy.html'));
+});
+
+app.get('/data-deletion', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/data-deletion.html'));
+});
+
 // Health check endpoint (used by dashboard Analytics to explain stuck "pending" posts)
 app.get('/health', (req, res) => {
   res.json({
