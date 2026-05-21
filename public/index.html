@@ -19,6 +19,30 @@
       color: #1f2937;
       background: #ffffff;
       overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Global Video Background */
+    body:before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -2;
+      background: url('/hero-video.mp4') center/cover;
+    }
+
+    .global-video-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: -2;
+      opacity: 0.15;
     }
 
     /* Header & Navigation */
@@ -645,6 +669,10 @@
   </style>
 </head>
 <body>
+  <!-- Global Video Background -->
+  <video autoplay muted loop playsinline class="global-video-bg">
+    <source src="/hero-video.mp4" type="video/mp4">
+  </video>
 
   <!-- Scroll Progress Bar -->
   <div class="scroll-progress" id="scrollProgress"></div>
