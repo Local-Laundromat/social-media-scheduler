@@ -719,6 +719,12 @@ function switchTab(tabName) {
     if (!dataCache.comments || cacheAge > cacheExpiry) {
       loadComments();
     }
+  } else if (tabName === 'reviews') {
+    const cacheAge = now - (dataCache.lastLoaded.reviews || 0);
+    if (!dataCache.reviews || cacheAge > cacheExpiry) {
+      loadReviews();
+      dataCache.lastLoaded.reviews = now;
+    }
   }
 }
 

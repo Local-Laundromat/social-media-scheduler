@@ -1077,6 +1077,7 @@
           <div class="tab" onclick="switchTab('analytics')">Analytics</div>
           <div class="tab" onclick="switchTab('posts')">My Posts</div>
           <div class="tab" onclick="switchTab('comments')">Comments</div>
+          <div class="tab" onclick="switchTab('reviews')">Reviews</div>
           <div class="tab" onclick="switchTab('settings')">Settings</div>
         </div>
 
@@ -1685,6 +1686,62 @@
           </div>
         </div>
 
+        <!-- Reviews Tab -->
+        <div id="reviewsTab" class="tab-content">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <h3 style="margin: 0;">Google Business Reviews</h3>
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="reviewAutoReplyToggle" onchange="toggleReviewAutoReply()">
+                <span style="font-size: 14px; font-weight: 500;">Auto-Reply Enabled</span>
+              </label>
+              <button class="btn btn-primary" style="width: auto; padding: 10px 20px;" onclick="syncReviews()">
+                🔄 Sync from Google
+              </button>
+            </div>
+          </div>
+
+          <div style="background: #eff6ff; padding: 16px; border-radius: 8px; margin-bottom: 24px;">
+            <h4 style="margin-bottom: 8px; color: #1e40af;">⭐ How AI Review Manager Works</h4>
+            <p style="font-size: 13px; color: #1e40af; margin-bottom: 8px;">
+              AI monitors your Google Business Profile reviews and generates professional, empathetic responses using advanced LangGraph multi-agent analysis.
+            </p>
+            <ul style="font-size: 13px; color: #1e40af; margin-left: 20px; margin-bottom: 0;">
+              <li>Analyzes sentiment and emotional tone</li>
+              <li>Identifies review type (praise, complaint, mixed)</li>
+              <li>Extracts key topics mentioned by customers</li>
+              <li>Generates brand-appropriate responses with variations</li>
+              <li>Recommends auto-reply for safe reviews or manual review for complex ones</li>
+            </ul>
+          </div>
+
+          <!-- Review Statistics -->
+          <div id="reviewStatsContainer"></div>
+
+          <!-- Review Filter -->
+          <div style="margin-bottom: 24px;">
+            <label style="font-weight: 600; margin-right: 12px;">Filter:</label>
+            <select id="reviewFilter" onchange="filterReviews()" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db;">
+              <option value="all">All Reviews</option>
+              <option value="needs-reply">Needs Reply</option>
+              <option value="5-star">5 Stars</option>
+              <option value="4-star">4 Stars</option>
+              <option value="3-star">3 Stars</option>
+              <option value="1-2-star">1-2 Stars</option>
+              <option value="positive">Positive Sentiment</option>
+              <option value="negative">Negative Sentiment</option>
+            </select>
+          </div>
+
+          <!-- Reviews List -->
+          <div id="reviewsList">
+            <div class="loading">
+              <div class="spinner"></div>
+              Loading reviews...
+            </div>
+          </div>
+        </div>
+
         <!-- Settings Tab -->
         <div id="settingsTab" class="tab-content">
           <h3>Settings</h3>
@@ -1784,5 +1841,6 @@
   <script src="/js/app-notify.js?v=1.0"></script>
   <script src="/js/dashboard.js?v=2.3"></script>
   <script src="/js/comments.js?v=2.0"></script>
+  <script src="/js/reviews.js?v=1.0"></script>
 </body>
 </html>

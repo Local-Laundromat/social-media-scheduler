@@ -13,6 +13,7 @@ const uploadRoutes = require('./routes/upload');
 const aiCaptionRoutes = require('./routes/aiCaption');
 const csvRoutes = require('./routes/csv');
 const commentsRoutes = require('./routes/comments');
+const reviewsRoutes = require('./routes/reviews'); // Google Business Reviews
 const agentPostRoutes = require('./routes/agentPost'); // LangGraph autonomous agent
 const ragCaptionRoutes = require('./routes/ragCaption'); // RAG-powered brand voice
 const agentCommentsRoutes = require('./routes/agentComments'); // Multi-agent comment system
@@ -56,6 +57,7 @@ app.use('/api/users', userRoutes); // External user management
 app.use('/api/upload', uploadRoutes);
 app.use('/api/csv', csvRoutes);
 app.use('/api/comments', commentsRoutes);
+app.use('/api/reviews', reviewsRoutes); // Google Business Reviews
 app.use('/api/agent', agentPostRoutes); // LangGraph autonomous post generation
 app.use('/api/agent', agentCommentsRoutes); // LangGraph multi-agent comment system
 app.use('/api/rag', ragCaptionRoutes); // RAG-powered caption generation

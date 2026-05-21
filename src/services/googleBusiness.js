@@ -193,6 +193,149 @@ class GoogleBusinessService {
       };
     }
   }
+
+  /**
+   * List all reviews for the location
+   * @param {number} pageSize - Number of reviews to fetch (default 50)
+   * @param {string} pageToken - Token for pagination
+   * @returns {object} - { success: boolean, reviews?: array, nextPageToken?: string, error?: string }
+   */
+  async listReviews(pageSize = 50, pageToken = null) {
+    try {
+      const params = {
+        pageSize: pageSize,
+      };
+
+      if (pageToken) {
+        params.pageToken = pageToken;
+      }
+
+      const response = await axios.get(
+        `${this.apiUrl}/${this.accountName}/${this.locationName}/reviews`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+          },
+          params: params,
+        }
+      );
+
+      return {
+        success: true,
+        reviews: response.data.reviews || [],
+        nextPageToken: response.data.nextPageToken || null,
+        averageRating: response.data.averageRating || null,
+        totalReviewCount: response.data.totalReviewCount || 0,
+      };
+    } catch (error) {
+      console.error('Google Business list reviews error:', error.response?.data || error.message);
+
+      return {
+        success: false,
+        error: error.response?.data?.error?.message || error.message,
+        google: {
+          code: error.response?.data?.error?.code,
+          message: error.response?.data?.error?.message,
+        },
+      };
+    }
+  }
+
+  /**
+   * Reply to a review
+   * @param {string} reviewName - The review's resource name (e.g., "accounts/.../locations/.../reviews/...")
+   * @param {string} comment - Reply text
+   * @returns {object} - { success: boolean, reply?: object, error?: string }
+   */
+  async replyToReview(reviewName, comment) {
+    try {
+      const response = await axios.put(
+        `${this.apiUrl}/${reviewName}/reply`,
+        {
+          comment: comment,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      return {
+        success: true,
+        reply: response.data,
+      };
+    } catch (error) {
+      console.error('Google Business reply to review error:', error.response?.data || error.message);
+
+      return {
+        success: false,
+        error: error.response?.data?.error?.message || error.message,
+        google: {
+          code: error.response?.data?.error?.code,
+          message: error.response?.data?.error?.message,
+        },
+      };
+    }
+  }
+
+  /**
+   * Delete a review reply
+   * @param {string} reviewName - The review's resource name
+   * @returns {object} - { success: boolean, error?: string }
+   */
+  async deleteReviewReply(reviewName) {
+    try {
+      await axios.delete(
+        `${this.apiUrl}/${reviewName}/reply`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+          },
+        }
+      );
+
+      return {
+        success: true,
+      };
+    } catch (error) {
+      console.error('Google Business delete review reply error:', error.response?.data || error.message);
+
+      return {
+        success: false,
+        error: error.response?.data?.error?.message || error.message,
+      };
+    }
+  }
+
+  /**
+   * Get a specific review
+   * @param {string} reviewName - The review's resource name
+   * @returns {object} - { success: boolean, review?: object, error?: string }
+   */
+  async getReview(reviewName) {
+    try {
+      const response = await axios.get(
+        `${this.apiUrl}/${reviewName}`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+          },
+        }
+      );
+
+      return {
+        success: true,
+        review: response.data,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error?.message || error.message,
+      };
+    }
+  }
 }
 
 module.exports = GoogleBusinessService;
