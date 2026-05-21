@@ -16,23 +16,31 @@ const { processReview } = require('../services/reviewAgents');
 router.get('/', authenticateSupabase, async (req, res) => {
   try {
     const userId = req.userId;
-    const { syncNew = 'false' } = req.query;
+    const { syncNew = 'false', accountId } = req.query;
 
     // Get user's Google Business credentials
-    const { data: googleAccounts } = await supabase
+    let googleAccountsQuery = supabase
       .from('google_business_accounts')
       .select('*')
       .eq('user_id', userId)
-      .eq('is_active', true)
-      .limit(1);
+      .eq('is_active', true);
+
+    // If accountId is specified, filter by it; otherwise get all accounts
+    if (accountId) {
+      googleAccountsQuery = googleAccountsQuery.eq('id', accountId);
+    }
+
+    const { data: googleAccounts } = await googleAccountsQuery;
 
     if (!googleAccounts || googleAccounts.length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'No Google Business account connected. Please connect your account first.'
+        error: 'No Google Business account connected. Please connect your account first.',
+        accounts: []
       });
     }
 
+    // If no specific account requested, use the first one (or process all if syncing)
     const googleAccount = googleAccounts[0];
     const googleService = new GoogleBusinessService(
       googleAccount.access_token,
@@ -114,10 +122,17 @@ router.get('/', authenticateSupabase, async (req, res) => {
     }
 
     // Fetch stored reviews from database
-    const { data: reviews, error } = await supabase
+    let reviewsQuery = supabase
       .from('google_business_reviews')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', userId);
+
+    // Filter by account location if specified
+    if (accountId && googleAccount) {
+      reviewsQuery = reviewsQuery.eq('location_name', googleAccount.location_name);
+    }
+
+    const { data: reviews, error } = await reviewsQuery
       .order('create_time', { ascending: false })
       .limit(100);
 
@@ -126,7 +141,14 @@ router.get('/', authenticateSupabase, async (req, res) => {
     res.json({
       success: true,
       count: reviews?.length || 0,
-      reviews: reviews || []
+      reviews: reviews || [],
+      accounts: googleAccounts.map(acc => ({
+        id: acc.id,
+        business_name: acc.business_name,
+        location_name: acc.location_name,
+        account_display_name: acc.account_display_name
+      })),
+      currentAccount: accountId ? googleAccount : googleAccounts[0]
     });
 
   } catch (error) {

@@ -3,6 +3,8 @@
 let allReviews = [];
 let currentReviewFilter = 'all';
 let reviewStats = null;
+let googleBusinessAccounts = [];
+let currentAccountId = null;
 
 // Load reviews when tab is switched
 async function loadReviews(syncNew = false) {
@@ -12,7 +14,13 @@ async function loadReviews(syncNew = false) {
   try {
     reviewsList.innerHTML = '<div class="loading"><div class="spinner"></div>Loading reviews...</div>';
 
-    const url = syncNew ? '/api/reviews?syncNew=true' : '/api/reviews';
+    let url = syncNew ? '/api/reviews?syncNew=true' : '/api/reviews';
+
+    // Add accountId if selected
+    if (currentAccountId) {
+      url += (syncNew ? '&' : '?') + `accountId=${currentAccountId}`;
+    }
+
     const response = await fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -24,6 +32,15 @@ async function loadReviews(syncNew = false) {
     }
 
     allReviews = data.reviews || [];
+    googleBusinessAccounts = data.accounts || [];
+
+    // Populate account selector if multiple accounts exist
+    if (googleBusinessAccounts.length > 1) {
+      populateAccountSelector();
+    } else if (googleBusinessAccounts.length === 1) {
+      // Hide selector if only one account
+      document.getElementById('reviewAccountSelectorContainer').style.display = 'none';
+    }
 
     // Load review auto-reply toggle state
     if (currentUser && currentUser.review_auto_reply_enabled !== undefined) {
@@ -171,26 +188,26 @@ function renderReviews(reviews) {
     return `
       <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px; ${!review.has_replied ? 'border-left: 4px solid #f59e0b;' : ''}">
         <!-- Review Header -->
-        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
-          <div>
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px; flex-wrap: wrap; gap: 12px;">
+          <div style="flex: 1; min-width: 200px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
               <span style="font-size: 18px;">${stars}</span>
               <span style="font-weight: 600;">${review.reviewer_name || 'Anonymous'}</span>
               ${priorityBadge}
               ${repliedBadge}
             </div>
             <div style="font-size: 12px; color: #6b7280;">
-              <span style="display: inline-flex; align-items: center; gap: 4px;">
+              <span style="display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap;">
                 🏢 Google Business • ${new Date(review.create_time).toLocaleDateString()} ${new Date(review.create_time).toLocaleTimeString()}
               </span>
             </div>
           </div>
-          <div style="display: flex; gap: 8px; align-items: center;">
-            <span style="padding: 4px 8px; border-radius: 4px; background: ${sentimentColor}20; color: ${sentimentColor}; font-size: 12px; font-weight: 600;">
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <span style="padding: 4px 8px; border-radius: 4px; background: ${sentimentColor}20; color: ${sentimentColor}; font-size: 12px; font-weight: 600; white-space: nowrap;">
               ${review.sentiment}
             </span>
             ${review.review_type ? `
-              <span style="padding: 4px 8px; border-radius: 4px; background: #f3f4f6; color: #374151; font-size: 12px;">
+              <span style="padding: 4px 8px; border-radius: 4px; background: #f3f4f6; color: #374151; font-size: 12px; white-space: nowrap;">
                 ${review.review_type}
               </span>
             ` : ''}
@@ -241,17 +258,17 @@ function renderReviews(reviews) {
           </div>
 
           <!-- Actions -->
-          <div style="display: flex; gap: 8px; justify-content: flex-end;">
+          <div style="display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;">
             <button
               onclick="postReviewReply(${review.id}, false)"
               class="btn btn-primary"
-              style="width: auto; padding: 8px 16px; font-size: 13px;"
+              style="width: auto; padding: 8px 16px; font-size: 13px; flex: 1; min-width: 120px;"
             >
               📤 Post Reply
             </button>
             <button
               onclick="dismissReview(${review.id})"
-              style="background: #f3f4f6; color: #6b7280; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px;"
+              style="background: #f3f4f6; color: #6b7280; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; flex: 1; min-width: 80px;"
             >
               Skip
             </button>
@@ -396,4 +413,30 @@ async function toggleReviewAutoReply() {
     // Revert checkbox
     document.getElementById('reviewAutoReplyToggle').checked = !enabled;
   }
+}
+
+// Populate account selector dropdown
+function populateAccountSelector() {
+  const container = document.getElementById('reviewAccountSelectorContainer');
+  const selector = document.getElementById('reviewAccountSelector');
+
+  if (googleBusinessAccounts.length <= 1) {
+    container.style.display = 'none';
+    return;
+  }
+
+  container.style.display = 'block';
+  selector.innerHTML = '<option value="">All Businesses</option>' +
+    googleBusinessAccounts.map(account =>
+      `<option value="${account.id}" ${account.id === currentAccountId ? 'selected' : ''}>
+        ${account.business_name || account.account_display_name || account.location_name}
+      </option>`
+    ).join('');
+}
+
+// Switch to a different Google Business account
+function switchReviewAccount() {
+  const selector = document.getElementById('reviewAccountSelector');
+  currentAccountId = selector.value || null;
+  loadReviews();
 }

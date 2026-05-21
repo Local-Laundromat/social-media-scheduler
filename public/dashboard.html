@@ -1688,15 +1688,22 @@
 
         <!-- Reviews Tab -->
         <div id="reviewsTab" class="tab-content">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
             <h3 style="margin: 0;">Google Business Reviews</h3>
-            <div style="display: flex; gap: 12px; align-items: center;">
-              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+              <!-- Account Selector (shows when multiple accounts exist) -->
+              <div id="reviewAccountSelectorContainer" style="display: none;">
+                <select id="reviewAccountSelector" onchange="switchReviewAccount()" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; min-width: 200px;">
+                  <option value="">Select Business...</option>
+                </select>
+              </div>
+
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; white-space: nowrap;">
                 <input type="checkbox" id="reviewAutoReplyToggle" onchange="toggleReviewAutoReply()">
-                <span style="font-size: 14px; font-weight: 500;">Auto-Reply Enabled</span>
+                <span style="font-size: 14px; font-weight: 500;">Auto-Reply</span>
               </label>
-              <button class="btn btn-primary" style="width: auto; padding: 10px 20px;" onclick="syncReviews()">
-                🔄 Sync from Google
+              <button class="btn btn-primary" style="width: auto; padding: 10px 20px; white-space: nowrap;" onclick="syncReviews()">
+                🔄 Sync
               </button>
             </div>
           </div>
@@ -1719,9 +1726,9 @@
           <div id="reviewStatsContainer"></div>
 
           <!-- Review Filter -->
-          <div style="margin-bottom: 24px;">
-            <label style="font-weight: 600; margin-right: 12px;">Filter:</label>
-            <select id="reviewFilter" onchange="filterReviews()" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db;">
+          <div style="margin-bottom: 24px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <label style="font-weight: 600;">Filter:</label>
+            <select id="reviewFilter" onchange="filterReviews()" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; flex: 1; min-width: 200px; max-width: 300px;">
               <option value="all">All Reviews</option>
               <option value="needs-reply">Needs Reply</option>
               <option value="5-star">5 Stars</option>
