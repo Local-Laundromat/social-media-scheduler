@@ -118,6 +118,32 @@
       transform: translateY(-1px);
     }
 
+    .password-wrapper {
+      position: relative;
+    }
+
+    .password-wrapper input {
+      padding-right: 45px;
+    }
+
+    .toggle-password {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+      color: #9ca3af;
+      transition: color 0.2s;
+      font-size: 18px;
+    }
+
+    .toggle-password:hover {
+      color: #6b7280;
+    }
+
     .btn {
       width: 100%;
       padding: 14px;
@@ -248,7 +274,12 @@
 
       <div class="form-group">
         <label>Password</label>
-        <input type="password" id="password" placeholder="••••••••" required>
+        <div class="password-wrapper">
+          <input type="password" id="password" placeholder="••••••••" required>
+          <button type="button" class="toggle-password" onclick="togglePasswordVisibility()">
+            <span id="eyeIcon">👁️</span>
+          </button>
+        </div>
       </div>
 
       <div class="form-group" id="companyGroup" style="display: none;">
@@ -508,6 +539,20 @@
         }
       } catch (error) {
         showError('Failed to send reset email. Please try again.');
+      }
+    }
+
+    // Toggle password visibility
+    function togglePasswordVisibility() {
+      const passwordInput = document.getElementById('password');
+      const eyeIcon = document.getElementById('eyeIcon');
+
+      if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        eyeIcon.textContent = '👁️‍🗨️';
+      } else {
+        passwordInput.type = 'password';
+        eyeIcon.textContent = '👁️';
       }
     }
 
