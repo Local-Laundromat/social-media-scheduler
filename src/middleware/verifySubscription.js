@@ -66,14 +66,15 @@ async function verifyActivePaidUser(req, res, next) {
           requiredStatus: 'active',
           upgradeUrl: '/settings#billing'
         },
-        message: '🔒 Upgrade to Pro to activate your Autonomous Agent Team. Start planning content with AI in seconds!',
+        message: '🔒 Upgrade to unlock AI features. Start planning content with AI in seconds!',
         cta: {
           text: 'Upgrade Now',
           action: 'upgrade',
           tiers: [
-            { name: 'Starter', price: '$29/mo', features: ['BYOK Required', '3 Social Accounts', 'All AI Features'] },
-            { name: 'Growth', price: '$79/mo', features: ['5 AI Runs/mo', '6 Social Accounts', 'Priority Support'] },
-            { name: 'Agency', price: '$499/mo', features: ['100 AI Runs/mo', 'Unlimited Accounts', 'White Label'] }
+            { name: 'Starter', price: '$19/mo', features: ['2 AI Runs/mo + BYOK', '3 Social Accounts', 'Unlimited Scheduling'] },
+            { name: 'Growth', price: '$59/mo', features: ['10 AI Runs/mo', '6 Social Accounts', 'Auto-Caption Generation'] },
+            { name: 'Pro', price: '$149/mo', features: ['50 AI Runs/mo', '12 Social Accounts', 'Team Collaboration'] },
+            { name: 'Agency', price: '$499/mo', features: ['Unlimited AI Runs', 'Unlimited Accounts', 'White Label'] }
           ]
         }
       });
@@ -132,7 +133,8 @@ async function verifyActivePaidUser(req, res, next) {
         cta: {
           text: 'Upgrade Plan',
           action: 'upgrade_tier',
-          suggestion: profile.subscription_tier === 'starter' ? 'growth' : 'agency'
+          suggestion: profile.subscription_tier === 'starter' ? 'growth' :
+                     profile.subscription_tier === 'growth' ? 'pro' : 'agency'
         }
       });
     }

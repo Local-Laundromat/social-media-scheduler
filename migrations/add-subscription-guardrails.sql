@@ -91,46 +91,71 @@ INSERT INTO subscription_tiers (tier_name, monthly_price_usd, max_social_account
 VALUES
   (
     'starter',
-    29.00,
+    19.00,
     3,
-    0, -- Must use BYOK, no system credits
-    true,
+    2, -- 2 AI plans/month included OR BYOK for unlimited
+    false,
     jsonb_build_object(
       'ai_auto_plan', true,
       'comment_responder', true,
       'rag_captions', true,
-      'byok_required', true,
+      'bulk_upload', true,
+      'byok_optional', true,
       'support_level', 'email'
     )
   ),
   (
     'growth',
-    79.00,
+    59.00,
     6,
-    5, -- 5 AI bulk runs per month on system key
+    10, -- 10 AI plans/month on system key
     false,
     jsonb_build_object(
       'ai_auto_plan', true,
       'comment_responder', true,
       'rag_captions', true,
-      'byok_required', false,
-      'priority_support', true,
-      'support_level', 'priority_email'
+      'auto_caption_generation', true,
+      'smart_reply_suggestions', true,
+      'bulk_upload', true,
+      'support_level', 'faster'
+    )
+  ),
+  (
+    'pro',
+    149.00,
+    12,
+    50, -- 50 AI plans/month
+    false,
+    jsonb_build_object(
+      'ai_auto_plan', true,
+      'comment_responder', true,
+      'rag_captions', true,
+      'auto_caption_generation', true,
+      'smart_reply_suggestions', true,
+      'advanced_analytics', true,
+      'team_collaboration', true,
+      'bulk_upload', true,
+      'support_level', 'priority'
     )
   ),
   (
     'agency',
     499.00,
-    999,
-    100, -- 100 AI bulk runs per month
+    999999,
+    999999, -- Unlimited AI plans
     false,
     jsonb_build_object(
       'ai_auto_plan', true,
       'comment_responder', true,
       'rag_captions', true,
+      'auto_caption_generation', true,
+      'smart_reply_suggestions', true,
+      'advanced_analytics', true,
+      'team_collaboration', true,
       'white_label', true,
+      'multi_user_teams', true,
       'api_access', true,
-      'dedicated_support', true,
+      'bulk_upload', true,
       'support_level', 'dedicated'
     )
   )
@@ -348,9 +373,10 @@ BEGIN
   RAISE NOTICE 'Subscription tiers: % configured', tiers_count;
   RAISE NOTICE '';
   RAISE NOTICE 'Tiers configured:';
-  RAISE NOTICE '  • Starter: $29/mo (BYOK required, 3 accounts)';
-  RAISE NOTICE '  • Growth: $79/mo (5 AI runs/mo, 6 accounts)';
-  RAISE NOTICE '  • Agency: $499/mo (100 AI runs/mo, unlimited)';
+  RAISE NOTICE '  • Starter: $19/mo (2 AI runs/mo + BYOK option, 3 accounts)';
+  RAISE NOTICE '  • Growth: $59/mo (10 AI runs/mo, 6 accounts)';
+  RAISE NOTICE '  • Pro: $149/mo (50 AI runs/mo, 12 accounts)';
+  RAISE NOTICE '  • Agency: $499/mo (unlimited AI runs, unlimited accounts)';
   RAISE NOTICE '';
   RAISE NOTICE 'Protection features:';
   RAISE NOTICE '  ✓ Subscription status checks';
