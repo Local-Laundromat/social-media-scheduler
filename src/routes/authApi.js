@@ -342,6 +342,20 @@ router.get('/me', authenticateSupabaseToken, async (req, res) => {
 
     const { data: tiktokAccounts } = await tiktokQuery;
 
+    // Get Pinterest accounts for user or their team
+    let pinterestQuery = supabaseHelper
+      .from('pinterest_accounts')
+      .select('*')
+      .eq('is_active', true);
+
+    if (profile.team_id) {
+      pinterestQuery = pinterestQuery.or(`user_id.eq.${req.userId},team_id.eq.${profile.team_id}`);
+    } else {
+      pinterestQuery = pinterestQuery.eq('user_id', req.userId);
+    }
+
+    const { data: pinterestAccounts } = await pinterestQuery;
+
     res.json({
       user: {
         id: req.userId,
@@ -353,6 +367,7 @@ router.get('/me', authenticateSupabaseToken, async (req, res) => {
         facebook_connected: facebookAccounts?.length > 0,
         instagram_connected: instagramAccounts?.length > 0,
         tiktok_connected: tiktokAccounts?.length > 0,
+        pinterest_connected: pinterestAccounts?.length > 0,
         api_key: profile.api_key,
         webhook_url: profile.webhook_url,
         created_at: profile.created_at,
@@ -376,6 +391,14 @@ router.get('/me', authenticateSupabaseToken, async (req, res) => {
         tiktok: tiktokAccounts?.map(acc => ({
           id: acc.id,
           display_name: acc.display_name,
+          user_id: acc.user_id
+        })) || [],
+        pinterest: pinterestAccounts?.map(acc => ({
+          id: acc.id,
+          account_id: acc.account_id,
+          username: acc.username,
+          default_board_id: acc.default_board_id,
+          default_board_name: acc.default_board_name,
           user_id: acc.user_id
         })) || []
       }
