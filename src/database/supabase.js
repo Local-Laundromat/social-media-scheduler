@@ -211,6 +211,86 @@ async function getPinterestAccounts(userId) {
 }
 
 // ============================================
+// YOUTUBE ACCOUNTS
+// ============================================
+
+async function saveYouTubeAccount(userId, youtubeData) {
+  const { channel_id, channel_title, access_token, refresh_token } = youtubeData;
+
+  const { data, error } = await supabase
+    .from('youtube_accounts')
+    .upsert({
+      user_id: userId,
+      channel_id: channel_id,
+      channel_title: channel_title,
+      access_token: access_token,
+      refresh_token: refresh_token,
+      is_active: true,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: 'user_id,channel_id',
+      ignoreDuplicates: false
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+async function getYouTubeAccounts(userId) {
+  const { data, error } = await supabase
+    .from('youtube_accounts')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('is_active', true);
+
+  if (error) throw error;
+  return data;
+}
+
+// ============================================
+// GOOGLE BUSINESS PROFILE ACCOUNTS
+// ============================================
+
+async function saveGoogleBusinessAccount(userId, googleData) {
+  const { account_name, account_display_name, location_name, location_title, access_token, refresh_token } = googleData;
+
+  const { data, error } = await supabase
+    .from('google_business_accounts')
+    .upsert({
+      user_id: userId,
+      account_name: account_name,
+      account_display_name: account_display_name,
+      location_name: location_name,
+      location_title: location_title,
+      access_token: access_token,
+      refresh_token: refresh_token,
+      is_active: true,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: 'user_id,account_name',
+      ignoreDuplicates: false
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+async function getGoogleBusinessAccounts(userId) {
+  const { data, error } = await supabase
+    .from('google_business_accounts')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('is_active', true);
+
+  if (error) throw error;
+  return data;
+}
+
+// ============================================
 // POSTS
 // ============================================
 
@@ -304,6 +384,14 @@ module.exports = {
   // Pinterest
   savePinterestAccount,
   getPinterestAccounts,
+
+  // YouTube
+  saveYouTubeAccount,
+  getYouTubeAccounts,
+
+  // Google Business Profile
+  saveGoogleBusinessAccount,
+  getGoogleBusinessAccounts,
 
   // Posts
   createPost,

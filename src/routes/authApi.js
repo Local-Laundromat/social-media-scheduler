@@ -356,6 +356,34 @@ router.get('/me', authenticateSupabaseToken, async (req, res) => {
 
     const { data: pinterestAccounts } = await pinterestQuery;
 
+    // Get YouTube accounts for user or their team
+    let youtubeQuery = supabaseHelper
+      .from('youtube_accounts')
+      .select('*')
+      .eq('is_active', true);
+
+    if (profile.team_id) {
+      youtubeQuery = youtubeQuery.or(`user_id.eq.${req.userId},team_id.eq.${profile.team_id}`);
+    } else {
+      youtubeQuery = youtubeQuery.eq('user_id', req.userId);
+    }
+
+    const { data: youtubeAccounts } = await youtubeQuery;
+
+    // Get Google Business accounts for user or their team
+    let googleQuery = supabaseHelper
+      .from('google_business_accounts')
+      .select('*')
+      .eq('is_active', true);
+
+    if (profile.team_id) {
+      googleQuery = googleQuery.or(`user_id.eq.${req.userId},team_id.eq.${profile.team_id}`);
+    } else {
+      googleQuery = googleQuery.eq('user_id', req.userId);
+    }
+
+    const { data: googleAccounts } = await googleQuery;
+
     res.json({
       user: {
         id: req.userId,
@@ -368,6 +396,8 @@ router.get('/me', authenticateSupabaseToken, async (req, res) => {
         instagram_connected: instagramAccounts?.length > 0,
         tiktok_connected: tiktokAccounts?.length > 0,
         pinterest_connected: pinterestAccounts?.length > 0,
+        youtube_connected: youtubeAccounts?.length > 0,
+        google_connected: googleAccounts?.length > 0,
         api_key: profile.api_key,
         webhook_url: profile.webhook_url,
         created_at: profile.created_at,
@@ -399,6 +429,20 @@ router.get('/me', authenticateSupabaseToken, async (req, res) => {
           username: acc.username,
           default_board_id: acc.default_board_id,
           default_board_name: acc.default_board_name,
+          user_id: acc.user_id
+        })) || [],
+        youtube: youtubeAccounts?.map(acc => ({
+          id: acc.id,
+          channel_id: acc.channel_id,
+          channel_title: acc.channel_title,
+          user_id: acc.user_id
+        })) || [],
+        google: googleAccounts?.map(acc => ({
+          id: acc.id,
+          account_name: acc.account_name,
+          account_display_name: acc.account_display_name,
+          location_name: acc.location_name,
+          location_title: acc.location_title,
           user_id: acc.user_id
         })) || []
       }

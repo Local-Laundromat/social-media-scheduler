@@ -5,7 +5,9 @@ const {
   saveFacebookAccount,
   saveInstagramAccount,
   saveTikTokAccount,
-  savePinterestAccount
+  savePinterestAccount,
+  saveYouTubeAccount,
+  saveGoogleBusinessAccount
 } = require('../database/supabase');
 
 /**
@@ -23,6 +25,14 @@ const TIKTOK_REDIRECT_URI = process.env.TIKTOK_REDIRECT_URI || 'http://localhost
 const PINTEREST_APP_ID = process.env.PINTEREST_APP_ID;
 const PINTEREST_APP_SECRET = process.env.PINTEREST_APP_SECRET;
 const PINTEREST_REDIRECT_URI = process.env.PINTEREST_REDIRECT_URI || 'http://localhost:3000/auth/pinterest/callback';
+
+const YOUTUBE_CLIENT_ID = process.env.YOUTUBE_CLIENT_ID;
+const YOUTUBE_CLIENT_SECRET = process.env.YOUTUBE_CLIENT_SECRET;
+const YOUTUBE_REDIRECT_URI = process.env.YOUTUBE_REDIRECT_URI || 'http://localhost:3000/auth/youtube/callback';
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/auth/google/callback';
 
 /**
  * GET /auth/facebook - Initiate Facebook OAuth
@@ -612,6 +622,252 @@ router.get('/pinterest/callback', async (req, res) => {
 });
 
 /**
+ * GET /auth/youtube - Initiate YouTube OAuth
+ */
+router.get('/youtube', (req, res) => {
+  const { user_id, app, name } = req.query;
+
+  if (!user_id || !app) {
+    return res.status(400).send('Missing user_id or app parameter');
+  }
+
+  // Store user info in state
+  const state = Buffer.from(JSON.stringify({ user_id, app, name })).toString('base64');
+
+  // YouTube OAuth URL with necessary scopes
+  const youtubeAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+    `client_id=${YOUTUBE_CLIENT_ID}` +
+    `&redirect_uri=${encodeURIComponent(YOUTUBE_REDIRECT_URI)}` +
+    `&response_type=code` +
+    `&scope=${encodeURIComponent('https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/userinfo.profile')}` +
+    `&access_type=offline` +
+    `&prompt=consent` +
+    `&state=${state}`;
+
+  res.redirect(youtubeAuthUrl);
+});
+
+/**
+ * GET /auth/youtube/callback - Handle YouTube OAuth callback
+ */
+router.get('/youtube/callback', async (req, res) => {
+  const { code, state } = req.query;
+
+  if (!code) {
+    return res.send('<html><body><h1>❌ Authorization failed</h1><p>Please close this window and try again.</p><script>setTimeout(() => window.close(), 3000);</script></body></html>');
+  }
+
+  try {
+    // Decode state
+    const { user_id, app, name } = JSON.parse(Buffer.from(state, 'base64').toString());
+
+    // Exchange code for access token
+    const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
+      code,
+      client_id: YOUTUBE_CLIENT_ID,
+      client_secret: YOUTUBE_CLIENT_SECRET,
+      redirect_uri: YOUTUBE_REDIRECT_URI,
+      grant_type: 'authorization_code',
+    });
+
+    const accessToken = tokenResponse.data.access_token;
+    const refreshToken = tokenResponse.data.refresh_token;
+
+    // Get YouTube channel info
+    const channelResponse = await axios.get('https://www.googleapis.com/youtube/v3/channels', {
+      params: {
+        part: 'snippet,contentDetails',
+        mine: true,
+      },
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!channelResponse.data.items || channelResponse.data.items.length === 0) {
+      return res.send('<html><body><h1>⚠️ No YouTube Channel Found</h1><p>Please create a YouTube channel first.</p><script>setTimeout(() => window.close(), 5000);</script></body></html>');
+    }
+
+    const channel = channelResponse.data.items[0];
+    const channelId = channel.id;
+    const channelTitle = channel.snippet.title;
+
+    // Save to Supabase
+    try {
+      await saveYouTubeAccount(user_id, {
+        channel_id: channelId,
+        channel_title: channelTitle,
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+
+      res.send(`
+        <html>
+        <body style="font-family: system-ui; text-align: center; padding: 40px;">
+          <h1 style="color: #10b981;">✓ YouTube Connected!</h1>
+          <p>Channel: <strong>${channelTitle}</strong></p>
+          <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
+          <script>
+            if (window.opener) {
+              window.opener.postMessage({ type: 'youtube_connected', channel: '${channelTitle}' }, '*');
+            }
+            setTimeout(() => window.close(), 3000);
+          </script>
+        </body>
+        </html>
+      `);
+    } catch (err) {
+      console.error('Database error:', err);
+      return res.send(`<html><body><h1>❌ Database Error</h1><p>${err.message}</p><script>setTimeout(() => window.close(), 3000);</script></body></html>`);
+    }
+  } catch (error) {
+    console.error('YouTube OAuth error:', error.response?.data || error.message);
+    res.send(`
+      <html>
+      <body style="font-family: system-ui; text-align: center; padding: 40px;">
+        <h1 style="color: #ef4444;">❌ Connection Failed</h1>
+        <p>${error.response?.data?.error_description || error.message}</p>
+        <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
+        <script>setTimeout(() => window.close(), 5000);</script>
+      </body>
+      </html>
+    `);
+  }
+});
+
+/**
+ * GET /auth/google - Initiate Google Business Profile OAuth
+ */
+router.get('/google', (req, res) => {
+  const { user_id, app, name } = req.query;
+
+  if (!user_id || !app) {
+    return res.status(400).send('Missing user_id or app parameter');
+  }
+
+  // Store user info in state
+  const state = Buffer.from(JSON.stringify({ user_id, app, name })).toString('base64');
+
+  // Google Business Profile OAuth URL
+  const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+    `client_id=${GOOGLE_CLIENT_ID}` +
+    `&redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT_URI)}` +
+    `&response_type=code` +
+    `&scope=${encodeURIComponent('https://www.googleapis.com/auth/business.manage https://www.googleapis.com/auth/userinfo.profile')}` +
+    `&access_type=offline` +
+    `&prompt=consent` +
+    `&state=${state}`;
+
+  res.redirect(googleAuthUrl);
+});
+
+/**
+ * GET /auth/google/callback - Handle Google Business Profile OAuth callback
+ */
+router.get('/google/callback', async (req, res) => {
+  const { code, state } = req.query;
+
+  if (!code) {
+    return res.send('<html><body><h1>❌ Authorization failed</h1><p>Please close this window and try again.</p><script>setTimeout(() => window.close(), 3000);</script></body></html>');
+  }
+
+  try {
+    // Decode state
+    const { user_id, app, name } = JSON.parse(Buffer.from(state, 'base64').toString());
+
+    // Exchange code for access token
+    const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
+      code,
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      redirect_uri: GOOGLE_REDIRECT_URI,
+      grant_type: 'authorization_code',
+    });
+
+    const accessToken = tokenResponse.data.access_token;
+    const refreshToken = tokenResponse.data.refresh_token;
+
+    // Get Google My Business accounts
+    const accountsResponse = await axios.get('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!accountsResponse.data.accounts || accountsResponse.data.accounts.length === 0) {
+      return res.send('<html><body><h1>⚠️ No Google Business Profile Found</h1><p>Please create a Google Business Profile first.</p><script>setTimeout(() => window.close(), 5000);</script></body></html>');
+    }
+
+    const account = accountsResponse.data.accounts[0];
+    const accountName = account.name;
+    const accountDisplayName = account.accountName || 'Google Business Profile';
+
+    // Get locations for this account
+    let locationName = null;
+    let locationTitle = null;
+    try {
+      const locationsResponse = await axios.get(`https://mybusinessbusinessinformation.googleapis.com/v1/${accountName}/locations`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (locationsResponse.data.locations && locationsResponse.data.locations.length > 0) {
+        const location = locationsResponse.data.locations[0];
+        locationName = location.name;
+        locationTitle = location.title;
+      }
+    } catch (err) {
+      console.log('No locations found for account');
+    }
+
+    // Save to Supabase
+    try {
+      await saveGoogleBusinessAccount(user_id, {
+        account_name: accountName,
+        account_display_name: accountDisplayName,
+        location_name: locationName,
+        location_title: locationTitle,
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+
+      res.send(`
+        <html>
+        <body style="font-family: system-ui; text-align: center; padding: 40px;">
+          <h1 style="color: #10b981;">✓ Google Business Profile Connected!</h1>
+          <p>Account: <strong>${accountDisplayName}</strong></p>
+          ${locationTitle ? `<p>Location: <strong>${locationTitle}</strong></p>` : ''}
+          <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
+          <script>
+            if (window.opener) {
+              window.opener.postMessage({ type: 'google_connected', account: '${accountDisplayName}' }, '*');
+            }
+            setTimeout(() => window.close(), 3000);
+          </script>
+        </body>
+        </html>
+      `);
+    } catch (err) {
+      console.error('Database error:', err);
+      return res.send(`<html><body><h1>❌ Database Error</h1><p>${err.message}</p><script>setTimeout(() => window.close(), 3000);</script></body></html>`);
+    }
+  } catch (error) {
+    console.error('Google Business Profile OAuth error:', error.response?.data || error.message);
+    res.send(`
+      <html>
+      <body style="font-family: system-ui; text-align: center; padding: 40px;">
+        <h1 style="color: #ef4444;">❌ Connection Failed</h1>
+        <p>${error.response?.data?.error_description || error.message}</p>
+        <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
+        <script>setTimeout(() => window.close(), 5000);</script>
+      </body>
+      </html>
+    `);
+  }
+});
+
+/**
  * POST /auth/unlink/:platform - Unlink a social media account
  */
 router.post('/unlink/:platform', async (req, res) => {
@@ -674,6 +930,30 @@ router.post('/unlink/:platform', async (req, res) => {
       await query;
 
       res.json({ success: true, message: 'Pinterest account(s) unlinked' });
+    } else if (platform === 'youtube') {
+      let query = supabase.from('youtube_accounts').delete();
+
+      if (account_id) {
+        query = query.eq('id', account_id);
+      } else {
+        query = query.eq('user_id', user_id);
+      }
+
+      await query;
+
+      res.json({ success: true, message: 'YouTube account(s) unlinked' });
+    } else if (platform === 'google') {
+      let query = supabase.from('google_business_accounts').delete();
+
+      if (account_id) {
+        query = query.eq('id', account_id);
+      } else {
+        query = query.eq('user_id', user_id);
+      }
+
+      await query;
+
+      res.json({ success: true, message: 'Google Business Profile account(s) unlinked' });
     } else {
       res.status(400).json({ error: 'Invalid platform' });
     }

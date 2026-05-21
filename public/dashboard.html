@@ -1032,6 +1032,40 @@
             Connect Pinterest
           </button>
         </div>
+
+        <!-- YouTube -->
+        <div class="connection-item" id="youtubeConnection">
+          <div class="connection-header">
+            <div class="connection-name">
+              <span class="connection-icon">📺</span>
+              <span>YouTube</span>
+            </div>
+            <span class="status-badge disconnected" id="youtubeStatus">Not Connected</span>
+          </div>
+          <div class="connection-details" id="youtubeDetails">
+            Connect your YouTube Channel
+          </div>
+          <button class="btn btn-primary" id="youtubeBtn" onclick="connectYouTube()">
+            Connect YouTube
+          </button>
+        </div>
+
+        <!-- Google Business Profile -->
+        <div class="connection-item" id="googleConnection">
+          <div class="connection-header">
+            <div class="connection-name">
+              <span class="connection-icon">🏢</span>
+              <span>Google Business</span>
+            </div>
+            <span class="status-badge disconnected" id="googleStatus">Not Connected</span>
+          </div>
+          <div class="connection-details" id="googleDetails">
+            Connect your Google Business Profile
+          </div>
+          <button class="btn btn-primary" id="googleBtn" onclick="connectGoogle()">
+            Connect Google Business
+          </button>
+        </div>
       </div>
 
       <!-- Main Content -->
@@ -1109,6 +1143,12 @@
                 <label>
                   <input type="checkbox" name="platform" value="pinterest" onchange="toggleAccountSelector('pinterest')"> Pinterest
                 </label>
+                <label>
+                  <input type="checkbox" name="platform" value="youtube" onchange="toggleAccountSelector('youtube')"> YouTube
+                </label>
+                <label>
+                  <input type="checkbox" name="platform" value="google" onchange="toggleAccountSelector('google')"> Google Business
+                </label>
               </div>
             </div>
 
@@ -1131,6 +1171,20 @@
               <label>TikTok Account</label>
               <select id="tiktokAccountSelect">
                 <option value="">Select a TikTok Account...</option>
+              </select>
+            </div>
+
+            <div class="form-group" id="youtubeAccountSelector" style="display: none;">
+              <label>YouTube Channel</label>
+              <select id="youtubeAccountSelect">
+                <option value="">Select a YouTube Channel...</option>
+              </select>
+            </div>
+
+            <div class="form-group" id="googleAccountSelector" style="display: none;">
+              <label>Google Business Profile</label>
+              <select id="googleAccountSelect">
+                <option value="">Select a Google Business Profile...</option>
               </select>
             </div>
 

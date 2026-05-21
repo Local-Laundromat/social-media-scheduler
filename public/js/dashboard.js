@@ -2,7 +2,7 @@
 
 let currentUser = null;
 let uploadedFile = null;
-let socialAccounts = { facebook: [], instagram: [], tiktok: [] };
+let socialAccounts = { facebook: [], instagram: [], tiktok: [], pinterest: [], youtube: [], google: [] };
 
 /** Ensure social_accounts from API always has array fields (avoids .forEach on undefined). */
 function normalizeSocialAccounts(sa) {
@@ -10,7 +10,10 @@ function normalizeSocialAccounts(sa) {
   return {
     facebook: Array.isArray(d.facebook) ? d.facebook : [],
     instagram: Array.isArray(d.instagram) ? d.instagram : [],
-    tiktok: Array.isArray(d.tiktok) ? d.tiktok : []
+    tiktok: Array.isArray(d.tiktok) ? d.tiktok : [],
+    pinterest: Array.isArray(d.pinterest) ? d.pinterest : [],
+    youtube: Array.isArray(d.youtube) ? d.youtube : [],
+    google: Array.isArray(d.google) ? d.google : []
   };
 }
 
@@ -83,6 +86,9 @@ function initializeDashboard() {
   updateConnectionStatus('facebook', currentUser.facebook_connected, currentUser.facebook_page_name);
   updateConnectionStatus('instagram', currentUser.instagram_connected, currentUser.instagram_username);
   updateConnectionStatus('tiktok', currentUser.tiktok_connected, currentUser.tiktok_username);
+  updateConnectionStatus('pinterest', currentUser.pinterest_connected, currentUser.pinterest_username);
+  updateConnectionStatus('youtube', currentUser.youtube_connected, currentUser.youtube_channel_title);
+  updateConnectionStatus('google', currentUser.google_connected, currentUser.google_account_display_name);
 
   // ONLY load stats on initial load (lightweight)
   loadStats();
@@ -132,6 +138,18 @@ function updateConnectionStatus(platform, connected, accountName) {
       detailsText = 'Connect your TikTok Business Account';
       btnText = 'Connect TikTok';
       connectFunc = connectTikTok;
+    } else if (platform === 'pinterest') {
+      detailsText = 'Connect your Pinterest Business Account';
+      btnText = 'Connect Pinterest';
+      connectFunc = connectPinterest;
+    } else if (platform === 'youtube') {
+      detailsText = 'Connect your YouTube Channel';
+      btnText = 'Connect YouTube';
+      connectFunc = connectYouTube;
+    } else if (platform === 'google') {
+      detailsText = 'Connect your Google Business Profile';
+      btnText = 'Connect Google Business';
+      connectFunc = connectGoogle;
     }
 
     details.textContent = detailsText;
@@ -225,6 +243,48 @@ function connectPinterest() {
   }, 500);
 }
 
+// Connect YouTube
+function connectYouTube() {
+  const width = 600;
+  const height = 700;
+  const left = (screen.width - width) / 2;
+  const top = (screen.height - height) / 2;
+
+  const popup = window.open(
+    `/auth/youtube?user_id=${currentUser.id}&app=direct&name=${encodeURIComponent(currentUser.name || '')}`,
+    'YouTube Login',
+    `width=${width},height=${height},left=${left},top=${top}`
+  );
+
+  const checkPopup = setInterval(() => {
+    if (popup.closed) {
+      clearInterval(checkPopup);
+      reloadUserData();
+    }
+  }, 500);
+}
+
+// Connect Google Business Profile
+function connectGoogle() {
+  const width = 600;
+  const height = 700;
+  const left = (screen.width - width) / 2;
+  const top = (screen.height - height) / 2;
+
+  const popup = window.open(
+    `/auth/google?user_id=${currentUser.id}&app=direct&name=${encodeURIComponent(currentUser.name || '')}`,
+    'Google Business Login',
+    `width=${width},height=${height},left=${left},top=${top}`
+  );
+
+  const checkPopup = setInterval(() => {
+    if (popup.closed) {
+      clearInterval(checkPopup);
+      reloadUserData();
+    }
+  }, 500);
+}
+
 // Disconnect platform
 async function disconnect(platform) {
   if (!confirm(`Are you sure you want to disconnect ${platform}?`)) {
@@ -261,6 +321,9 @@ async function reloadUserData() {
     updateConnectionStatus('facebook', currentUser.facebook_connected, currentUser.facebook_page_name);
     updateConnectionStatus('instagram', currentUser.instagram_connected, currentUser.instagram_username);
     updateConnectionStatus('tiktok', currentUser.tiktok_connected, currentUser.tiktok_username);
+    updateConnectionStatus('pinterest', currentUser.pinterest_connected, currentUser.pinterest_username);
+    updateConnectionStatus('youtube', currentUser.youtube_connected, currentUser.youtube_channel_title);
+    updateConnectionStatus('google', currentUser.google_connected, currentUser.google_account_display_name);
 
     // Repopulate account selectors
     populateAccountSelectors();
@@ -319,10 +382,44 @@ function populateAccountSelectors() {
     }
   }
 
+  // Populate YouTube selector
+  const ytSelect = document.getElementById('youtubeAccountSelect');
+  if (ytSelect) {
+    ytSelect.innerHTML = '<option value="">Select a YouTube Channel...</option>';
+    socialAccounts.youtube.forEach(account => {
+      const option = document.createElement('option');
+      option.value = account.id;
+      option.textContent = account.channel_title;
+      ytSelect.appendChild(option);
+    });
+    // Auto-select if only one account
+    if (socialAccounts.youtube.length === 1) {
+      ytSelect.value = socialAccounts.youtube[0].id;
+    }
+  }
+
+  // Populate Google Business selector
+  const gbSelect = document.getElementById('googleAccountSelect');
+  if (gbSelect) {
+    gbSelect.innerHTML = '<option value="">Select a Google Business Profile...</option>';
+    socialAccounts.google.forEach(account => {
+      const option = document.createElement('option');
+      option.value = account.id;
+      option.textContent = account.location_title || account.account_display_name;
+      gbSelect.appendChild(option);
+    });
+    // Auto-select if only one account
+    if (socialAccounts.google.length === 1) {
+      gbSelect.value = socialAccounts.google[0].id;
+    }
+  }
+
   // Show/hide selectors based on checkbox state
   toggleAccountSelector('facebook');
   toggleAccountSelector('instagram');
   toggleAccountSelector('tiktok');
+  toggleAccountSelector('youtube');
+  toggleAccountSelector('google');
 }
 
 // Toggle account selector visibility based on platform checkbox
