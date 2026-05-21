@@ -204,6 +204,27 @@ function connectTikTok() {
   }, 500);
 }
 
+// Connect Pinterest
+function connectPinterest() {
+  const width = 600;
+  const height = 700;
+  const left = (screen.width - width) / 2;
+  const top = (screen.height - height) / 2;
+
+  const popup = window.open(
+    `/auth/pinterest?user_id=${currentUser.id}&app=direct&name=${encodeURIComponent(currentUser.name || '')}`,
+    'Pinterest Login',
+    `width=${width},height=${height},left=${left},top=${top}`
+  );
+
+  const checkPopup = setInterval(() => {
+    if (popup.closed) {
+      clearInterval(checkPopup);
+      reloadUserData();
+    }
+  }, 500);
+}
+
 // Disconnect platform
 async function disconnect(platform) {
   if (!confirm(`Are you sure you want to disconnect ${platform}?`)) {

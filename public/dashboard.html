@@ -1015,6 +1015,23 @@
             Connect TikTok
           </button>
         </div>
+
+        <!-- Pinterest -->
+        <div class="connection-item" id="pinterestConnection">
+          <div class="connection-header">
+            <div class="connection-name">
+              <span class="connection-icon">📌</span>
+              <span>Pinterest</span>
+            </div>
+            <span class="status-badge disconnected" id="pinterestStatus">Not Connected</span>
+          </div>
+          <div class="connection-details" id="pinterestDetails">
+            Connect your Pinterest Business Account
+          </div>
+          <button class="btn btn-primary" id="pinterestBtn" onclick="connectPinterest()">
+            Connect Pinterest
+          </button>
+        </div>
       </div>
 
       <!-- Main Content -->
@@ -1088,6 +1105,9 @@
                 </label>
                 <label>
                   <input type="checkbox" name="platform" value="tiktok" onchange="toggleAccountSelector('tiktok')"> TikTok
+                </label>
+                <label>
+                  <input type="checkbox" name="platform" value="pinterest" onchange="toggleAccountSelector('pinterest')"> Pinterest
                 </label>
               </div>
             </div>
@@ -1245,6 +1265,7 @@
                   <label><input type="checkbox" name="bulkPlatform" value="facebook" checked> Facebook</label>
                   <label><input type="checkbox" name="bulkPlatform" value="instagram" checked> Instagram</label>
                   <label><input type="checkbox" name="bulkPlatform" value="tiktok"> TikTok</label>
+                  <label><input type="checkbox" name="bulkPlatform" value="pinterest"> Pinterest</label>
                 </div>
               </div>
 
@@ -1287,6 +1308,7 @@
                   <label><input type="checkbox" class="individual-platform" value="facebook" checked> Facebook</label>
                   <label><input type="checkbox" class="individual-platform" value="instagram" checked> Instagram</label>
                   <label><input type="checkbox" class="individual-platform" value="tiktok"> TikTok</label>
+                  <label><input type="checkbox" class="individual-platform" value="pinterest"> Pinterest</label>
                 </div>
               </div>
 
@@ -1360,6 +1382,10 @@
             <div style="display: flex; align-items: center; gap: 6px;">
               <div style="width: 12px; height: 12px; border-radius: 50%; background: #000000;"></div>
               <span style="font-size: 13px;">TikTok</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 12px; height: 12px; border-radius: 50%; background: #e60023;"></div>
+              <span style="font-size: 13px;">Pinterest</span>
             </div>
             <div style="display: flex; align-items: center; gap: 6px;">
               <div style="width: 12px; height: 12px; border-radius: 50%; background: #fbbf24;"></div>
@@ -1464,6 +1490,14 @@
                 </div>
                 <div style="font-size: 28px; font-weight: 700; color: #000000; margin-bottom: 4px;" id="analyticsTikTok">0</div>
                 <div style="font-size: 13px; color: #6b7280;" id="analyticsTikTokRate">0% of total posts</div>
+              </div>
+              <div style="padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                  <span style="font-size: 24px;">📌</span>
+                  <span style="font-weight: 600;">Pinterest</span>
+                </div>
+                <div style="font-size: 28px; font-weight: 700; color: #e60023; margin-bottom: 4px;" id="analyticsPinterest">0</div>
+                <div style="font-size: 13px; color: #6b7280;" id="analyticsPinterestRate">0% of total posts</div>
               </div>
             </div>
           </div>

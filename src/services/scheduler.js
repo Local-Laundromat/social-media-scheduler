@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const { supabase, getPostById, updatePost } = require('../database/supabase');
 const FacebookService = require('./facebook');
 const InstagramService = require('./instagram');
+const PinterestService = require('./pinterest');
 const {
   applyFacebookAccountFilter,
   applyInstagramAccountFilter,
@@ -224,11 +225,28 @@ class Scheduler {
           instagramAccountId = igAccounts[0].account_id;
         }
 
+        // Get Pinterest credentials
+        let pinterestToken = null;
+        let pinterestBoardId = null;
+        const { data: pinterestAccounts } = await supabase
+          .from('pinterest_accounts')
+          .select('*')
+          .eq('user_id', post.user_id)
+          .eq('is_active', true)
+          .limit(1);
+
+        if (pinterestAccounts && pinterestAccounts.length > 0) {
+          pinterestToken = pinterestAccounts[0].access_token;
+          pinterestBoardId = pinterestAccounts[0].default_board_id;
+        }
+
         return {
           facebookToken,
           facebookPageId,
           instagramToken,
           instagramAccountId,
+          pinterestToken,
+          pinterestBoardId,
           source: 'user',
           userName: profile.name,
         };
@@ -250,6 +268,8 @@ class Scheduler {
           facebookPageId: account.facebook_page_id,
           instagramToken: account.instagram_token,
           instagramAccountId: account.instagram_account_id,
+          pinterestToken: null,
+          pinterestBoardId: null,
           source: 'account',
           accountName: account.name,
         };
@@ -261,6 +281,8 @@ class Scheduler {
           facebookPageId: process.env.FACEBOOK_PAGE_ID,
           instagramToken: process.env.INSTAGRAM_ACCESS_TOKEN,
           instagramAccountId: process.env.INSTAGRAM_ACCOUNT_ID,
+          pinterestToken: null,
+          pinterestBoardId: null,
           source: 'env',
         };
       }
@@ -282,7 +304,7 @@ class Scheduler {
     });
 
     // SAFETY CHECK: Skip posts that already have platform post IDs (prevent duplicates)
-    if (post.facebook_post_id || post.instagram_post_id || post.tiktok_post_id) {
+    if (post.facebook_post_id || post.instagram_post_id || post.tiktok_post_id || post.pinterest_post_id) {
       console.warn(`Post ${post.id} already has platform post IDs - skipping to prevent duplicates`);
       // Mark as posted if not already
       if (post.status !== 'posted') {
@@ -303,6 +325,7 @@ class Scheduler {
         source: credentials.source,
         hasFacebook: !!(credentials.facebookToken && credentials.facebookPageId),
         hasInstagram: !!(credentials.instagramToken && credentials.instagramAccountId),
+        hasPinterest: !!(credentials.pinterestToken && credentials.pinterestBoardId),
       });
     } catch (error) {
       console.error(`Failed to get credentials for post ${post.id}:`, error.message);
@@ -333,6 +356,7 @@ class Scheduler {
     const results = {
       facebook: null,
       instagram: null,
+      pinterest: null,
     };
 
     // Post to Facebook (with retry logic)
@@ -471,6 +495,73 @@ class Scheduler {
       }
     }
 
+    // Post to Pinterest (with retry logic)
+    if (platforms.includes('pinterest')) {
+      if (!credentials.pinterestToken || !credentials.pinterestBoardId) {
+        results.pinterest = {
+          success: false,
+          error: 'Pinterest credentials not configured. Please connect your Pinterest account.',
+          stage: 'scheduler_missing_pinterest_credentials',
+        };
+        logPostPipeline(post.id, 'pinterest.skip', { reason: 'no_token_or_board_id' });
+      } else {
+        const pinterestService = new PinterestService(credentials.pinterestToken);
+
+        const publicUrl = resolveInstagramMediaUrl(post);
+
+        if (!publicUrl) {
+          results.pinterest = {
+            success: false,
+            error: 'Pinterest needs a public image URL. Use Supabase uploads or set PUBLIC_FILE_URL.',
+            stage: 'scheduler_pinterest_public_url',
+          };
+          logPostPipeline(post.id, 'pinterest.fail', { stage: 'scheduler_pinterest_public_url' });
+        } else {
+          // Retry logic: 3 attempts with exponential backoff (1s, 2s, 4s)
+          const maxRetries = 3;
+          let lastError = null;
+
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            results.pinterest = await pinterestService.post(
+              publicUrl,
+              post.caption || '',
+              credentials.pinterestBoardId
+            );
+
+            if (results.pinterest.success) {
+              if (attempt > 1) {
+                logPostPipeline(post.id, 'pinterest.ok', { pinId: results.pinterest.pinId, retriedAttempts: attempt - 1 });
+              } else {
+                logPostPipeline(post.id, 'pinterest.ok', { pinId: results.pinterest.pinId });
+              }
+              await updatePost(post.id, { pinterest_post_id: results.pinterest.pinId });
+              break; // Success, exit retry loop
+            } else {
+              lastError = results.pinterest;
+              if (attempt < maxRetries) {
+                const delayMs = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
+                logPostPipeline(post.id, 'pinterest.retry', {
+                  attempt,
+                  delayMs,
+                  error: results.pinterest.error
+                });
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+              }
+            }
+          }
+
+          // If all retries failed, log the final failure
+          if (results.pinterest && !results.pinterest.success) {
+            logPostPipeline(post.id, 'pinterest.fail', {
+              stage: results.pinterest.stage,
+              error: results.pinterest.error,
+              retriedAttempts: maxRetries - 1
+            });
+          }
+        }
+      }
+    }
+
     // Final status: all attempted platforms failed → failed; mix → partial; all ok → posted
     let finalStatus = 'posted';
     let errorMessage = null;
@@ -478,6 +569,7 @@ class Scheduler {
     const attempted = [];
     if (platforms.includes('facebook')) attempted.push('facebook');
     if (platforms.includes('instagram')) attempted.push('instagram');
+    if (platforms.includes('pinterest')) attempted.push('pinterest');
 
     let ok = 0;
     let bad = 0;
@@ -487,6 +579,10 @@ class Scheduler {
     }
     if (platforms.includes('instagram')) {
       if (results.instagram?.success) ok++;
+      else bad++;
+    }
+    if (platforms.includes('pinterest')) {
+      if (results.pinterest?.success) ok++;
       else bad++;
     }
 
@@ -515,6 +611,9 @@ class Scheduler {
           instagram: platforms.includes('instagram')
             ? summarizePlatform('instagram', results.instagram)
             : undefined,
+          pinterest: platforms.includes('pinterest')
+            ? summarizePlatform('pinterest', results.pinterest)
+            : undefined,
         },
       });
     } else if (ok > 0 && bad > 0) {
@@ -530,6 +629,9 @@ class Scheduler {
             : undefined,
           instagram: platforms.includes('instagram')
             ? summarizePlatform('instagram', results.instagram)
+            : undefined,
+          pinterest: platforms.includes('pinterest')
+            ? summarizePlatform('pinterest', results.pinterest)
             : undefined,
         },
       });
