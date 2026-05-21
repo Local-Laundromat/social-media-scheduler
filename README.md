@@ -342,3 +342,4 @@ MIT - Use freely for any project!
 **Built for PK Property Inc** 🏠
 
 AI-friendly codebase - easily maintained and extended with Claude, GPT, or any AI assistant.
+# Trigger Railway redeploy - Wed May 20 21:48:45 EDT 2026
