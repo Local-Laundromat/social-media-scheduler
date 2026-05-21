@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data Deletion Instructions - Quu</title>
+  <meta name="description" content="Learn how to request deletion of your data from Quu Scheduler">
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      line-height: 1.6;
+      color: #1f2937;
+      background: #ffffff;
+    }
+
+    /* Header & Navigation */
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(250, 204, 21, 0.15);
+      z-index: 1000;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    nav {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 70px;
+    }
+
+    .logo {
+      font-size: 1.8rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-decoration: none;
+      transition: transform 0.3s ease;
+    }
+
+    .logo:hover {
+      transform: scale(1.05);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 30px;
+      align-items: center;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: #4b5563;
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.3s ease;
+    }
+
+    .nav-links a:hover {
+      color: #ca8a04;
+    }
+
+    /* Hero Section */
+    .hero {
+      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+      color: #1f2937;
+      padding: 140px 20px 80px;
+      text-align: center;
+      margin-top: 70px;
+    }
+
+    .hero h1 {
+      font-size: 3rem;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    .hero p {
+      font-size: 1.1rem;
+      opacity: 0.9;
+    }
+
+    /* Content Container */
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 60px 20px;
+    }
+
+    /* Warning Box */
+    .warning-box {
+      background: #fee2e2;
+      border-left: 4px solid #ef4444;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 40px;
+    }
+
+    .warning-box h3 {
+      color: #991b1b;
+      margin-bottom: 12px;
+      font-size: 1.2rem;
+    }
+
+    .warning-box ul {
+      margin-top: 12px;
+      padding-left: 24px;
+    }
+
+    .warning-box ul li {
+      color: #991b1b;
+      margin-bottom: 8px;
+    }
+
+    /* Content Sections */
+    .content h2 {
+      font-size: 1.8rem;
+      color: #1f2937;
+      margin-top: 40px;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #facc15;
+    }
+
+    .content h3 {
+      font-size: 1.3rem;
+      color: #374151;
+      margin-top: 24px;
+      margin-bottom: 12px;
+    }
+
+    .content p {
+      margin-bottom: 16px;
+      color: #4b5563;
+      line-height: 1.8;
+    }
+
+    .content ul {
+      margin-bottom: 20px;
+      padding-left: 24px;
+    }
+
+    .content ul li {
+      margin-bottom: 10px;
+      color: #4b5563;
+      line-height: 1.8;
+    }
+
+    .content a {
+      color: #ca8a04;
+      text-decoration: none;
+      font-weight: 600;
+      transition: color 0.3s ease;
+    }
+
+    .content a:hover {
+      color: #facc15;
+      text-decoration: underline;
+    }
+
+    /* Method Cards */
+    .method-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+      margin: 30px 0;
+    }
+
+    .method-card {
+      background: #f9fafb;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 24px;
+      transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+    }
+
+    .method-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 35px rgba(250, 204, 21, 0.2);
+      border-color: #facc15;
+    }
+
+    .method-card .badge {
+      display: inline-block;
+      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+      color: #1f2937;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    .method-card h3 {
+      margin-top: 0;
+      margin-bottom: 12px;
+      font-size: 1.4rem;
+    }
+
+    .method-card ol {
+      padding-left: 20px;
+    }
+
+    .method-card ol li {
+      margin-bottom: 10px;
+      color: #4b5563;
+    }
+
+    /* Info Boxes */
+    .info-box {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 24px 0;
+    }
+
+    .info-box h4 {
+      color: #1e40af;
+      margin-bottom: 8px;
+    }
+
+    .info-box p {
+      color: #1e40af;
+      margin-bottom: 0;
+    }
+
+    .success-box {
+      background: #f0fdf4;
+      border-left: 4px solid #10b981;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 24px 0;
+    }
+
+    .success-box h4 {
+      color: #065f46;
+      margin-bottom: 8px;
+    }
+
+    .success-box p {
+      color: #065f46;
+      margin-bottom: 8px;
+    }
+
+    .success-box ul {
+      margin-top: 12px;
+      padding-left: 24px;
+    }
+
+    .success-box ul li {
+      color: #065f46;
+      margin-bottom: 6px;
+    }
+
+    /* Contact Box */
+    .contact-box {
+      background: #f9fafb;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 24px;
+      margin-top: 40px;
+      text-align: center;
+    }
+
+    .contact-box h3 {
+      margin-top: 0;
+      margin-bottom: 12px;
+      color: #1f2937;
+    }
+
+    .contact-box a {
+      color: #ca8a04;
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+
+    /* Footer */
+    footer {
+      background: #1f2937;
+      color: #9ca3af;
+      padding: 40px 20px;
+      text-align: center;
+      margin-top: 80px;
+    }
+
+    footer a {
+      color: #facc15;
+      text-decoration: none;
+      transition: color 0.3s ease;
+    }
+
+    footer a:hover {
+      color: #fde68a;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero h1 {
+        font-size: 2rem;
+      }
+
+      .hero p {
+        font-size: 1rem;
+      }
+
+      .content h2 {
+        font-size: 1.5rem;
+      }
+
+      .content h3 {
+        font-size: 1.2rem;
+      }
+
+      .nav-links {
+        gap: 15px;
+        font-size: 0.9rem;
+      }
+
+      .method-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header & Navigation -->
+  <header>
+    <nav>
+      <a href="/" class="logo">Quu</a>
+      <ul class="nav-links">
+        <li><a href="/">Home</a></li>
+        <li><a href="/login">Login</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <h1>Data Deletion Instructions</h1>
+    <p>Your right to control your personal data</p>
+  </section>
+
+  <!-- Content -->
+  <div class="container">
+    <div class="content">
+      <p>
+        At Quu Scheduler, we respect your right to control your personal data. This page explains how you can request the deletion of your data from our system.
+      </p>
+
+      <div class="warning-box">
+        <h3>⚠️ IMPORTANT: Deleting your data is permanent and cannot be undone</h3>
+        <p>Once your data is deleted, you will lose access to:</p>
+        <ul>
+          <li>Your Quu Scheduler account</li>
+          <li>All scheduled posts</li>
+          <li>Social media connection settings</li>
+          <li>Analytics and insights history</li>
+        </ul>
+      </div>
+
+      <h2>What Data Will Be Deleted</h2>
+      <p>When you request data deletion, we will remove:</p>
+      <ul>
+        <li><strong>Account Information:</strong> Your email, name, and profile details</li>
+        <li><strong>Social Media Tokens:</strong> All stored OAuth tokens for Facebook, Instagram, and TikTok</li>
+        <li><strong>Content:</strong> All uploaded images, videos, and scheduled posts</li>
+        <li><strong>Analytics Data:</strong> Post performance metrics and insights</li>
+        <li><strong>Settings:</strong> All app preferences and configurations</li>
+      </ul>
+
+      <h2>How to Request Data Deletion</h2>
+
+      <div class="method-grid">
+        <!-- Method 1 -->
+        <div class="method-card">
+          <div class="badge">FASTEST</div>
+          <h3>METHOD 1: Delete from Your Account</h3>
+          <ol>
+            <li>Log in to your Quu Scheduler account</li>
+            <li>Go to <strong>Settings → Account</strong></li>
+            <li>Scroll to the bottom and click <strong>"Delete My Account"</strong></li>
+            <li>Confirm your decision</li>
+            <li>Your data will be deleted immediately</li>
+          </ol>
+        </div>
+
+        <!-- Method 2 -->
+        <div class="method-card">
+          <div class="badge">EMAIL REQUEST</div>
+          <h3>METHOD 2: Email Request</h3>
+          <ol>
+            <li>Send an email to: <a href="mailto:support@quu.social">support@quu.social</a></li>
+            <li>Include in your email:
+              <ul style="margin-top: 8px;">
+                <li>Your registered email address</li>
+                <li>Your account username (if applicable)</li>
+                <li>Subject line: "Data Deletion Request – Quu Scheduler"</li>
+              </ul>
+            </li>
+            <li>We will process your request within 30 days</li>
+            <li>You will receive a confirmation email once completed</li>
+          </ol>
+        </div>
+      </div>
+
+      <h2>Timeline</h2>
+      <div class="success-box">
+        <h4>Processing Times</h4>
+        <ul>
+          <li><strong>In-app deletion:</strong> Immediate (within minutes)</li>
+          <li><strong>Email request:</strong> Within 30 days of receipt</li>
+          <li><strong>Confirmation:</strong> You will receive an email confirming the deletion</li>
+        </ul>
+      </div>
+
+      <h2>What Happens to My Social Media Posts?</h2>
+      <div class="info-box">
+        <h4>Published Posts</h4>
+        <p>
+          Posts that have already been published to Facebook, Instagram, or TikTok will remain on those platforms. Deleting your Quu account does not delete posts from social media platforms.
+        </p>
+      </div>
+
+      <div class="info-box">
+        <h4>Scheduled Posts</h4>
+        <p>
+          Posts that are scheduled but not yet published will be canceled and deleted.
+        </p>
+      </div>
+
+      <h2>Data We May Retain</h2>
+      <p>We may retain certain information as required by law or for legitimate business purposes:</p>
+      <ul>
+        <li>Transaction records for accounting purposes (anonymized)</li>
+        <li>Logs required for security and fraud prevention</li>
+        <li>Data required to comply with legal obligations</li>
+      </ul>
+      <p>
+        <strong>Any retained data will be anonymized and cannot be traced back to you personally.</strong>
+      </p>
+
+      <h2>Revoking Social Media Access</h2>
+      <p>
+        In addition to deleting your Quu account, you should also revoke Quu's access to your social media accounts:
+      </p>
+
+      <h3>Facebook & Instagram:</h3>
+      <ol>
+        <li>Go to Facebook Settings → Apps and Websites</li>
+        <li>Find "Quu Scheduler"</li>
+        <li>Click "Remove"</li>
+      </ol>
+
+      <h3>TikTok:</h3>
+      <ol>
+        <li>Go to TikTok Settings → Privacy → Apps</li>
+        <li>Find "Quu Scheduler"</li>
+        <li>Click "Remove Access"</li>
+      </ol>
+
+      <h2>Questions or Concerns?</h2>
+      <p>If you have questions about data deletion, please contact us:</p>
+
+      <div class="contact-box">
+        <h3>Get in Touch</h3>
+        <p>Email: <a href="mailto:support@quu.social">support@quu.social</a></p>
+        <p style="margin-top: 10px; font-size: 0.9rem; color: #6b7280;">We typically respond within 24 hours</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p>&copy; 2026 Quu. All rights reserved.</p>
+      <p style="margin-top: 10px;">
+        <a href="/">Home</a> •
+        <a href="/login">Login</a> •
+        <a href="/privacy">Privacy Policy</a> •
+        <a href="/data-deletion">Data Deletion</a> •
+        <a href="mailto:support@quu.social">Support</a>
+      </p>
+    </div>
+  </footer>
+
+</body>
+</html>
