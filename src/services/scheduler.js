@@ -3,6 +3,8 @@ const { supabase, getPostById, updatePost } = require('../database/supabase');
 const FacebookService = require('./facebook');
 const InstagramService = require('./instagram');
 const PinterestService = require('./pinterest');
+const YouTubeService = require('./youtube');
+const GoogleBusinessService = require('./googleBusiness');
 const {
   applyFacebookAccountFilter,
   applyInstagramAccountFilter,
@@ -240,6 +242,38 @@ class Scheduler {
           pinterestBoardId = pinterestAccounts[0].default_board_id;
         }
 
+        // Get YouTube credentials
+        let youtubeToken = null;
+        let youtubeChannelId = null;
+        const { data: youtubeAccounts } = await supabase
+          .from('youtube_accounts')
+          .select('*')
+          .eq('user_id', post.user_id)
+          .eq('is_active', true)
+          .limit(1);
+
+        if (youtubeAccounts && youtubeAccounts.length > 0) {
+          youtubeToken = youtubeAccounts[0].access_token;
+          youtubeChannelId = youtubeAccounts[0].channel_id;
+        }
+
+        // Get Google Business Profile credentials
+        let googleToken = null;
+        let googleAccountName = null;
+        let googleLocationName = null;
+        const { data: googleAccounts } = await supabase
+          .from('google_business_accounts')
+          .select('*')
+          .eq('user_id', post.user_id)
+          .eq('is_active', true)
+          .limit(1);
+
+        if (googleAccounts && googleAccounts.length > 0) {
+          googleToken = googleAccounts[0].access_token;
+          googleAccountName = googleAccounts[0].account_name;
+          googleLocationName = googleAccounts[0].location_name;
+        }
+
         return {
           facebookToken,
           facebookPageId,
@@ -247,6 +281,11 @@ class Scheduler {
           instagramAccountId,
           pinterestToken,
           pinterestBoardId,
+          youtubeToken,
+          youtubeChannelId,
+          googleToken,
+          googleAccountName,
+          googleLocationName,
           source: 'user',
           userName: profile.name,
         };
@@ -270,6 +309,11 @@ class Scheduler {
           instagramAccountId: account.instagram_account_id,
           pinterestToken: null,
           pinterestBoardId: null,
+          youtubeToken: null,
+          youtubeChannelId: null,
+          googleToken: null,
+          googleAccountName: null,
+          googleLocationName: null,
           source: 'account',
           accountName: account.name,
         };
@@ -283,6 +327,11 @@ class Scheduler {
           instagramAccountId: process.env.INSTAGRAM_ACCOUNT_ID,
           pinterestToken: null,
           pinterestBoardId: null,
+          youtubeToken: null,
+          youtubeChannelId: null,
+          googleToken: null,
+          googleAccountName: null,
+          googleLocationName: null,
           source: 'env',
         };
       }
@@ -304,7 +353,7 @@ class Scheduler {
     });
 
     // SAFETY CHECK: Skip posts that already have platform post IDs (prevent duplicates)
-    if (post.facebook_post_id || post.instagram_post_id || post.tiktok_post_id || post.pinterest_post_id) {
+    if (post.facebook_post_id || post.instagram_post_id || post.tiktok_post_id || post.pinterest_post_id || post.youtube_post_id || post.google_post_id) {
       console.warn(`Post ${post.id} already has platform post IDs - skipping to prevent duplicates`);
       // Mark as posted if not already
       if (post.status !== 'posted') {
@@ -326,6 +375,8 @@ class Scheduler {
         hasFacebook: !!(credentials.facebookToken && credentials.facebookPageId),
         hasInstagram: !!(credentials.instagramToken && credentials.instagramAccountId),
         hasPinterest: !!(credentials.pinterestToken && credentials.pinterestBoardId),
+        hasYouTube: !!credentials.youtubeToken,
+        hasGoogle: !!(credentials.googleToken && credentials.googleLocationName),
       });
     } catch (error) {
       console.error(`Failed to get credentials for post ${post.id}:`, error.message);
@@ -357,6 +408,8 @@ class Scheduler {
       facebook: null,
       instagram: null,
       pinterest: null,
+      youtube: null,
+      google: null,
     };
 
     // Post to Facebook (with retry logic)
@@ -562,6 +615,141 @@ class Scheduler {
       }
     }
 
+    // Post to YouTube (with retry logic)
+    if (platforms.includes('youtube')) {
+      if (!credentials.youtubeToken) {
+        results.youtube = {
+          success: false,
+          error: 'YouTube credentials not configured. Please connect your YouTube account.',
+          stage: 'scheduler_missing_youtube_credentials',
+        };
+        logPostPipeline(post.id, 'youtube.skip', { reason: 'no_token' });
+      } else {
+        // YouTube only accepts video files
+        if (post.filetype !== 'video') {
+          results.youtube = {
+            success: false,
+            error: 'YouTube only accepts video files. Please upload a video.',
+            stage: 'scheduler_youtube_not_video',
+          };
+          logPostPipeline(post.id, 'youtube.fail', { stage: 'scheduler_youtube_not_video' });
+        } else {
+          const youtubeService = new YouTubeService(credentials.youtubeToken);
+
+          // Retry logic: 3 attempts with exponential backoff (1s, 2s, 4s)
+          const maxRetries = 3;
+          let lastError = null;
+
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            results.youtube = await youtubeService.post(
+              post.filepath,
+              post.caption || 'Video from Quu Social',
+              post.caption || ''
+            );
+
+            if (results.youtube.success) {
+              if (attempt > 1) {
+                logPostPipeline(post.id, 'youtube.ok', { videoId: results.youtube.videoId, retriedAttempts: attempt - 1 });
+              } else {
+                logPostPipeline(post.id, 'youtube.ok', { videoId: results.youtube.videoId });
+              }
+              await updatePost(post.id, { youtube_post_id: results.youtube.videoId });
+              break; // Success, exit retry loop
+            } else {
+              lastError = results.youtube;
+              if (attempt < maxRetries) {
+                const delayMs = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
+                logPostPipeline(post.id, 'youtube.retry', {
+                  attempt,
+                  delayMs,
+                  error: results.youtube.error
+                });
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+              }
+            }
+          }
+
+          // If all retries failed, log the final failure
+          if (results.youtube && !results.youtube.success) {
+            logPostPipeline(post.id, 'youtube.fail', {
+              stage: results.youtube.stage,
+              error: results.youtube.error,
+              youtubeCode: results.youtube.youtube?.code,
+              retriedAttempts: maxRetries - 1
+            });
+          }
+        }
+      }
+    }
+
+    // Post to Google Business Profile (with retry logic)
+    if (platforms.includes('google')) {
+      if (!credentials.googleToken || !credentials.googleLocationName) {
+        results.google = {
+          success: false,
+          error: 'Google Business credentials not configured. Please connect your Google Business Profile.',
+          stage: 'scheduler_missing_google_credentials',
+        };
+        logPostPipeline(post.id, 'google.skip', { reason: 'no_token_or_location' });
+      } else {
+        const googleService = new GoogleBusinessService(
+          credentials.googleToken,
+          credentials.googleAccountName,
+          credentials.googleLocationName
+        );
+
+        const publicUrl = resolveInstagramMediaUrl(post);
+
+        // Retry logic: 3 attempts with exponential backoff (1s, 2s, 4s)
+        const maxRetries = 3;
+        let lastError = null;
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          const options = {};
+          if (publicUrl && post.filetype === 'image') {
+            options.mediaUrl = publicUrl;
+            options.mediaFormat = 'PHOTO';
+          } else if (publicUrl && post.filetype === 'video') {
+            options.mediaUrl = publicUrl;
+            options.mediaFormat = 'VIDEO';
+          }
+
+          results.google = await googleService.post(post.caption || 'New post from Quu Social', options);
+
+          if (results.google.success) {
+            if (attempt > 1) {
+              logPostPipeline(post.id, 'google.ok', { postName: results.google.postName, retriedAttempts: attempt - 1 });
+            } else {
+              logPostPipeline(post.id, 'google.ok', { postName: results.google.postName });
+            }
+            await updatePost(post.id, { google_post_id: results.google.postName });
+            break; // Success, exit retry loop
+          } else {
+            lastError = results.google;
+            if (attempt < maxRetries) {
+              const delayMs = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
+              logPostPipeline(post.id, 'google.retry', {
+                attempt,
+                delayMs,
+                error: results.google.error
+              });
+              await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+          }
+        }
+
+        // If all retries failed, log the final failure
+        if (results.google && !results.google.success) {
+          logPostPipeline(post.id, 'google.fail', {
+            stage: results.google.stage,
+            error: results.google.error,
+            googleCode: results.google.google?.code,
+            retriedAttempts: maxRetries - 1
+          });
+        }
+      }
+    }
+
     // Final status: all attempted platforms failed → failed; mix → partial; all ok → posted
     let finalStatus = 'posted';
     let errorMessage = null;
@@ -570,6 +758,8 @@ class Scheduler {
     if (platforms.includes('facebook')) attempted.push('facebook');
     if (platforms.includes('instagram')) attempted.push('instagram');
     if (platforms.includes('pinterest')) attempted.push('pinterest');
+    if (platforms.includes('youtube')) attempted.push('youtube');
+    if (platforms.includes('google')) attempted.push('google');
 
     let ok = 0;
     let bad = 0;
@@ -583,6 +773,14 @@ class Scheduler {
     }
     if (platforms.includes('pinterest')) {
       if (results.pinterest?.success) ok++;
+      else bad++;
+    }
+    if (platforms.includes('youtube')) {
+      if (results.youtube?.success) ok++;
+      else bad++;
+    }
+    if (platforms.includes('google')) {
+      if (results.google?.success) ok++;
       else bad++;
     }
 
@@ -614,6 +812,12 @@ class Scheduler {
           pinterest: platforms.includes('pinterest')
             ? summarizePlatform('pinterest', results.pinterest)
             : undefined,
+          youtube: platforms.includes('youtube')
+            ? summarizePlatform('youtube', results.youtube)
+            : undefined,
+          google: platforms.includes('google')
+            ? summarizePlatform('google', results.google)
+            : undefined,
         },
       });
     } else if (ok > 0 && bad > 0) {
@@ -632,6 +836,12 @@ class Scheduler {
             : undefined,
           pinterest: platforms.includes('pinterest')
             ? summarizePlatform('pinterest', results.pinterest)
+            : undefined,
+          youtube: platforms.includes('youtube')
+            ? summarizePlatform('youtube', results.youtube)
+            : undefined,
+          google: platforms.includes('google')
+            ? summarizePlatform('google', results.google)
             : undefined,
         },
       });
