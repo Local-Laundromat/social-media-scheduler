@@ -63,6 +63,16 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
+// Cache for loaded data (avoid redundant API calls)
+const dataCache = {
+  stats: null,
+  posts: null,
+  settings: null,
+  comments: null,
+  analytics: null,
+  lastLoaded: {}
+};
+
 // Initialize dashboard with user data
 function initializeDashboard() {
   // Update welcome message
@@ -74,15 +84,16 @@ function initializeDashboard() {
   updateConnectionStatus('instagram', currentUser.instagram_connected, currentUser.instagram_username);
   updateConnectionStatus('tiktok', currentUser.tiktok_connected, currentUser.tiktok_username);
 
-  // Load stats and posts
+  // ONLY load stats on initial load (lightweight)
   loadStats();
-  loadPosts();
 
-  // Load settings
-  loadSettings();
-
-  // Populate account selectors
+  // Populate account selectors (no API call, just UI)
   populateAccountSelectors();
+
+  // DEFER: Load posts only when Posts tab is opened
+  // DEFER: Load settings only when Settings tab is opened
+  // DEFER: Load comments only when Comments tab is opened
+  // DEFER: Load analytics only when Analytics tab is opened
 }
 
 // Update connection status UI
@@ -335,6 +346,10 @@ async function loadStats() {
     document.getElementById('statPending').textContent = stats.pending;
     document.getElementById('statPosted').textContent = stats.posted;
     document.getElementById('statFailed').textContent = stats.failed;
+
+    // Cache the stats data and update timestamp
+    dataCache.stats = stats;
+    dataCache.lastLoaded.stats = Date.now();
   } catch (error) {
     console.error('Failed to load stats:', error);
   }
@@ -408,6 +423,10 @@ async function loadPosts() {
     }).join('');
 
     postsList.innerHTML = bulkActionsHeader + '<div class="post-list">' + postsHTML + '</div>';
+
+    // Cache the posts data and update timestamp
+    dataCache.posts = posts;
+    dataCache.lastLoaded.posts = Date.now();
   } catch (error) {
     console.error('Failed to load posts:', error);
     postsList.innerHTML = '<div class="empty-state"><p>Failed to load posts</p></div>';
@@ -552,16 +571,36 @@ function switchTab(tabName) {
 
   document.getElementById(`${tabName}Tab`).classList.add('active');
 
-  // Reload data when switching to specific tabs
+  // LAZY LOAD with cache checking
+  const cacheExpiry = 5 * 60 * 1000; // 5 minutes
+  const now = Date.now();
+
   if (tabName === 'posts') {
-    loadPosts();
-    loadStats();
+    const cacheAge = now - (dataCache.lastLoaded.posts || 0);
+    if (!dataCache.posts || cacheAge > cacheExpiry) {
+      loadPosts();
+      loadStats();
+    }
   } else if (tabName === 'calendar') {
-    loadCalendar();
+    const cacheAge = now - (dataCache.lastLoaded.calendar || 0);
+    if (cacheAge > cacheExpiry) {
+      loadCalendar();
+    }
   } else if (tabName === 'analytics') {
-    loadAnalytics();
+    const cacheAge = now - (dataCache.lastLoaded.analytics || 0);
+    if (!dataCache.analytics || cacheAge > cacheExpiry) {
+      loadAnalytics();
+    }
+  } else if (tabName === 'settings') {
+    const cacheAge = now - (dataCache.lastLoaded.settings || 0);
+    if (!dataCache.settings || cacheAge > cacheExpiry) {
+      loadSettings();
+    }
   } else if (tabName === 'comments') {
-    loadComments();
+    const cacheAge = now - (dataCache.lastLoaded.comments || 0);
+    if (!dataCache.comments || cacheAge > cacheExpiry) {
+      loadComments();
+    }
   }
 }
 
@@ -856,6 +895,10 @@ function loadSettings() {
 
   // Load team information
   loadTeamInfo();
+
+  // Cache the settings data and update timestamp
+  dataCache.settings = true; // Settings don't need to store data, just mark as loaded
+  dataCache.lastLoaded.settings = Date.now();
 }
 
 // Load team information from localStorage
@@ -1553,6 +1596,8 @@ let allPosts = [];
 // Load calendar when tab is switched
 function loadCalendar() {
   renderCalendar(currentCalendarDate);
+  // Update timestamp (calendar doesn't need persistent caching)
+  dataCache.lastLoaded.calendar = Date.now();
 }
 
 // Render calendar for given month
@@ -2021,6 +2066,9 @@ async function loadAnalytics() {
     renderStatusChart(successfulPosts, queueCount, failedForChart);
     renderActivityChart(posts, parseInt(timeRange === 'all' ? 30 : timeRange));
 
+    // Cache the analytics data and update timestamp
+    dataCache.analytics = { posts, timeRange };
+    dataCache.lastLoaded.analytics = Date.now();
   } catch (error) {
     console.error('Failed to load analytics:', error);
   }
