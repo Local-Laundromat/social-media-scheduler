@@ -4,7 +4,8 @@ const axios = require('axios');
 const {
   saveFacebookAccount,
   saveInstagramAccount,
-  saveTikTokAccount
+  saveTikTokAccount,
+  savePinterestAccount
 } = require('../database/supabase');
 
 /**
@@ -18,6 +19,10 @@ const INSTAGRAM_REDIRECT_URI = process.env.INSTAGRAM_REDIRECT_URI || 'http://loc
 const TIKTOK_CLIENT_KEY = process.env.TIKTOK_CLIENT_KEY;
 const TIKTOK_CLIENT_SECRET = process.env.TIKTOK_CLIENT_SECRET;
 const TIKTOK_REDIRECT_URI = process.env.TIKTOK_REDIRECT_URI || 'http://localhost:3000/auth/tiktok/callback';
+
+const PINTEREST_APP_ID = process.env.PINTEREST_APP_ID;
+const PINTEREST_APP_SECRET = process.env.PINTEREST_APP_SECRET;
+const PINTEREST_REDIRECT_URI = process.env.PINTEREST_REDIRECT_URI || 'http://localhost:3000/auth/pinterest/callback';
 
 /**
  * GET /auth/facebook - Initiate Facebook OAuth
@@ -486,6 +491,127 @@ router.get('/tiktok/callback', async (req, res) => {
 });
 
 /**
+ * GET /auth/pinterest - Initiate Pinterest OAuth
+ */
+router.get('/pinterest', (req, res) => {
+  const { user_id, app, name } = req.query;
+
+  if (!user_id || !app) {
+    return res.status(400).send('Missing user_id or app parameter');
+  }
+
+  // Store user info in state
+  const state = Buffer.from(JSON.stringify({ user_id, app, name })).toString('base64');
+
+  // Pinterest OAuth URL - requesting necessary scopes for board and pin management
+  const pinterestAuthUrl = `https://www.pinterest.com/oauth/?` +
+    `client_id=${PINTEREST_APP_ID}` +
+    `&redirect_uri=${encodeURIComponent(PINTEREST_REDIRECT_URI)}` +
+    `&response_type=code` +
+    `&scope=boards:read,boards:write,pins:read,pins:write,user_accounts:read` +
+    `&state=${state}`;
+
+  res.redirect(pinterestAuthUrl);
+});
+
+/**
+ * GET /auth/pinterest/callback - Handle Pinterest OAuth callback
+ */
+router.get('/pinterest/callback', async (req, res) => {
+  const { code, state } = req.query;
+
+  if (!code) {
+    return res.send('<html><body><h1>❌ Authorization failed</h1><p>Please close this window and try again.</p><script>setTimeout(() => window.close(), 3000);</script></body></html>');
+  }
+
+  try {
+    // Decode state
+    const { user_id, app, name } = JSON.parse(Buffer.from(state, 'base64').toString());
+
+    // Exchange code for access token
+    const tokenResponse = await axios.post('https://api.pinterest.com/v5/oauth/token', {
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: PINTEREST_REDIRECT_URI,
+    }, {
+      auth: {
+        username: PINTEREST_APP_ID,
+        password: PINTEREST_APP_SECRET,
+      },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
+
+    const accessToken = tokenResponse.data.access_token;
+
+    // Get user info
+    const userInfoResponse = await axios.get('https://api.pinterest.com/v5/user_account', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    const pinterestUser = userInfoResponse.data;
+    const username = pinterestUser.username;
+    const accountId = pinterestUser.id;
+
+    // Get user's boards
+    const boardsResponse = await axios.get('https://api.pinterest.com/v5/boards', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    const boards = boardsResponse.data.items || [];
+    const defaultBoard = boards[0]; // Use first board as default
+
+    // Save to Supabase
+    try {
+      await savePinterestAccount(user_id, {
+        account_id: accountId,
+        username: username,
+        access_token: accessToken,
+        default_board_id: defaultBoard?.id,
+        default_board_name: defaultBoard?.name,
+      });
+
+      res.send(`
+        <html>
+        <body style="font-family: system-ui; text-align: center; padding: 40px;">
+          <h1 style="color: #10b981;">✓ Pinterest Connected!</h1>
+          <p>Account: <strong>@${username}</strong></p>
+          ${defaultBoard ? `<p>Default Board: <strong>${defaultBoard.name}</strong></p>` : ''}
+          <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
+          <script>
+            if (window.opener) {
+              window.opener.postMessage({ type: 'pinterest_connected', username: '${username}' }, '*');
+            }
+            setTimeout(() => window.close(), 3000);
+          </script>
+        </body>
+        </html>
+      `);
+    } catch (err) {
+      console.error('Database error:', err);
+      return res.send(`<html><body><h1>❌ Database Error</h1><p>${err.message}</p><script>setTimeout(() => window.close(), 3000);</script></body></html>`);
+    }
+  } catch (error) {
+    console.error('Pinterest OAuth error:', error.response?.data || error.message);
+    res.send(`
+      <html>
+      <body style="font-family: system-ui; text-align: center; padding: 40px;">
+        <h1 style="color: #ef4444;">❌ Connection Failed</h1>
+        <p>${error.response?.data?.message || error.message}</p>
+        <p style="color: #6b7280; margin-top: 20px;">You can close this window now.</p>
+        <script>setTimeout(() => window.close(), 5000);</script>
+      </body>
+      </html>
+    `);
+  }
+});
+
+/**
  * POST /auth/unlink/:platform - Unlink a social media account
  */
 router.post('/unlink/:platform', async (req, res) => {
@@ -536,6 +662,18 @@ router.post('/unlink/:platform', async (req, res) => {
       await query;
 
       res.json({ success: true, message: 'TikTok account(s) unlinked' });
+    } else if (platform === 'pinterest') {
+      let query = supabase.from('pinterest_accounts').delete();
+
+      if (account_id) {
+        query = query.eq('id', account_id);
+      } else {
+        query = query.eq('user_id', user_id);
+      }
+
+      await query;
+
+      res.json({ success: true, message: 'Pinterest account(s) unlinked' });
     } else {
       res.status(400).json({ error: 'Invalid platform' });
     }

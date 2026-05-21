@@ -171,6 +171,46 @@ async function getTikTokAccounts(userId) {
 }
 
 // ============================================
+// PINTEREST ACCOUNTS
+// ============================================
+
+async function savePinterestAccount(userId, pinterestData) {
+  const { account_id, username, access_token, default_board_id, default_board_name } = pinterestData;
+
+  const { data, error } = await supabase
+    .from('pinterest_accounts')
+    .upsert({
+      user_id: userId,
+      account_id: account_id,
+      username: username,
+      access_token: access_token,
+      default_board_id: default_board_id,
+      default_board_name: default_board_name,
+      is_active: true,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: 'user_id,account_id',
+      ignoreDuplicates: false
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+async function getPinterestAccounts(userId) {
+  const { data, error } = await supabase
+    .from('pinterest_accounts')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('is_active', true);
+
+  if (error) throw error;
+  return data;
+}
+
+// ============================================
 // POSTS
 // ============================================
 
@@ -260,6 +300,10 @@ module.exports = {
   // TikTok
   saveTikTokAccount,
   getTikTokAccounts,
+
+  // Pinterest
+  savePinterestAccount,
+  getPinterestAccounts,
 
   // Posts
   createPost,
