@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terms of Service - Quu</title>
+  <meta name="description" content="Quu Terms of Service - Legal terms and conditions for using our service">
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      line-height: 1.6;
+      color: #1f2937;
+      background: #ffffff;
+    }
+
+    /* Header & Navigation */
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(250, 204, 21, 0.15);
+      z-index: 1000;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    nav {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 70px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+      transition: transform 0.3s ease;
+    }
+
+    .logo img {
+      height: 45px;
+      width: auto;
+    }
+
+    .logo:hover {
+      transform: scale(1.05);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 30px;
+      align-items: center;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: #4b5563;
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.3s ease;
+    }
+
+    .nav-links a:hover {
+      color: #ca8a04;
+    }
+
+    /* Hero Section */
+    .hero {
+      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+      color: #1f2937;
+      padding: 140px 20px 80px;
+      text-align: center;
+      margin-top: 70px;
+    }
+
+    .hero h1 {
+      font-size: 3rem;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    .hero p {
+      font-size: 1.1rem;
+      opacity: 0.9;
+    }
+
+    /* Content Container */
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 60px 20px;
+    }
+
+    /* Content Sections */
+    .content h2 {
+      font-size: 1.8rem;
+      color: #1f2937;
+      margin-top: 40px;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #facc15;
+    }
+
+    .content h3 {
+      font-size: 1.3rem;
+      color: #374151;
+      margin-top: 24px;
+      margin-bottom: 12px;
+    }
+
+    .content p {
+      margin-bottom: 16px;
+      color: #4b5563;
+      line-height: 1.8;
+    }
+
+    .content ul {
+      margin-bottom: 20px;
+      padding-left: 24px;
+    }
+
+    .content ul li {
+      margin-bottom: 10px;
+      color: #4b5563;
+      line-height: 1.8;
+    }
+
+    .content a {
+      color: #ca8a04;
+      text-decoration: none;
+      font-weight: 600;
+      transition: color 0.3s ease;
+    }
+
+    .content a:hover {
+      color: #facc15;
+      text-decoration: underline;
+    }
+
+    .last-updated {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 40px;
+      color: #78350f;
+      font-weight: 600;
+    }
+
+    .contact-box {
+      background: #f9fafb;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 24px;
+      margin-top: 40px;
+      text-align: center;
+    }
+
+    .contact-box h3 {
+      margin-top: 0;
+      margin-bottom: 12px;
+      color: #1f2937;
+    }
+
+    .contact-box a {
+      color: #ca8a04;
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+
+    /* Footer */
+    footer {
+      background: #1f2937;
+      color: #9ca3af;
+      padding: 40px 20px;
+      text-align: center;
+      margin-top: 80px;
+    }
+
+    footer a {
+      color: #facc15;
+      text-decoration: none;
+      transition: color 0.3s ease;
+    }
+
+    footer a:hover {
+      color: #fde68a;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero h1 {
+        font-size: 2rem;
+      }
+
+      .hero p {
+        font-size: 1rem;
+      }
+
+      .content h2 {
+        font-size: 1.5rem;
+      }
+
+      .content h3 {
+        font-size: 1.2rem;
+      }
+
+      .nav-links {
+        gap: 15px;
+        font-size: 0.9rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header & Navigation -->
+  <header>
+    <nav>
+      <a href="/" class="logo">
+        <img src="/logo.svg" alt="Quu">
+      </a>
+      <ul class="nav-links">
+        <li><a href="/">Home</a></li>
+        <li><a href="/login">Login</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <h1>Terms of Service</h1>
+    <p>Legal terms and conditions for using Quu Scheduler</p>
+  </section>
+
+  <!-- Content -->
+  <div class="container">
+    <div class="content">
+      <div class="last-updated">
+        Last Updated: May 21, 2026
+      </div>
+
+      <h2>1. Acceptance of Terms</h2>
+      <p>
+        By accessing and using Quu Scheduler ("the Service"), you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to these Terms of Service, please do not use the Service.
+      </p>
+
+      <h2>2. Description of Service</h2>
+      <p>
+        Quu Scheduler is a social media management tool that allows users to schedule and publish content to Facebook, Instagram, TikTok, Pinterest, and YouTube. The Service includes:
+      </p>
+      <ul>
+        <li>Social media account connection via OAuth</li>
+        <li>Content scheduling and automated posting</li>
+        <li>Comment monitoring and management</li>
+        <li>AI-powered content generation (premium plans)</li>
+        <li>Analytics and reporting</li>
+      </ul>
+
+      <h2>3. User Accounts</h2>
+
+      <h3>3.1 Account Creation</h3>
+      <p>
+        You must create an account to use the Service. You agree to:
+      </p>
+      <ul>
+        <li>Provide accurate, current, and complete information</li>
+        <li>Maintain and update your information to keep it accurate</li>
+        <li>Maintain the security of your password</li>
+        <li>Accept all responsibility for activity that occurs under your account</li>
+      </ul>
+
+      <h3>3.2 Account Eligibility</h3>
+      <p>
+        You must be at least 13 years old to use the Service. By using the Service, you represent and warrant that you meet this requirement.
+      </p>
+
+      <h2>4. Subscription Plans and Payments</h2>
+
+      <h3>4.1 Pricing</h3>
+      <p>
+        We offer multiple subscription tiers: Starter ($19/mo), Growth ($59/mo), Pro ($149/mo), and Agency ($499/mo). Prices are subject to change with 30 days notice.
+      </p>
+
+      <h3>4.2 Billing</h3>
+      <p>
+        Subscriptions are billed monthly in advance. By subscribing, you authorize us to charge your payment method on a recurring basis.
+      </p>
+
+      <h3>4.3 Cancellation</h3>
+      <p>
+        You may cancel your subscription at any time. Cancellations take effect at the end of your current billing period. No refunds are provided for partial months.
+      </p>
+
+      <h2>5. Acceptable Use</h2>
+
+      <p>You agree NOT to use the Service to:</p>
+      <ul>
+        <li>Violate any laws or regulations</li>
+        <li>Infringe on intellectual property rights of others</li>
+        <li>Post spam, malicious content, or harmful material</li>
+        <li>Harass, abuse, or harm others</li>
+        <li>Impersonate any person or entity</li>
+        <li>Violate the terms of service of Facebook, Instagram, TikTok, Pinterest, or YouTube</li>
+        <li>Use automated systems to access the Service in a manner that sends more requests than a human can reasonably produce</li>
+      </ul>
+
+      <h2>6. Content Ownership and Rights</h2>
+
+      <h3>6.1 Your Content</h3>
+      <p>
+        You retain all rights to the content you upload and post through the Service. By using the Service, you grant us a limited license to store, process, and transmit your content solely for the purpose of providing the Service.
+      </p>
+
+      <h3>6.2 Third-Party Platforms</h3>
+      <p>
+        When you post content to Facebook, Instagram, TikTok, Pinterest, or YouTube through our Service, you are subject to those platforms' terms of service and content policies. We are not responsible for content removal or account restrictions imposed by third-party platforms.
+      </p>
+
+      <h2>7. Social Media Platform Compliance</h2>
+      <p>
+        You acknowledge that:
+      </p>
+      <ul>
+        <li>We use official APIs provided by Facebook, Instagram, TikTok, Pinterest, and YouTube</li>
+        <li>API access may be modified or revoked by these platforms at any time</li>
+        <li>You must comply with all platform-specific policies and guidelines</li>
+        <li>We cannot guarantee continuous access to any third-party platform</li>
+      </ul>
+
+      <h2>8. AI Features and Limitations</h2>
+      <p>
+        For plans that include AI-powered features:
+      </p>
+      <ul>
+        <li>AI-generated content is provided as-is and should be reviewed before posting</li>
+        <li>We are not responsible for the accuracy or appropriateness of AI-generated content</li>
+        <li>Fair use limits apply to prevent abuse (Agency plan: 10,000 AI executions/month)</li>
+        <li>BYOK (Bring Your Own Key) option uses your OpenAI API key and is subject to OpenAI's terms</li>
+      </ul>
+
+      <h2>9. Data and Privacy</h2>
+      <p>
+        Your privacy is important to us. Our collection and use of personal information is governed by our <a href="/privacy">Privacy Policy</a>. By using the Service, you consent to our data practices as described in the Privacy Policy.
+      </p>
+
+      <h2>10. Service Availability and Modifications</h2>
+
+      <h3>10.1 Service Availability</h3>
+      <p>
+        We strive to provide reliable service but cannot guarantee uninterrupted access. The Service may be temporarily unavailable due to maintenance, updates, or circumstances beyond our control.
+      </p>
+
+      <h3>10.2 Modifications</h3>
+      <p>
+        We reserve the right to modify or discontinue the Service at any time with reasonable notice. We may also update these Terms of Service from time to time.
+      </p>
+
+      <h2>11. Intellectual Property</h2>
+      <p>
+        The Service, including its original content, features, and functionality, is owned by Quu and is protected by international copyright, trademark, and other intellectual property laws.
+      </p>
+
+      <h2>12. Limitation of Liability</h2>
+      <p>
+        TO THE MAXIMUM EXTENT PERMITTED BY LAW, QUU SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING WITHOUT LIMITATION, LOSS OF PROFITS, DATA, USE, GOODWILL, OR OTHER INTANGIBLE LOSSES, RESULTING FROM:
+      </p>
+      <ul>
+        <li>Your access to or use of or inability to access or use the Service</li>
+        <li>Any conduct or content of any third party on the Service</li>
+        <li>Unauthorized access, use, or alteration of your content</li>
+        <li>Content posted by others through the Service</li>
+        <li>Actions taken by third-party social media platforms</li>
+      </ul>
+
+      <h2>13. Disclaimer of Warranties</h2>
+      <p>
+        THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, OR COURSE OF PERFORMANCE.
+      </p>
+
+      <h2>14. Indemnification</h2>
+      <p>
+        You agree to indemnify and hold harmless Quu and its officers, directors, employees, and agents from any claims, damages, losses, liabilities, and expenses (including attorneys' fees) arising out of your use of the Service or violation of these Terms.
+      </p>
+
+      <h2>15. Termination</h2>
+      <p>
+        We may terminate or suspend your account and access to the Service immediately, without prior notice, for any reason, including breach of these Terms. Upon termination, your right to use the Service will cease immediately.
+      </p>
+
+      <h2>16. Governing Law</h2>
+      <p>
+        These Terms shall be governed by and construed in accordance with the laws of the jurisdiction where Quu is registered, without regard to its conflict of law provisions.
+      </p>
+
+      <h2>17. Dispute Resolution</h2>
+      <p>
+        Any disputes arising from these Terms or your use of the Service shall be resolved through binding arbitration, except that either party may seek injunctive relief in court for intellectual property infringement.
+      </p>
+
+      <h2>18. Severability</h2>
+      <p>
+        If any provision of these Terms is found to be unenforceable or invalid, that provision will be limited or eliminated to the minimum extent necessary, and the remaining provisions will remain in full force and effect.
+      </p>
+
+      <h2>19. Entire Agreement</h2>
+      <p>
+        These Terms, together with our Privacy Policy and Data Deletion Policy, constitute the entire agreement between you and Quu regarding the Service and supersede all prior agreements.
+      </p>
+
+      <h2>20. Contact Information</h2>
+      <p>
+        If you have questions about these Terms of Service, please contact us:
+      </p>
+
+      <div class="contact-box">
+        <h3>Get in Touch</h3>
+        <p>Email: <a href="mailto:support@quu.social">support@quu.social</a></p>
+        <p style="margin-top: 10px; font-size: 0.9rem; color: #6b7280;">We typically respond within 24 hours</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p>&copy; 2026 Quu. All rights reserved.</p>
+      <p style="margin-top: 10px;">
+        <a href="/">Home</a> •
+        <a href="/login">Login</a> •
+        <a href="/terms">Terms of Service</a> •
+        <a href="/privacy">Privacy Policy</a> •
+        <a href="/data-deletion">Data Deletion</a> •
+        <a href="mailto:support@quu.social">Support</a>
+      </p>
+    </div>
+  </footer>
+
+</body>
+</html>
