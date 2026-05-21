@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Documentation - Quu</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      line-height: 1.6;
+      color: #1f2937;
+      background: #f9fafb;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    h2 {
+      font-size: 1.8rem;
+      margin-top: 40px;
+      margin-bottom: 20px;
+      color: #1f2937;
+      border-bottom: 2px solid #facc15;
+      padding-bottom: 10px;
+    }
+
+    h3 {
+      font-size: 1.3rem;
+      margin-top: 30px;
+      margin-bottom: 15px;
+      color: #374151;
+    }
+
+    .subtitle {
+      color: #6b7280;
+      font-size: 1.1rem;
+      margin-bottom: 40px;
+    }
+
+    .endpoint {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-left: 4px solid #facc15;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .method {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      margin-right: 10px;
+    }
+
+    .method.get { background: #dbeafe; color: #1e40af; }
+    .method.post { background: #dcfce7; color: #166534; }
+    .method.put { background: #fef3c7; color: #92400e; }
+    .method.delete { background: #fee2e2; color: #991b1b; }
+
+    .url {
+      font-family: 'Courier New', monospace;
+      color: #4b5563;
+      font-weight: 600;
+    }
+
+    pre {
+      background: #1f2937;
+      color: #f9fafb;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+      margin: 10px 0;
+      font-size: 14px;
+    }
+
+    code {
+      font-family: 'Courier New', monospace;
+      background: #f3f4f6;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.9em;
+      color: #ca8a04;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    th {
+      background: #f9fafb;
+      font-weight: 600;
+      color: #374151;
+    }
+
+    .note {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      padding: 16px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+
+    .note strong {
+      color: #92400e;
+    }
+
+    .back-link {
+      display: inline-block;
+      margin-bottom: 20px;
+      color: #ca8a04;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .back-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/dashboard" class="back-link">← Back to Dashboard</a>
+
+    <h1>Quu API Documentation</h1>
+    <p class="subtitle">Programmatic access for Agency tier customers</p>
+
+    <div class="note">
+      <strong>🔑 API Access:</strong> API keys are available for Agency tier ($499/mo) customers. Generate your API key in the Dashboard → Settings → API Keys section.
+    </div>
+
+    <h2>Authentication</h2>
+    <p>All API requests require an API key passed in the header:</p>
+    <pre>Authorization: Bearer YOUR_API_KEY_HERE</pre>
+
+    <h2>Base URL</h2>
+    <pre>https://quu.social/api</pre>
+
+    <h2>Endpoints</h2>
+
+    <div class="endpoint">
+      <h3><span class="method get">GET</span> <span class="url">/api/posts</span></h3>
+      <p>Get all scheduled posts</p>
+
+      <h4>Query Parameters:</h4>
+      <table>
+        <tr>
+          <th>Parameter</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+        <tr>
+          <td><code>status</code></td>
+          <td>string</td>
+          <td>Filter by status: pending, posted, failed</td>
+        </tr>
+        <tr>
+          <td><code>limit</code></td>
+          <td>integer</td>
+          <td>Number of results (default: 100)</td>
+        </tr>
+      </table>
+
+      <h4>Example Request:</h4>
+      <pre>curl https://quu.social/api/posts?status=pending \
+  -H "Authorization: Bearer YOUR_API_KEY"</pre>
+    </div>
+
+    <div class="endpoint">
+      <h3><span class="method post">POST</span> <span class="url">/api/posts</span></h3>
+      <p>Create a new scheduled post</p>
+
+      <h4>Request Body:</h4>
+      <pre>{
+  "user_id": "your-user-id",
+  "filename": "sunset.jpg",
+  "filepath": "/path/to/sunset.jpg",
+  "filetype": "image",
+  "caption": "Beautiful sunset!",
+  "platforms": ["facebook", "instagram"],
+  "scheduled_time": "2026-05-25T18:00:00Z",
+  "webhook_url": "https://your-app.com/webhook"
+}</pre>
+
+      <h4>Example Request:</h4>
+      <pre>curl -X POST https://quu.social/api/posts \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "abc123",
+    "filename": "post.jpg",
+    "filepath": "/media/post.jpg",
+    "caption": "Check this out!",
+    "platforms": ["facebook", "instagram"],
+    "scheduled_time": "2026-05-25T18:00:00Z"
+  }'</pre>
+    </div>
+
+    <div class="endpoint">
+      <h3><span class="method post">POST</span> <span class="url">/api/posts/:id/post-now</span></h3>
+      <p>Immediately publish a scheduled post</p>
+
+      <h4>Example Request:</h4>
+      <pre>curl -X POST https://quu.social/api/posts/123/post-now \
+  -H "Authorization: Bearer YOUR_API_KEY"</pre>
+    </div>
+
+    <div class="endpoint">
+      <h3><span class="method delete">DELETE</span> <span class="url">/api/posts/:id</span></h3>
+      <p>Delete a post from database and social platforms</p>
+
+      <h4>Example Request:</h4>
+      <pre>curl -X DELETE https://quu.social/api/posts/123 \
+  -H "Authorization: Bearer YOUR_API_KEY"</pre>
+    </div>
+
+    <div class="endpoint">
+      <h3><span class="method post">POST</span> <span class="url">/api/posts/bulk-delete</span></h3>
+      <p>Delete multiple posts at once</p>
+
+      <h4>Request Body:</h4>
+      <pre>{
+  "post_ids": [123, 456, 789]
+}</pre>
+    </div>
+
+    <div class="endpoint">
+      <h3><span class="method get">GET</span> <span class="url">/api/stats</span></h3>
+      <p>Get dashboard statistics</p>
+
+      <h4>Response:</h4>
+      <pre>{
+  "stats": {
+    "total": 150,
+    "pending": 25,
+    "posted": 120,
+    "failed": 5
+  }
+}</pre>
+    </div>
+
+    <h2>Webhooks</h2>
+    <p>Configure a webhook URL to receive notifications when posts are published:</p>
+    <pre>{
+  "event": "post.published",
+  "post_id": 123,
+  "status": "posted",
+  "timestamp": "2026-05-21T14:30:00Z"
+}</pre>
+
+    <h2>Rate Limits</h2>
+    <p>Agency tier: 1000 requests/hour</p>
+    <p>Bulk operations: Up to 100 posts per request</p>
+
+    <h2>Error Codes</h2>
+    <table>
+      <tr>
+        <th>Code</th>
+        <th>Description</th>
+      </tr>
+      <tr>
+        <td>401</td>
+        <td>Invalid or missing API key</td>
+      </tr>
+      <tr>
+        <td>403</td>
+        <td>API access not available (upgrade to Agency tier)</td>
+      </tr>
+      <tr>
+        <td>404</td>
+        <td>Resource not found</td>
+      </tr>
+      <tr>
+        <td>429</td>
+        <td>Rate limit exceeded</td>
+      </tr>
+      <tr>
+        <td>500</td>
+        <td>Server error</td>
+      </tr>
+    </table>
+
+    <h2>Support</h2>
+    <p>For API support, contact us at <a href="mailto:support@quu.social">support@quu.social</a></p>
+  </div>
+</body>
+</html>
