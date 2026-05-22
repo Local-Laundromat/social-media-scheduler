@@ -318,9 +318,9 @@ async function monitorUserComments(userId) {
       .from('posts')
       .select('*')
       .eq('user_id', userId)
-      .eq('status', 'posted')
+      .eq('status', 'published')
       .or('facebook_post_id.not.is.null,instagram_post_id.not.is.null')
-      .order('posted_at', { ascending: false })
+      .order('updated_at', { ascending: false })
       .limit(10);
 
     if (postsError) throw postsError;
