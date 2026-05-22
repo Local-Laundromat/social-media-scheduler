@@ -269,6 +269,52 @@ router.post('/:userId/disconnect/:platform', async (req, res) => {
 });
 
 /**
+ * POST /api/users/:userId/disconnect/:platform/:accountId - Disconnect a specific account
+ * Supports multi-account management (disconnect one specific account, not all accounts)
+ */
+router.post('/:userId/disconnect/:platform/:accountId', async (req, res) => {
+  const userId = req.params.userId;
+  const platform = req.params.platform;
+  const accountId = parseInt(req.params.accountId);
+
+  const validPlatforms = ['facebook', 'instagram', 'tiktok', 'pinterest', 'youtube', 'google'];
+  if (!validPlatforms.includes(platform)) {
+    return res.status(400).json({ error: `Invalid platform. Must be one of: ${validPlatforms.join(', ')}` });
+  }
+
+  try {
+    // Map platform to database table
+    const tableMap = {
+      facebook: 'facebook_accounts',
+      instagram: 'instagram_accounts',
+      tiktok: 'tiktok_accounts',
+      pinterest: 'pinterest_accounts',
+      youtube: 'youtube_accounts',
+      google: 'google_business_accounts'
+    };
+
+    const tableName = tableMap[platform];
+
+    // Deactivate the specific account by ID
+    const { error } = await supabase
+      .from(tableName)
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('id', accountId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      message: `${platform} account disconnected successfully`,
+    });
+  } catch (error) {
+    console.error('Disconnect account error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/users - List all users (admin only - for dashboard)
  */
 router.get('/', async (req, res) => {

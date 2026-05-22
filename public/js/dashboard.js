@@ -106,60 +106,112 @@ function initializeDashboard() {
   // DEFER: Load analytics only when Analytics tab is opened
 }
 
-// Update connection status UI
+// Update connection status UI - Now supports multiple accounts per platform
 function updateConnectionStatus(platform, connected, accountName) {
   const card = document.getElementById(`${platform}Connection`);
   const status = document.getElementById(`${platform}Status`);
   const details = document.getElementById(`${platform}Details`);
   const btn = document.getElementById(`${platform}Btn`);
 
-  if (connected) {
+  // Get accounts for this platform
+  const accounts = socialAccounts[platform] || [];
+
+  // Platform configuration
+  const platformConfig = {
+    facebook: {
+      detailsText: 'Connect your Facebook Business Page',
+      btnText: 'Connect Facebook',
+      connectFunc: connectFacebook,
+      icon: '📘',
+      nameField: 'page_name',
+      idField: 'page_id'
+    },
+    instagram: {
+      detailsText: 'Connect your Instagram Business Account',
+      btnText: 'Connect Instagram',
+      connectFunc: connectInstagram,
+      icon: '📷',
+      nameField: 'username',
+      idField: 'account_id'
+    },
+    tiktok: {
+      detailsText: 'Connect your TikTok Business Account',
+      btnText: 'Connect TikTok',
+      connectFunc: connectTikTok,
+      icon: '🎵',
+      nameField: 'display_name',
+      idField: 'open_id'
+    },
+    pinterest: {
+      detailsText: 'Connect your Pinterest Business Account',
+      btnText: 'Connect Pinterest',
+      connectFunc: connectPinterest,
+      icon: '📌',
+      nameField: 'username',
+      idField: 'account_id'
+    },
+    youtube: {
+      detailsText: 'Connect your YouTube Channel',
+      btnText: 'Connect YouTube',
+      connectFunc: connectYouTube,
+      icon: '📺',
+      nameField: 'channel_title',
+      idField: 'channel_id'
+    },
+    google: {
+      detailsText: 'Connect your Google Business Profile',
+      btnText: 'Connect Google Business',
+      connectFunc: connectGoogle,
+      icon: '🏢',
+      nameField: 'location_title',
+      idField: 'location_name'
+    }
+  };
+
+  const config = platformConfig[platform];
+  if (!config) return;
+
+  if (accounts.length > 0) {
+    // CONNECTED STATE - Show list of accounts
     card.classList.add('connected');
     status.className = 'status-badge connected';
-    status.textContent = 'Connected';
-    details.textContent = accountName ? `Connected as ${accountName}` : 'Successfully connected';
-    btn.className = 'btn btn-danger';
-    btn.textContent = 'Disconnect';
-    btn.onclick = () => disconnect(platform);
+    status.textContent = `Connected (${accounts.length})`;
+
+    // Build account list HTML
+    let accountListHTML = '<div style="margin-bottom: 12px;">';
+    accounts.forEach((account, index) => {
+      const accountDisplayName = account[config.nameField] || account.account_name || 'Account ' + (index + 1);
+      accountListHTML += `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; ${index < accounts.length - 1 ? 'border-bottom: 1px solid #e5e7eb;' : ''}">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span>${config.icon}</span>
+            <span style="font-weight: 500;">${accountDisplayName}</span>
+          </div>
+          <button onclick="disconnectAccount('${platform}', ${account.id})" class="btn btn-danger" style="padding: 4px 12px; font-size: 13px; width: auto;">
+            Disconnect
+          </button>
+        </div>
+      `;
+    });
+    accountListHTML += '</div>';
+
+    details.innerHTML = accountListHTML;
+
+    // Change button to "Add Another Account"
+    btn.className = 'btn btn-primary';
+    btn.textContent = `+ Add Another ${platform.charAt(0).toUpperCase() + platform.slice(1)} Account`;
+    btn.onclick = config.connectFunc;
+
   } else {
+    // DISCONNECTED STATE - Show connect button
     card.classList.remove('connected');
     status.className = 'status-badge disconnected';
     status.textContent = 'Not Connected';
 
-    let detailsText = '';
-    let btnText = '';
-    let connectFunc = null;
-
-    if (platform === 'facebook') {
-      detailsText = 'Connect your Facebook Business Page';
-      btnText = 'Connect Facebook';
-      connectFunc = connectFacebook;
-    } else if (platform === 'instagram') {
-      detailsText = 'Connect your Instagram Business Account';
-      btnText = 'Connect Instagram';
-      connectFunc = connectInstagram;
-    } else if (platform === 'tiktok') {
-      detailsText = 'Connect your TikTok Business Account';
-      btnText = 'Connect TikTok';
-      connectFunc = connectTikTok;
-    } else if (platform === 'pinterest') {
-      detailsText = 'Connect your Pinterest Business Account';
-      btnText = 'Connect Pinterest';
-      connectFunc = connectPinterest;
-    } else if (platform === 'youtube') {
-      detailsText = 'Connect your YouTube Channel';
-      btnText = 'Connect YouTube';
-      connectFunc = connectYouTube;
-    } else if (platform === 'google') {
-      detailsText = 'Connect your Google Business Profile';
-      btnText = 'Connect Google Business';
-      connectFunc = connectGoogle;
-    }
-
-    details.textContent = detailsText;
+    details.textContent = config.detailsText;
     btn.className = 'btn btn-primary';
-    btn.textContent = btnText;
-    btn.onclick = connectFunc;
+    btn.textContent = config.btnText;
+    btn.onclick = config.connectFunc;
   }
 }
 
@@ -305,6 +357,37 @@ async function disconnect(platform) {
 
     reloadUserData();
   } catch (error) {
+    notify('Failed to disconnect. Please try again.', 'error');
+  }
+}
+
+// Disconnect a specific account (for multi-account management)
+async function disconnectAccount(platform, accountId) {
+  // Find the account name for confirmation message
+  const accounts = socialAccounts[platform] || [];
+  const account = accounts.find(acc => acc.id === accountId);
+  const accountName = account ? (account.page_name || account.username || account.display_name || account.channel_title || account.location_title || 'this account') : 'this account';
+
+  if (!confirm(`Are you sure you want to disconnect ${accountName}?`)) {
+    return;
+  }
+
+  const token = localStorage.getItem('auth_token');
+
+  try {
+    const response = await fetch(`/api/users/${currentUser.id}/disconnect/${platform}/${accountId}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (response.ok) {
+      notify(`${accountName} disconnected successfully`, 'success');
+      reloadUserData();
+    } else {
+      throw new Error('Failed to disconnect account');
+    }
+  } catch (error) {
+    console.error('Disconnect error:', error);
     notify('Failed to disconnect. Please try again.', 'error');
   }
 }
