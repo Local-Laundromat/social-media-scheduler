@@ -50,6 +50,11 @@ document.getElementById('clientSelect')?.addEventListener('change', async (e) =>
     // Show all accounts
     currentSelectedClient = null;
     updateConnectionsDisplay(socialAccounts);
+
+    // Reload posts to show all posts
+    if (typeof loadPosts === 'function') {
+      loadPosts();
+    }
     return;
   }
 
@@ -66,6 +71,11 @@ document.getElementById('clientSelect')?.addEventListener('change', async (e) =>
 
     // Update connection display to show only this client's accounts
     updateConnectionsDisplay(currentSelectedClient.accounts);
+
+    // Reload posts to filter by client
+    if (typeof loadPosts === 'function') {
+      loadPosts();
+    }
   } catch (error) {
     console.error('Client selection error:', error);
     appNotify('Failed to load client accounts', 'error');

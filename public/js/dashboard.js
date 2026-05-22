@@ -569,13 +569,20 @@ async function loadPosts() {
   const postsList = document.getElementById('postsList');
 
   try {
-    // Build URL with optional account filter
+    // Build URL with optional account and client filters
     let url = `/api/users/${currentUser.id}/posts`;
+    const params = new URLSearchParams();
+
     if (currentGlobalAccount) {
-      const params = new URLSearchParams({
-        platform: currentGlobalAccount.platform,
-        accountId: currentGlobalAccount.accountId
-      });
+      params.set('platform', currentGlobalAccount.platform);
+      params.set('accountId', currentGlobalAccount.accountId);
+    }
+
+    if (currentSelectedClient) {
+      params.set('client_id', currentSelectedClient.id);
+    }
+
+    if (params.toString()) {
       url += `?${params.toString()}`;
     }
 
@@ -1073,7 +1080,8 @@ async function createPost(event) {
         platforms,
         scheduled_time: scheduledTime,
         post_type: postType,
-        ...selectedAccounts  // Include selected account IDs
+        ...selectedAccounts,  // Include selected account IDs
+        client_id: currentSelectedClient?.id || null  // Include client context
       })
     });
 
@@ -1623,7 +1631,8 @@ async function createPostsFromCSV(posts) {
             filetype: post.filename.match(/\.(jpg|jpeg|png|gif)$/i) ? 'image' : 'video',
             caption: post.caption,
             platforms: post.platforms.split(','),
-            scheduled_time: post.scheduledTime
+            scheduled_time: post.scheduledTime,
+            client_id: currentSelectedClient?.id || null  // Include client context
           })
         });
 

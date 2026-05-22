@@ -71,7 +71,7 @@ router.get('/:userId', async (req, res) => {
  */
 router.get('/:userId/posts', async (req, res) => {
   const userId = req.params.userId;
-  const { status, limit = 50 } = req.query;
+  const { status, limit = 50, client_id } = req.query;
 
   console.log(`📊 GET /api/users/${userId}/posts - Fetching posts...`);
 
@@ -120,6 +120,11 @@ router.get('/:userId/posts', async (req, res) => {
 
     if (status) {
       query = query.eq('status', status);
+    }
+
+    if (client_id) {
+      console.log(`  → Filtering by client_id: ${client_id}`);
+      query = query.eq('client_id', parseInt(client_id));
     }
 
     const { data: posts, error } = await query;
