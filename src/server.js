@@ -27,6 +27,7 @@ const csvRoutes = require('./routes/csv');
 const commentsRoutes = require('./routes/comments');
 const reviewsRoutes = require('./routes/reviews'); // Google Business Reviews
 const profileRoutes = require('./routes/profile'); // Profile settings including brand voice
+const clientsRoutes = require('./routes/clients'); // Client management for agencies
 const agentPostRoutes = require('./routes/agentPost'); // LangGraph autonomous agent
 const ragCaptionRoutes = require('./routes/ragCaption'); // RAG-powered brand voice
 const agentCommentsRoutes = require('./routes/agentComments'); // Multi-agent comment system
@@ -107,6 +108,7 @@ app.use('/api', aiLimiter, aiCaptionRoutes);
 // Standard API routes (general rate limiting already applied globally)
 app.use('/api', apiRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/clients', clientsRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/csv', csvRoutes);

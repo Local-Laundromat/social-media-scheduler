@@ -928,11 +928,14 @@
       <img src="/logo.svg" alt="Quu">
     </h1>
     <div class="topbar-right">
-      <!-- Global Account Switcher -->
-      <div id="globalAccountSwitcher" style="display: none; margin-right: 16px;">
-        <select id="globalAccountSelect" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; background: white; font-size: 14px; min-width: 200px; max-width: 250px;">
-          <option value="">All Accounts</option>
+      <!-- Client Selector (for agencies) -->
+      <div id="clientSwitcher" style="display: none; margin-right: 16px;">
+        <select id="clientSelect" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; background: white; font-size: 14px; min-width: 220px; max-width: 280px;">
+          <option value="">All Clients</option>
         </select>
+        <button id="manageClientsBtn" style="margin-left: 8px; padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; background: white; font-size: 14px; cursor: pointer;">
+          + Client
+        </button>
       </div>
       <div class="user-menu" id="userMenu">
         <span id="userName">Loading...</span>
@@ -2045,6 +2048,7 @@
 
   <script src="/js/app-notify.js?v=1.0"></script>
   <script src="/js/dashboard.js?v=2.3"></script>
+  <script src="/js/clients.js?v=1.0"></script>
   <script src="/js/comments.js?v=2.0"></script>
   <script src="/js/reviews.js?v=1.0"></script>
 </body>
