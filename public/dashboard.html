@@ -930,14 +930,14 @@
     <div class="topbar-right">
       <!-- Global Account Switcher -->
       <div id="globalAccountSwitcher" style="display: none; margin-right: 16px;">
-        <select id="globalAccountSelect" onchange="switchGlobalAccount()" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; background: white; font-size: 14px; min-width: 200px; max-width: 250px;">
+        <select id="globalAccountSelect" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; background: white; font-size: 14px; min-width: 200px; max-width: 250px;">
           <option value="">All Accounts</option>
         </select>
       </div>
       <div class="user-menu" id="userMenu">
         <span id="userName">Loading...</span>
       </div>
-      <button class="btn-logout" onclick="logout()">Logout</button>
+      <button class="btn-logout" id="logoutBtn">Logout</button>
     </div>
   </div>
 
@@ -983,7 +983,7 @@
           <div class="connection-details" id="facebookDetails">
             Connect your Facebook Business Page
           </div>
-          <button class="btn btn-primary" id="facebookBtn" onclick="connectFacebook()">
+          <button class="btn btn-primary" id="facebookBtn">
             Connect Facebook
           </button>
         </div>
@@ -1000,7 +1000,7 @@
           <div class="connection-details" id="instagramDetails">
             Connect your Instagram Business Account
           </div>
-          <button class="btn btn-primary" id="instagramBtn" onclick="connectInstagram()">
+          <button class="btn btn-primary" id="instagramBtn">
             Connect Instagram
           </button>
         </div>
@@ -1017,7 +1017,7 @@
           <div class="connection-details" id="tiktokDetails">
             Connect your TikTok Business Account
           </div>
-          <button class="btn btn-primary" id="tiktokBtn" onclick="connectTikTok()">
+          <button class="btn btn-primary" id="tiktokBtn">
             Connect TikTok
           </button>
         </div>
@@ -1034,7 +1034,7 @@
           <div class="connection-details" id="pinterestDetails">
             Connect your Pinterest Business Account
           </div>
-          <button class="btn btn-primary" id="pinterestBtn" onclick="connectPinterest()">
+          <button class="btn btn-primary" id="pinterestBtn">
             Connect Pinterest
           </button>
         </div>
@@ -1051,7 +1051,7 @@
           <div class="connection-details" id="youtubeDetails">
             Connect your YouTube Channel
           </div>
-          <button class="btn btn-primary" id="youtubeBtn" onclick="connectYouTube()">
+          <button class="btn btn-primary" id="youtubeBtn">
             Connect YouTube
           </button>
         </div>
@@ -1068,7 +1068,7 @@
           <div class="connection-details" id="googleDetails">
             Connect your Google Business Profile
           </div>
-          <button class="btn btn-primary" id="googleBtn" onclick="connectGoogle()">
+          <button class="btn btn-primary" id="googleBtn">
             Connect Google Business
           </button>
         </div>
@@ -1077,22 +1077,22 @@
       <!-- Main Content -->
       <div class="content-section">
         <div class="tabs">
-          <div class="tab active" onclick="switchTab('create')">Create Post</div>
-          <div class="tab" onclick="switchTab('bulk')">Bulk Upload</div>
-          <div class="tab" onclick="switchTab('calendar')">Calendar</div>
-          <div class="tab" onclick="switchTab('analytics')">Analytics</div>
-          <div class="tab" onclick="switchTab('posts')">My Posts</div>
-          <div class="tab" onclick="switchTab('comments')">Comments</div>
-          <div class="tab" onclick="switchTab('reviews')">Reviews</div>
-          <div class="tab" onclick="switchTab('settings')">Settings</div>
+          <div class="tab active" data-tab="create">Create Post</div>
+          <div class="tab" data-tab="bulk">Bulk Upload</div>
+          <div class="tab" data-tab="calendar">Calendar</div>
+          <div class="tab" data-tab="analytics">Analytics</div>
+          <div class="tab" data-tab="posts">My Posts</div>
+          <div class="tab" data-tab="comments">Comments</div>
+          <div class="tab" data-tab="reviews">Reviews</div>
+          <div class="tab" data-tab="settings">Settings</div>
         </div>
 
         <!-- Create Post Tab -->
         <div id="createTab" class="tab-content active">
           <h3>Create New Post</h3>
 
-          <form id="createPostForm" onsubmit="createPost(event)">
-            <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+          <form id="createPostForm">
+            <div class="upload-zone" id="uploadZone">
               <div id="uploadPlaceholder">
                 <div style="font-size: 48px; margin-bottom: 12px;">📤</div>
                 <div style="font-size: 16px; font-weight: 600; margin-bottom: 4px;">Click to upload or drag and drop</div>
@@ -1102,21 +1102,21 @@
                 <img id="previewImage" style="max-width: 200px; max-height: 200px; border-radius: 8px;">
               </div>
             </div>
-            <input type="file" id="fileInput" accept="image/*,video/*" style="display: none;" onchange="handleFileSelect(event)">
+            <input type="file" id="fileInput" accept="image/*,video/*" style="display: none;">
 
             <div class="form-group">
               <label>Caption</label>
               <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
-                <button type="button" class="ai-caption-btn" onclick="generateAICaption()">
+                <button type="button" class="ai-caption-btn">
                   ✨ Generate with AI
                 </button>
-                <button type="button" class="ai-caption-btn" onclick="generateHashtags()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                <button type="button" class="ai-caption-btn" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
                   #️⃣ Add Hashtags
                 </button>
-                <button type="button" class="ai-caption-btn" onclick="translateCaption()" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                <button type="button" class="ai-caption-btn" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
                   🌍 Translate
                 </button>
-                <button type="button" class="ai-caption-btn" onclick="optimizeCaption()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                <button type="button" class="ai-caption-btn" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
                   ⚡ Optimize
                 </button>
               </div>
@@ -1125,7 +1125,7 @@
 
             <div class="form-group">
               <label>Post Type</label>
-              <select id="postType" onchange="handlePostTypeChange()">
+              <select id="postType">
                 <option value="post">Regular Post</option>
                 <option value="reel">Instagram Reel</option>
                 <option value="story">Facebook Story</option>
@@ -1139,22 +1139,22 @@
               <label>Platforms</label>
               <div class="checkbox-group">
                 <label>
-                  <input type="checkbox" name="platform" value="facebook" checked onchange="toggleAccountSelector('facebook')"> Facebook
+                  <input type="checkbox" name="platform" value="facebook" checked> Facebook
                 </label>
                 <label>
-                  <input type="checkbox" name="platform" value="instagram" checked onchange="toggleAccountSelector('instagram')"> Instagram
+                  <input type="checkbox" name="platform" value="instagram" checked> Instagram
                 </label>
                 <label>
-                  <input type="checkbox" name="platform" value="tiktok" onchange="toggleAccountSelector('tiktok')"> TikTok
+                  <input type="checkbox" name="platform" value="tiktok"> TikTok
                 </label>
                 <label>
-                  <input type="checkbox" name="platform" value="pinterest" onchange="toggleAccountSelector('pinterest')"> Pinterest
+                  <input type="checkbox" name="platform" value="pinterest"> Pinterest
                 </label>
                 <label>
-                  <input type="checkbox" name="platform" value="youtube" onchange="toggleAccountSelector('youtube')"> YouTube
+                  <input type="checkbox" name="platform" value="youtube"> YouTube
                 </label>
                 <label>
-                  <input type="checkbox" name="platform" value="google" onchange="toggleAccountSelector('google')"> Google Business
+                  <input type="checkbox" name="platform" value="google"> Google Business
                 </label>
               </div>
             </div>
@@ -1197,7 +1197,7 @@
 
             <div class="form-group">
               <label>Schedule</label>
-              <select id="scheduleType" onchange="toggleScheduleTime()">
+              <select id="scheduleType">
                 <option value="now">Post immediately</option>
                 <option value="later">Schedule for later</option>
               </select>
@@ -1221,7 +1221,7 @@
             <h3>Bulk Upload</h3>
             <p style="color: #6b7280; margin-bottom: 24px;">Upload multiple files and schedule them easily</p>
 
-            <div class="upload-zone" id="bulkUploadZone" onclick="document.getElementById('bulkFileInput').click()">
+            <div class="upload-zone" id="bulkUploadZone">
               <div id="bulkUploadPlaceholder">
                 <div style="font-size: 48px; margin-bottom: 12px;">📁</div>
                 <div style="font-size: 16px; font-weight: 600; margin-bottom: 4px;">Click to upload multiple files or drag and drop</div>
@@ -1231,7 +1231,7 @@
               <div id="bulkThumbnailGrid" style="display: none;">
                 <div style="margin-bottom: 16px; text-align: center;">
                   <div style="font-size: 20px; font-weight: 600; margin-bottom: 8px;" id="bulkFileCountText">32 files selected</div>
-                  <button type="button" onclick="document.getElementById('bulkFileInput').click()" style="background: #f3f4f6; border: 1px solid #d1d5db; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                  <button type="button" style="background: #f3f4f6; border: 1px solid #d1d5db; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px;">
                     Change Files
                   </button>
                 </div>
@@ -1240,9 +1240,9 @@
                 </div>
               </div>
             </div>
-            <input type="file" id="bulkFileInput" accept="image/*,video/*" multiple style="display: none;" onchange="handleBulkFileSelectNew(event)">
+            <input type="file" id="bulkFileInput" accept="image/*,video/*" multiple style="display: none;">
 
-            <button id="continueToConfigBtn" type="button" class="btn btn-primary" style="max-width: 250px; display: none;" onclick="showBulkConfigStep()">
+            <button id="continueToConfigBtn" type="button" class="btn btn-primary" style="max-width: 250px; display: none;">
               Continue →
             </button>
           </div>
@@ -1250,7 +1250,7 @@
           <!-- Step 2: Choose Configuration Method -->
           <div id="bulkConfigStep" style="display: none;">
             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
-              <button onclick="showBulkUploadStep()" style="background: none; border: none; font-size: 24px; cursor: pointer;">←</button>
+              <button style="background: none; border: none; font-size: 24px; cursor: pointer;">←</button>
               <h3 style="margin: 0;">Configure Your Posts</h3>
             </div>
 
@@ -1270,7 +1270,7 @@
                 </div>
                 <button
                   type="button"
-                  onclick="useAIPlan()"
+                 
                   style="background: white; color: #7c3aed; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 14px; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
                   ✨ Generate Smart Plan
                 </button>
@@ -1283,14 +1283,14 @@
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
               <!-- Option 1: Configure All at Once -->
-              <div onclick="selectConfigMethod('bulk')" id="bulkMethodCard" style="border: 2px solid #e5e7eb; border-radius: 12px; padding: 24px; cursor: pointer; transition: all 0.2s;">
+              <div id="bulkMethodCard" style="border: 2px solid #e5e7eb; border-radius: 12px; padding: 24px; cursor: pointer; transition: all 0.2s;">
                 <div style="font-size: 40px; margin-bottom: 12px;">⚡</div>
                 <h4 style="margin-bottom: 8px;">Configure All at Once</h4>
                 <p style="font-size: 13px; color: #6b7280;">Apply same settings to all posts with schedule presets</p>
               </div>
 
               <!-- Option 2: Edit One by One -->
-              <div onclick="selectConfigMethod('individual')" id="individualMethodCard" style="border: 2px solid #e5e7eb; border-radius: 12px; padding: 24px; cursor: pointer; transition: all 0.2s;">
+              <div id="individualMethodCard" style="border: 2px solid #e5e7eb; border-radius: 12px; padding: 24px; cursor: pointer; transition: all 0.2s;">
                 <div style="font-size: 40px; margin-bottom: 12px;">✏️</div>
                 <h4 style="margin-bottom: 8px;">Edit One by One</h4>
                 <p style="font-size: 13px; color: #6b7280;">Customize caption and schedule for each post</p>
@@ -1304,7 +1304,7 @@
               <!-- Schedule Preset -->
               <div class="form-group">
                 <label>Schedule Preset</label>
-                <select id="schedulePreset" onchange="updateSchedulePresetDetails()">
+                <select id="schedulePreset">
                   <option value="daily">Daily (once per day)</option>
                   <option value="twice-week">Twice a week (Mon & Thu)</option>
                   <option value="weekly">Once a week (Mon)</option>
@@ -1337,8 +1337,8 @@
               </div>
 
               <div style="display: flex; gap: 12px;">
-                <button type="button" class="btn btn-secondary" style="max-width: 150px;" onclick="selectConfigMethod(null)">← Back</button>
-                <button type="button" class="btn btn-primary" style="max-width: 200px;" onclick="applyBulkSettings()">Apply & Review</button>
+                <button type="button" class="btn btn-secondary" style="max-width: 150px;">← Back</button>
+                <button type="button" class="btn btn-primary" style="max-width: 200px;">Apply & Review</button>
               </div>
             </div>
 
@@ -1355,7 +1355,7 @@
               <div class="form-group">
                 <label>Caption</label>
                 <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
-                  <button type="button" class="ai-caption-btn" onclick="generateAIBulkCaption()">
+                  <button type="button" class="ai-caption-btn">
                     ✨ Generate with AI
                   </button>
                 </div>
@@ -1381,9 +1381,9 @@
 
               <!-- Navigation -->
               <div style="display: flex; gap: 12px; justify-content: space-between;">
-                <button type="button" class="btn btn-secondary" style="max-width: 150px;" onclick="previousPost()">← Previous</button>
-                <button type="button" class="btn btn-secondary" style="max-width: 150px;" onclick="selectConfigMethod(null)">Cancel</button>
-                <button type="button" class="btn btn-primary" style="max-width: 150px;" id="nextPostBtn" onclick="nextPost()">Next →</button>
+                <button type="button" class="btn btn-secondary" style="max-width: 150px;">← Previous</button>
+                <button type="button" class="btn btn-secondary" style="max-width: 150px;">Cancel</button>
+                <button type="button" class="btn btn-primary" style="max-width: 150px;" id="nextPostBtn">Next →</button>
               </div>
             </div>
           </div>
@@ -1391,7 +1391,7 @@
           <!-- Step 3: Final Review -->
           <div id="bulkReviewStep" style="display: none;">
             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
-              <button onclick="showBulkConfigStep()" style="background: none; border: none; font-size: 24px; cursor: pointer;">←</button>
+              <button style="background: none; border: none; font-size: 24px; cursor: pointer;">←</button>
               <h3 style="margin: 0;">Review & Confirm</h3>
             </div>
 
@@ -1402,8 +1402,8 @@
             </div>
 
             <div style="display: flex; gap: 12px; margin-top: 24px;">
-              <button type="button" class="btn btn-secondary" style="max-width: 150px;" onclick="showBulkConfigStep()">← Back</button>
-              <button type="button" class="btn btn-primary" style="max-width: 250px;" onclick="submitBulkPosts()">
+              <button type="button" class="btn btn-secondary" style="max-width: 150px;">← Back</button>
+              <button type="button" class="btn btn-primary" style="max-width: 250px;">
                 🚀 Schedule All Posts
               </button>
             </div>
@@ -1417,16 +1417,16 @@
             <div style="display: flex; gap: 12px; align-items: center;">
               <!-- View Toggle -->
               <div style="background: #f3f4f6; border-radius: 6px; padding: 4px; display: flex; gap: 4px;">
-                <button id="gridViewBtn" onclick="switchCalendarView('grid')" style="padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500; background: white; color: #1f2937;">
+                <button id="gridViewBtn" style="padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500; background: white; color: #1f2937;">
                   📅 Grid
                 </button>
-                <button id="listViewBtn" onclick="switchCalendarView('list')" style="padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500; background: transparent; color: #6b7280;">
+                <button id="listViewBtn" style="padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500; background: transparent; color: #6b7280;">
                   📋 List
                 </button>
               </div>
-              <button onclick="previousMonth()" class="btn btn-secondary" style="width: auto; padding: 8px 16px;">← Previous</button>
+              <button class="btn btn-secondary" style="width: auto; padding: 8px 16px;">← Previous</button>
               <h4 id="calendarMonthYear" style="margin: 0; min-width: 200px; text-align: center;">Loading...</h4>
-              <button onclick="nextMonth()" class="btn btn-secondary" style="width: auto; padding: 8px 16px;">Next →</button>
+              <button class="btn btn-secondary" style="width: auto; padding: 8px 16px;">Next →</button>
             </div>
           </div>
 
@@ -1477,7 +1477,7 @@
             <div style="background: white; padding: 24px; border-radius: 12px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <h3 id="modalPostTitle" style="margin: 0;">Post Details</h3>
-                <button onclick="closePostModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280;">×</button>
+                <button style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280;">×</button>
               </div>
               <div id="modalPostContent">
                 <!-- Post details will be populated here -->
@@ -1496,7 +1496,7 @@
           <!-- Time Range Selector -->
           <div style="margin-bottom: 24px;">
             <label style="font-weight: 600; margin-right: 12px;">Time Range:</label>
-            <select id="analyticsTimeRange" onchange="loadAnalytics()" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db;">
+            <select id="analyticsTimeRange" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db;">
               <option value="7">Last 7 days</option>
               <option value="30" selected>Last 30 days</option>
               <option value="90">Last 90 days</option>
@@ -1641,10 +1641,10 @@
             <h3 style="margin: 0;">AI Comment Responder</h3>
             <div style="display: flex; gap: 12px; align-items: center;">
               <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                <input type="checkbox" id="autoReplyToggle" onchange="toggleAutoReply()">
+                <input type="checkbox" id="autoReplyToggle">
                 <span style="font-size: 14px; font-weight: 500;">Auto-Reply Enabled</span>
               </label>
-              <button class="btn btn-primary" style="width: auto; padding: 10px 20px;" onclick="refreshComments()">
+              <button class="btn btn-primary" style="width: auto; padding: 10px 20px;">
                 🔄 Refresh Comments
               </button>
             </div>
@@ -1666,7 +1666,7 @@
           <!-- Comment Filter -->
           <div style="margin-bottom: 24px;">
             <label style="font-weight: 600; margin-right: 12px;">Filter:</label>
-            <select id="commentFilter" onchange="filterComments()" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db;">
+            <select id="commentFilter" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db;">
               <option value="all">All Comments</option>
               <option value="needs-review">Needs Review</option>
               <option value="questions">Questions</option>
@@ -1686,7 +1686,7 @@
 
           <!-- Reply History Link -->
           <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
-            <button class="btn btn-secondary" style="width: auto;" onclick="showReplyHistory()">
+            <button class="btn btn-secondary" style="width: auto;">
               📜 View Reply History
             </button>
           </div>
@@ -1699,16 +1699,16 @@
             <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
               <!-- Account Selector (shows when multiple accounts exist) -->
               <div id="reviewAccountSelectorContainer" style="display: none;">
-                <select id="reviewAccountSelector" onchange="switchReviewAccount()" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; min-width: 200px;">
+                <select id="reviewAccountSelector" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; min-width: 200px;">
                   <option value="">Select Business...</option>
                 </select>
               </div>
 
               <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; white-space: nowrap;">
-                <input type="checkbox" id="reviewAutoReplyToggle" onchange="toggleReviewAutoReply()">
+                <input type="checkbox" id="reviewAutoReplyToggle">
                 <span style="font-size: 14px; font-weight: 500;">Auto-Reply</span>
               </label>
-              <button class="btn btn-primary" style="width: auto; padding: 10px 20px; white-space: nowrap;" onclick="syncReviews()">
+              <button class="btn btn-primary" style="width: auto; padding: 10px 20px; white-space: nowrap;">
                 🔄 Sync
               </button>
             </div>
@@ -1734,7 +1734,7 @@
           <!-- Review Filter -->
           <div style="margin-bottom: 24px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
             <label style="font-weight: 600;">Filter:</label>
-            <select id="reviewFilter" onchange="filterReviews()" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; flex: 1; min-width: 200px; max-width: 300px;">
+            <select id="reviewFilter" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; flex: 1; min-width: 200px; max-width: 300px;">
               <option value="all">All Reviews</option>
               <option value="needs-reply">Needs Reply</option>
               <option value="5-star">5 Stars</option>
@@ -1765,7 +1765,7 @@
               Use this API key to integrate with OmniBroker or Sun Production
             </p>
             <div class="api-key-display" id="apiKeyDisplay">Loading...</div>
-            <button class="copy-btn" onclick="copyApiKey()">Copy API Key</button>
+            <button class="copy-btn">Copy API Key</button>
           </div>
 
           <!-- Meet Your AI Team -->
@@ -1811,7 +1811,7 @@
               <div style="font-size: 13px; color: #78350f; margin-bottom: 8px; font-weight: 600;">Team Invite Code:</div>
               <div style="font-family: 'Courier New', monospace; font-size: 20px; color: #1f2937; font-weight: 700; letter-spacing: 2px;" id="teamInviteCode">Loading...</div>
             </div>
-            <button class="copy-btn" onclick="copyInviteCode()">Copy Invite Code</button>
+            <button class="copy-btn">Copy Invite Code</button>
           </div>
 
           <!-- Team Info (For all team members) -->
@@ -1836,11 +1836,11 @@
             </p>
             <div style="display: flex; gap: 12px; align-items: center;">
               <input type="password" id="openaiApiKey" placeholder="sk-proj-..." style="flex: 1; font-family: 'Courier New', monospace; font-size: 13px;">
-              <button onclick="toggleOpenAIKeyVisibility()" style="padding: 10px 16px; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer;">
+              <button style="padding: 10px 16px; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer;">
                 👁️
               </button>
             </div>
-            <button class="btn btn-primary" style="max-width: 200px; margin-top: 12px;" onclick="saveOpenAIKey()">Save OpenAI Key</button>
+            <button class="btn btn-primary" style="max-width: 200px; margin-top: 12px;">Save OpenAI Key</button>
           </div>
 
           <div class="settings-section">
@@ -1849,7 +1849,7 @@
               Get notified when posts are published
             </p>
             <input type="text" id="webhookUrl" placeholder="https://your-app.com/webhook" style="margin-bottom: 12px;">
-            <button class="btn btn-primary" style="max-width: 200px;" onclick="saveWebhook()">Save Webhook</button>
+            <button class="btn btn-primary" style="max-width: 200px;">Save Webhook</button>
           </div>
 
           <div class="settings-section">
@@ -1866,7 +1866,7 @@
               <label>Company</label>
               <input type="text" id="settingsCompany">
             </div>
-            <button class="btn btn-primary" style="max-width: 200px;" onclick="saveProfile()">Save Changes</button>
+            <button class="btn btn-primary" style="max-width: 200px;">Save Changes</button>
           </div>
 
           <div class="settings-section">

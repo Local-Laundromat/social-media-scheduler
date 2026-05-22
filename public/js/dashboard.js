@@ -779,7 +779,7 @@ function switchTab(tabName) {
   // Find the tab with matching onclick attribute and make it active
   const tabs = document.querySelectorAll('.tab');
   tabs.forEach(tab => {
-    if (tab.getAttribute('onclick') && tab.getAttribute('onclick').includes(`'${tabName}'`)) {
+    if (tab.getAttribute('data-tab') === tabName) {
       tab.classList.add('active');
     }
   });
@@ -3646,3 +3646,149 @@ function refreshCurrentTab(tabName) {
   }
 }
 
+
+// ========================================
+// CSP-COMPLIANT EVENT LISTENERS SETUP
+// ========================================
+// All inline event handlers have been removed for CSP compliance
+// This section attaches event listeners using addEventListener
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Logout button
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) logoutBtn.addEventListener('click', logout);
+
+  // Tab switching
+  document.querySelectorAll('.tab[data-tab]').forEach(tab => {
+    tab.addEventListener('click', function() {
+      switchTab(this.getAttribute('data-tab'));
+    });
+  });
+
+  // Social platform connection buttons
+  const facebookBtn = document.getElementById('facebookBtn');
+  if (facebookBtn) facebookBtn.addEventListener('click', connectFacebook);
+
+  const instagramBtn = document.getElementById('instagramBtn');
+  if (instagramBtn) instagramBtn.addEventListener('click', connectInstagram);
+
+  const tiktokBtn = document.getElementById('tiktokBtn');
+  if (tiktokBtn) tiktokBtn.addEventListener('click', connectTikTok);
+
+  const pinterestBtn = document.getElementById('pinterestBtn');
+  if (pinterestBtn) pinterestBtn.addEventListener('click', connectPinterest);
+
+  const youtubeBtn = document.getElementById('youtubeBtn');
+  if (youtubeBtn) youtubeBtn.addEventListener('click', connectYouTube);
+
+  const googleBtn = document.getElementById('googleBtn');
+  if (googleBtn) googleBtn.addEventListener('click', connectGoogle);
+
+  // Create post form submission
+  const createPostForm = document.getElementById('createPostForm');
+  if (createPostForm) createPostForm.addEventListener('submit', createPost);
+
+  // Upload zone click (trigger file input)
+  const uploadZone = document.getElementById('uploadZone');
+  if (uploadZone) uploadZone.addEventListener('click', function() {
+    document.getElementById('fileInput').click();
+  });
+
+  // File input change
+  const fileInput = document.getElementById('fileInput');
+  if (fileInput) fileInput.addEventListener('change', handleFileSelect);
+
+  // AI caption buttons
+  const aiCaptionBtns = document.querySelectorAll('.ai-caption-btn');
+  if (aiCaptionBtns.length > 0) {
+    aiCaptionBtns[0].addEventListener('click', generateAICaption);
+    if (aiCaptionBtns[1]) aiCaptionBtns[1].addEventListener('click', generateHashtags);
+    if (aiCaptionBtns[2]) aiCaptionBtns[2].addEventListener('click', translateCaption);
+    if (aiCaptionBtns[3]) aiCaptionBtns[3].addEventListener('click', optimizeCaption);
+  }
+
+  // Post type change
+  const postType = document.getElementById('postType');
+  if (postType) postType.addEventListener('change', handlePostTypeChange);
+
+  // Platform checkboxes
+  document.querySelectorAll('input[name="platform"]').forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+      toggleAccountSelector(this.value);
+    });
+  });
+
+  // Schedule type change
+  const scheduleType = document.getElementById('scheduleType');
+  if (scheduleType) scheduleType.addEventListener('change', toggleScheduleTime);
+
+  // Bulk upload zone
+  const bulkUploadZone = document.getElementById('bulkUploadZone');
+  if (bulkUploadZone) bulkUploadZone.addEventListener('click', function() {
+    document.getElementById('bulkFileInput').click();
+  });
+
+  // Bulk file input change
+  const bulkFileInput = document.getElementById('bulkFileInput');
+  if (bulkFileInput) bulkFileInput.addEventListener('change', handleBulkFileSelectNew);
+
+  // Bulk upload continue button
+  const continueToConfigBtn = document.getElementById('continueToConfigBtn');
+  if (continueToConfigBtn) continueToConfigBtn.addEventListener('click', showBulkConfigStep);
+
+  // Calendar view toggle buttons
+  const gridViewBtn = document.getElementById('gridViewBtn');
+  if (gridViewBtn) gridViewBtn.addEventListener('click', function() {
+    switchCalendarView('grid');
+  });
+
+  const listViewBtn = document.getElementById('listViewBtn');
+  if (listViewBtn) listViewBtn.addEventListener('click', function() {
+    switchCalendarView('list');
+  });
+
+  // Calendar navigation buttons
+  const prevMonthBtns = document.querySelectorAll('.btn-secondary');
+  prevMonthBtns.forEach(btn => {
+    if (btn.textContent.includes('Previous')) {
+      btn.addEventListener('click', previousMonth);
+    }
+    if (btn.textContent.includes('Next')) {
+      btn.addEventListener('click', nextMonth);
+    }
+  });
+
+  // Analytics time range selector
+  const analyticsTimeRange = document.getElementById('analyticsTimeRange');
+  if (analyticsTimeRange) analyticsTimeRange.addEventListener('change', loadAnalytics);
+
+  // Comment filter
+  const commentFilter = document.getElementById('commentFilter');
+  if (commentFilter) commentFilter.addEventListener('change', filterComments);
+
+  // Auto-reply toggle
+  const autoReplyToggle = document.getElementById('autoReplyToggle');
+  if (autoReplyToggle) autoReplyToggle.addEventListener('change', toggleAutoReply);
+
+  // Review filter
+  const reviewFilter = document.getElementById('reviewFilter');
+  if (reviewFilter) reviewFilter.addEventListener('change', filterReviews);
+
+  // Review auto-reply toggle
+  const reviewAutoReplyToggle = document.getElementById('reviewAutoReplyToggle');
+  if (reviewAutoReplyToggle) reviewAutoReplyToggle.addEventListener('change', toggleReviewAutoReply);
+
+  // Review account selector
+  const reviewAccountSelector = document.getElementById('reviewAccountSelector');
+  if (reviewAccountSelector) reviewAccountSelector.addEventListener('change', switchReviewAccount);
+
+  // Schedule preset selector
+  const schedulePreset = document.getElementById('schedulePreset');
+  if (schedulePreset) schedulePreset.addEventListener('change', updateSchedulePresetDetails);
+
+  // Global account selector
+  const globalAccountSelect = document.getElementById('globalAccountSelect');
+  if (globalAccountSelect) globalAccountSelect.addEventListener('change', switchGlobalAccount);
+
+  console.log('✓ All event listeners attached successfully (CSP-compliant)');
+});
