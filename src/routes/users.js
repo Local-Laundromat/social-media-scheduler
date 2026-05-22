@@ -466,4 +466,29 @@ router.delete('/:userId', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/users/:userId/agent-status - Get tier-based agent access for UI display
+ */
+router.get('/:userId/agent-status', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const { getUserAgentStatus } = require('../middleware/verifySubscription');
+
+    const agentStatus = await getUserAgentStatus(userId);
+
+    if (agentStatus.error) {
+      return res.status(404).json({ error: agentStatus.error });
+    }
+
+    res.json({
+      success: true,
+      ...agentStatus
+    });
+
+  } catch (error) {
+    console.error('[AgentStatus] Error:', error);
+    res.status(500).json({ error: 'Failed to get agent status' });
+  }
+});
+
 module.exports = router;

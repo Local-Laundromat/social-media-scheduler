@@ -61,7 +61,11 @@ const CommentState = Annotation.Root({
   // Metadata
   processingSteps: Annotation({ default: [] }),
   confidenceScore: Annotation({ default: 0 }),
-  error: Annotation({ default: null })
+  error: Annotation({ default: null }),
+
+  // Tier-based access control
+  userTier: Annotation({ default: "pro" }),
+  availableAgents: Annotation({ default: ['NOVA', 'ECHO', 'ATLAS', 'SAGE', 'QUINN'] })
 });
 
 /**
@@ -402,22 +406,56 @@ Respond with JSON:
 }
 
 /**
- * Build and compile the multi-agent workflow
+ * Build tier-specific workflow based on available agents
+ * Different subscription tiers get different agent pipelines
  */
-const workflow = new StateGraph(CommentState)
-  .addNode("sentimentAnalyzer", sentimentAnalyzerAgent)
-  .addNode("intentClassifier", intentClassifierAgent)
-  .addNode("priorityScorer", priorityScorerAgent)
-  .addNode("responseGenerator", responseGeneratorAgent)
-  .addNode("escalationRouter", escalationRouterAgent)
-  .addEdge(START, "sentimentAnalyzer")
-  .addEdge("sentimentAnalyzer", "intentClassifier")
-  .addEdge("intentClassifier", "priorityScorer")
-  .addEdge("priorityScorer", "responseGenerator")
-  .addEdge("responseGenerator", "escalationRouter")
-  .addEdge("escalationRouter", END);
+function buildCommentWorkflow(availableAgents = ['NOVA', 'ECHO', 'ATLAS', 'SAGE', 'QUINN']) {
+  const workflow = new StateGraph(CommentState);
 
-const commentAgentGraph = workflow.compile();
+  // Starter tier: NOVA + ECHO only (sentiment + intent analysis)
+  // Growth tier: + ATLAS + SAGE (priority + reply generation)
+  // Pro/Agency tier: + QUINN (auto-reply routing)
+
+  let currentNode = START;
+
+  if (availableAgents.includes('NOVA')) {
+    workflow.addNode("sentimentAnalyzer", sentimentAnalyzerAgent);
+    workflow.addEdge(currentNode, "sentimentAnalyzer");
+    currentNode = "sentimentAnalyzer";
+  }
+
+  if (availableAgents.includes('ECHO')) {
+    workflow.addNode("intentClassifier", intentClassifierAgent);
+    workflow.addEdge(currentNode, "intentClassifier");
+    currentNode = "intentClassifier";
+  }
+
+  if (availableAgents.includes('ATLAS')) {
+    workflow.addNode("priorityScorer", priorityScorerAgent);
+    workflow.addEdge(currentNode, "priorityScorer");
+    currentNode = "priorityScorer";
+  }
+
+  if (availableAgents.includes('SAGE')) {
+    workflow.addNode("responseGenerator", responseGeneratorAgent);
+    workflow.addEdge(currentNode, "responseGenerator");
+    currentNode = "responseGenerator";
+  }
+
+  if (availableAgents.includes('QUINN')) {
+    workflow.addNode("escalationRouter", escalationRouterAgent);
+    workflow.addEdge(currentNode, "escalationRouter");
+    currentNode = "escalationRouter";
+  }
+
+  // Always end at the last node
+  workflow.addEdge(currentNode, END);
+
+  return workflow.compile();
+}
+
+// Default full workflow (for backward compatibility)
+const commentAgentGraph = buildCommentWorkflow();
 
 /**
  * Convenience wrapper for processing a comment
@@ -428,19 +466,65 @@ async function processComment({
   authorName = 'User',
   postContext = '',
   brandInfo = {},
-  openaiApiKey
+  openaiApiKey,
+  userId,
+  userTier
 }) {
   console.log(`[CommentAgents] Processing comment from ${authorName} on ${platform}`);
 
+  // ============================================
+  // TIER-BASED AGENT ACCESS CONTROL
+  // ============================================
+  let availableAgents = ['NOVA', 'ECHO', 'ATLAS', 'SAGE', 'QUINN']; // Default to all
+
+  if (userId && userTier) {
+    const { verifyAgentAccess, TIER_AGENT_ACCESS } = require('../middleware/verifySubscription');
+
+    // Get tier-specific agents
+    const tierAccess = TIER_AGENT_ACCESS[userTier];
+    if (tierAccess) {
+      availableAgents = tierAccess.commentManagement;
+    }
+
+    // Verify access
+    const accessCheck = await verifyAgentAccess(userId, availableAgents, 'comment');
+
+    if (!accessCheck.success) {
+      console.log(`[CommentAgents] ❌ Agent access denied for user ${userId}: ${accessCheck.error}`);
+      return {
+        success: false,
+        error: accessCheck.error,
+        code: accessCheck.code,
+        details: accessCheck.details,
+        message: accessCheck.message,
+        cta: accessCheck.cta,
+        analysis: null,
+        response: null,
+        routing: {
+          autoReply: false,
+          requiresReview: true,
+          reason: 'Tier limit reached - upgrade required'
+        }
+      };
+    }
+
+    console.log(`[CommentAgents] ✅ Agent access granted: ${accessCheck.availableAgents.join(', ')} (${userTier} tier)`);
+  }
+
   try {
-    const result = await commentAgentGraph.invoke(
+    // Build tier-specific workflow
+    const tierWorkflow = buildCommentWorkflow(availableAgents);
+
+    const result = await tierWorkflow.invoke(
       {
         commentText,
         platform,
         authorName,
         postContext,
         brandInfo,
-        processingSteps: []
+        processingSteps: [],
+        userTier: userTier || 'pro',
+        availableAgents
       },
       {
         configurable: {
@@ -495,6 +579,7 @@ async function processComment({
 
 module.exports = {
   commentAgentGraph,
+  buildCommentWorkflow,
   processComment,
   COMMENT_AGENTS, // Export agent personalities
   COMMENT_MANAGEMENT_TEAM: [COMMENT_AGENTS.NOVA, COMMENT_AGENTS.ECHO, COMMENT_AGENTS.ATLAS, COMMENT_AGENTS.SAGE, COMMENT_AGENTS.QUINN]

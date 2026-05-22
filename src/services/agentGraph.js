@@ -41,6 +41,8 @@ const GraphState = Annotation.Root({
   error: Annotation({ default: null }),
   agentStatus: Annotation({ default: "" }), // Current agent activity for UI
   agentLog: Annotation({ default: [] }), // Activity history
+  userTier: Annotation({ default: "pro" }), // User's subscription tier for agent access control
+  availableAgents: Annotation({ default: ['LILY', 'MARCUS', 'KAI'] }), // Which agents user can access
 });
 
 /**
@@ -232,9 +234,27 @@ function shouldContinue(state) {
     return END;
   }
 
+  // TIER GATING: If user doesn't have Marcus (quality critic), skip critique and finish after draft
+  const availableAgents = state.availableAgents || ['LILY', 'MARCUS', 'KAI'];
+  const hasMarcus = availableAgents.includes('MARCUS');
+  const hasKai = availableAgents.includes('KAI');
+
+  if (!hasMarcus) {
+    // Starter tier - just Lily, no quality checking
+    console.log(`[AgentGraph] ✅ Draft complete! (${state.userTier || 'starter'} tier - no quality review)`);
+    return END;
+  }
+
   // Stop if quality threshold met
   if (state.critiqueScore >= QUALITY_THRESHOLD) {
     console.log(`[AgentGraph] ✅ ${AGENTS.MARCUS.name} approved! Score: ${state.critiqueScore}/${QUALITY_THRESHOLD}. Ready to publish.`);
+    return END;
+  }
+
+  // TIER GATING: If user doesn't have Kai (optimizer), can't retry with feedback
+  if (!hasKai) {
+    // Growth tier - has Marcus but not Kai, so stop after one critique
+    console.log(`[AgentGraph] ⏰ ${state.userTier || 'growth'} tier - no optimization available. Using draft with score ${state.critiqueScore}.`);
     return END;
   }
 
@@ -244,7 +264,7 @@ function shouldContinue(state) {
     return END;
   }
 
-  // Otherwise, retry with feedback
+  // Otherwise, retry with feedback (Pro/Agency tier)
   console.log(`[AgentGraph] 🔄 ${AGENTS.MARCUS.name} says: Score ${state.critiqueScore}/${QUALITY_THRESHOLD}. Sending to ${AGENTS.KAI.name} for optimization...`);
   return "writer";
 }
@@ -265,11 +285,58 @@ const autonomousPostGenerator = workflow.compile();
  * Convenience wrapper function with better error handling
  */
 async function generateAutonomousPost(config) {
-  const { niche, platform, brandSettings } = config;
+  const { niche, platform, brandSettings, userId, userTier } = config;
 
   console.log(`[AgentGraph] Starting autonomous post generation for ${platform} in ${niche} niche`);
 
+  // ============================================
+  // TIER-BASED AGENT ACCESS CONTROL
+  // ============================================
+  if (userId && userTier) {
+    const { verifyAgentAccess, TIER_AGENT_ACCESS } = require('../middleware/verifySubscription');
+
+    // Determine which agents this workflow needs
+    const requiredAgents = ['LILY']; // Always need Lily for draft
+    const tierAccess = TIER_AGENT_ACCESS[userTier];
+
+    if (tierAccess && tierAccess.contentPlanning.includes('MARCUS')) {
+      requiredAgents.push('MARCUS'); // Quality checking available
+    }
+
+    if (tierAccess && tierAccess.contentPlanning.includes('KAI')) {
+      requiredAgents.push('KAI'); // Optimization available
+    }
+
+    // Verify access
+    const accessCheck = await verifyAgentAccess(userId, requiredAgents, 'content');
+
+    if (!accessCheck.success) {
+      console.log(`[AgentGraph] ❌ Agent access denied for user ${userId}: ${accessCheck.error}`);
+      return {
+        success: false,
+        error: accessCheck.error,
+        code: accessCheck.code,
+        details: accessCheck.details,
+        message: accessCheck.message,
+        cta: accessCheck.cta,
+        draft: null
+      };
+    }
+
+    console.log(`[AgentGraph] ✅ Agent access granted: ${accessCheck.availableAgents.join(', ')} (${userTier} tier)`);
+  }
+
   try {
+    // Get tier-specific available agents
+    let availableAgents = ['LILY', 'MARCUS', 'KAI']; // Default to all agents
+    if (userTier) {
+      const { TIER_AGENT_ACCESS } = require('../middleware/verifySubscription');
+      const tierAccess = TIER_AGENT_ACCESS[userTier];
+      if (tierAccess) {
+        availableAgents = tierAccess.contentPlanning;
+      }
+    }
+
     const result = await autonomousPostGenerator.invoke({
       niche,
       platform: platform || 'instagram',
@@ -278,7 +345,9 @@ async function generateAutonomousPost(config) {
       critiqueScore: 0,
       feedback: "",
       retryCount: 0,
-      error: null
+      error: null,
+      userTier: userTier || 'pro',
+      availableAgents
     });
 
     // Check if we got a valid result

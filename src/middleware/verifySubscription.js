@@ -10,6 +10,62 @@
 const { supabase } = require('../database/supabase');
 
 /**
+ * TIER-BASED AGENT ACCESS CONTROL
+ * Protects revenue by limiting which AI agents are available at each tier
+ *
+ * Strategy: Basic features at lower tiers, advanced multi-agent workflows at higher tiers
+ */
+const TIER_AGENT_ACCESS = {
+  starter: {
+    // Basic content generation only (single agent)
+    contentPlanning: ['LILY'], // Can draft posts, but no quality checking
+    commentManagement: ['NOVA', 'ECHO'], // Can analyze sentiment and intent, but no auto-replies
+    maxAgentsPerWorkflow: 2,
+    description: 'Basic AI assistance - Caption drafting and comment analysis'
+  },
+  growth: {
+    // Quality-checked content + basic auto-replies
+    contentPlanning: ['LILY', 'MARCUS'], // Drafting + quality review
+    commentManagement: ['NOVA', 'ECHO', 'ATLAS', 'SAGE'], // Full analysis + reply generation (no auto-posting)
+    maxAgentsPerWorkflow: 4,
+    description: 'Quality-checked content and smart reply suggestions'
+  },
+  pro: {
+    // Full agent teams with optimization and auto-replies
+    contentPlanning: ['LILY', 'MARCUS', 'KAI'], // Full team: Draft → Critique → Optimize
+    commentManagement: ['NOVA', 'ECHO', 'ATLAS', 'SAGE', 'QUINN'], // Full team including auto-reply routing
+    maxAgentsPerWorkflow: 5,
+    description: 'Complete AI team with autonomous workflows'
+  },
+  agency: {
+    // Everything + custom tuning options
+    contentPlanning: ['LILY', 'MARCUS', 'KAI'],
+    commentManagement: ['NOVA', 'ECHO', 'ATLAS', 'SAGE', 'QUINN'],
+    maxAgentsPerWorkflow: 999, // Unlimited
+    customPrompts: true, // Can customize agent behavior
+    priorityProcessing: true, // Faster execution
+    description: 'Full AI power with custom tuning and priority processing'
+  }
+};
+
+/**
+ * Map agent names to their features for access control
+ */
+const AGENT_FEATURES = {
+  // Content Planning Team
+  LILY: { name: 'Lily', role: 'Creative Writer', feature: 'content_drafting' },
+  MARCUS: { name: 'Marcus', role: 'Quality Critic', feature: 'content_quality_check' },
+  KAI: { name: 'Kai', role: 'Strategy Optimizer', feature: 'content_optimization' },
+
+  // Comment Management Team
+  NOVA: { name: 'Nova', role: 'Sentiment Analyzer', feature: 'comment_sentiment_analysis' },
+  ECHO: { name: 'Echo', role: 'Intent Detective', feature: 'comment_intent_detection' },
+  ATLAS: { name: 'Atlas', role: 'Priority Scorer', feature: 'comment_priority_scoring' },
+  SAGE: { name: 'Sage', role: 'Response Writer', feature: 'comment_reply_generation' },
+  QUINN: { name: 'Quinn', role: 'Auto-Reply Router', feature: 'comment_auto_reply' }
+};
+
+/**
  * Verify user has active paid subscription and available quota
  *
  * Checks:
@@ -373,10 +429,226 @@ async function checkAccountLimit(userId) {
   }
 }
 
+/**
+ * Check if user's tier has access to specific agents
+ * Returns which agents are allowed for the user's current tier
+ */
+async function checkAgentAccess(userId, workflowType) {
+  try {
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('subscription_tier')
+      .eq('id', userId)
+      .single();
+
+    if (error || !profile) {
+      return {
+        allowed: false,
+        error: 'User profile not found',
+        code: 'PROFILE_NOT_FOUND',
+        availableAgents: []
+      };
+    }
+
+    const tier = profile.subscription_tier || 'starter';
+    const tierAccess = TIER_AGENT_ACCESS[tier];
+
+    if (!tierAccess) {
+      return {
+        allowed: false,
+        error: 'Invalid subscription tier',
+        code: 'INVALID_TIER',
+        availableAgents: []
+      };
+    }
+
+    const availableAgents = workflowType === 'content'
+      ? tierAccess.contentPlanning
+      : tierAccess.commentManagement;
+
+    return {
+      allowed: true,
+      tier,
+      availableAgents,
+      maxAgentsPerWorkflow: tierAccess.maxAgentsPerWorkflow,
+      description: tierAccess.description,
+      customPrompts: tierAccess.customPrompts || false,
+      priorityProcessing: tierAccess.priorityProcessing || false
+    };
+
+  } catch (err) {
+    console.error('[AgentAccessCheck] Internal error:', err);
+    return {
+      allowed: false,
+      error: 'Failed to check agent access',
+      code: 'INTERNAL_ERROR',
+      availableAgents: []
+    };
+  }
+}
+
+/**
+ * Verify user can use specific agent(s)
+ * Blocks requests if agent is not in user's tier
+ */
+async function verifyAgentAccess(userId, requiredAgents, workflowType) {
+  const accessCheck = await checkAgentAccess(userId, workflowType);
+
+  if (!accessCheck.allowed) {
+    return {
+      success: false,
+      error: accessCheck.error,
+      code: accessCheck.code
+    };
+  }
+
+  // Check if all required agents are available in user's tier
+  const unavailableAgents = requiredAgents.filter(
+    agent => !accessCheck.availableAgents.includes(agent)
+  );
+
+  if (unavailableAgents.length > 0) {
+    // Find which tier they need for these agents
+    const suggestedTier = getSuggestedTierForAgents(requiredAgents, workflowType);
+
+    return {
+      success: false,
+      error: `Your ${accessCheck.tier} plan doesn't include ${unavailableAgents.map(a => AGENT_FEATURES[a]?.name || a).join(', ')}`,
+      code: 'AGENT_NOT_AVAILABLE',
+      details: {
+        currentTier: accessCheck.tier,
+        availableAgents: accessCheck.availableAgents.map(a => AGENT_FEATURES[a]?.name || a),
+        unavailableAgents: unavailableAgents.map(a => AGENT_FEATURES[a]?.name || a),
+        suggestedTier,
+        upgradeUrl: '/settings#billing'
+      },
+      message: `🔒 ${unavailableAgents.map(a => AGENT_FEATURES[a]?.name || a).join(' & ')} ${unavailableAgents.length === 1 ? 'is' : 'are'} available in the ${suggestedTier} plan and above.`,
+      cta: {
+        text: `Upgrade to ${suggestedTier.charAt(0).toUpperCase() + suggestedTier.slice(1)}`,
+        action: 'upgrade_tier',
+        targetTier: suggestedTier
+      }
+    };
+  }
+
+  return {
+    success: true,
+    tier: accessCheck.tier,
+    availableAgents: accessCheck.availableAgents,
+    customPrompts: accessCheck.customPrompts,
+    priorityProcessing: accessCheck.priorityProcessing
+  };
+}
+
+/**
+ * Helper: Find minimum tier needed for requested agents
+ */
+function getSuggestedTierForAgents(requiredAgents, workflowType) {
+  const tiers = ['starter', 'growth', 'pro', 'agency'];
+
+  for (const tier of tiers) {
+    const tierAccess = TIER_AGENT_ACCESS[tier];
+    const availableAgents = workflowType === 'content'
+      ? tierAccess.contentPlanning
+      : tierAccess.commentManagement;
+
+    const hasAllAgents = requiredAgents.every(agent => availableAgents.includes(agent));
+
+    if (hasAllAgents) {
+      return tier;
+    }
+  }
+
+  return 'agency'; // Fallback to highest tier
+}
+
+/**
+ * Get user's available agents for UI display
+ * Shows which agents are locked/unlocked based on tier
+ */
+async function getUserAgentStatus(userId) {
+  try {
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('subscription_tier')
+      .eq('id', userId)
+      .single();
+
+    if (error || !profile) {
+      return { error: 'User profile not found' };
+    }
+
+    const tier = profile.subscription_tier || 'starter';
+    const tierAccess = TIER_AGENT_ACCESS[tier];
+
+    // Build agent status for UI
+    const contentAgents = Object.keys(AGENT_FEATURES)
+      .filter(agent => ['LILY', 'MARCUS', 'KAI'].includes(agent))
+      .map(agent => ({
+        ...AGENT_FEATURES[agent],
+        agentId: agent,
+        unlocked: tierAccess.contentPlanning.includes(agent),
+        availableInTier: getMinimumTierForAgent(agent, 'content')
+      }));
+
+    const commentAgents = Object.keys(AGENT_FEATURES)
+      .filter(agent => ['NOVA', 'ECHO', 'ATLAS', 'SAGE', 'QUINN'].includes(agent))
+      .map(agent => ({
+        ...AGENT_FEATURES[agent],
+        agentId: agent,
+        unlocked: tierAccess.commentManagement.includes(agent),
+        availableInTier: getMinimumTierForAgent(agent, 'comment')
+      }));
+
+    return {
+      tier,
+      tierDescription: tierAccess.description,
+      contentPlanning: {
+        agents: contentAgents,
+        maxAgentsPerWorkflow: tierAccess.maxAgentsPerWorkflow
+      },
+      commentManagement: {
+        agents: commentAgents,
+        maxAgentsPerWorkflow: tierAccess.maxAgentsPerWorkflow
+      },
+      premiumFeatures: {
+        customPrompts: tierAccess.customPrompts || false,
+        priorityProcessing: tierAccess.priorityProcessing || false
+      }
+    };
+
+  } catch (err) {
+    console.error('[AgentStatus] Error:', err);
+    return { error: 'Failed to get agent status' };
+  }
+}
+
+/**
+ * Helper: Get minimum tier required for specific agent
+ */
+function getMinimumTierForAgent(agentId, workflowType) {
+  const tiers = ['starter', 'growth', 'pro', 'agency'];
+  const agentsKey = workflowType === 'content' ? 'contentPlanning' : 'commentManagement';
+
+  for (const tier of tiers) {
+    const tierAccess = TIER_AGENT_ACCESS[tier];
+    if (tierAccess[agentsKey].includes(agentId)) {
+      return tier;
+    }
+  }
+
+  return 'agency';
+}
+
 module.exports = {
   verifyActivePaidUser,
   logUsage,
   logFailure,
   requireFeature,
-  checkAccountLimit
+  checkAccountLimit,
+  checkAgentAccess,
+  verifyAgentAccess,
+  getUserAgentStatus,
+  TIER_AGENT_ACCESS,
+  AGENT_FEATURES
 };
