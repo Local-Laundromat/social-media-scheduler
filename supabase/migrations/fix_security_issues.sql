@@ -73,9 +73,9 @@ SELECT
     DATE_TRUNC('month', p.created_at) as month,
     COUNT(DISTINCT p.id) as posts_created,
     COUNT(DISTINCT CASE WHEN p.status = 'published' THEN p.id END) as posts_published,
-    COUNT(DISTINCT CASE WHEN p.platforms ? 'facebook' THEN p.id END) as facebook_posts,
-    COUNT(DISTINCT CASE WHEN p.platforms ? 'instagram' THEN p.id END) as instagram_posts,
-    COUNT(DISTINCT CASE WHEN p.platforms ? 'tiktok' THEN p.id END) as tiktok_posts
+    COUNT(DISTINCT CASE WHEN 'facebook' = ANY(p.platforms) THEN p.id END) as facebook_posts,
+    COUNT(DISTINCT CASE WHEN 'instagram' = ANY(p.platforms) THEN p.id END) as instagram_posts,
+    COUNT(DISTINCT CASE WHEN 'tiktok' = ANY(p.platforms) THEN p.id END) as tiktok_posts
 FROM profiles pr
 LEFT JOIN posts p ON pr.id = p.user_id
 WHERE p.created_at IS NOT NULL
