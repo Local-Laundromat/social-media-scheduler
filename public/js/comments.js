@@ -9,7 +9,7 @@ async function loadComments() {
   const commentsList = document.getElementById('commentsList');
 
   try {
-    commentsList.innerHTML = '<div class="loading"><div class="spinner"></div>Loading comments...</div>';
+    commentsList.innerHTML = '<div class="loading"><div class="spinner"></div>💭🔍⚡✍️🤖 Your AI team is analyzing comments...</div>';
 
     // Build URL with optional account filter
     let url = '/api/comments/monitor';

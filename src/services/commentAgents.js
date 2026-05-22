@@ -4,12 +4,12 @@
  * Uses LangGraph to orchestrate multiple specialized AI agents for
  * autonomous comment monitoring, analysis, and response generation.
  *
- * Agents:
- * 1. Sentiment Analyzer - Detects emotional tone
- * 2. Intent Classifier - Identifies comment purpose
- * 3. Priority Scorer - Rates urgency
- * 4. Response Generator - Creates brand-appropriate replies
- * 5. Escalation Router - Decides human review vs auto-reply
+ * Meet the Comment Management Team:
+ * 1. Nova 💭 - The Sentiment Analyzer (detects emotional tone)
+ * 2. Echo 🔍 - The Intent Detective (identifies comment purpose)
+ * 3. Atlas ⚡ - The Priority Scorer (rates urgency)
+ * 4. Sage ✍️ - The Response Writer (creates brand-appropriate replies)
+ * 5. Quinn 🤖 - The Auto-Reply Decision Maker (human review vs auto-reply)
  */
 
 // Node.js 18 compatibility
@@ -21,6 +21,15 @@ const { Annotation, StateGraph, END, START } = require("@langchain/langgraph");
 const { ChatOpenAI } = require("@langchain/openai");
 const { PromptTemplate } = require("@langchain/core/prompts");
 const { StringOutputParser } = require("@langchain/core/output_parsers");
+
+// Agent personalities
+const COMMENT_AGENTS = {
+  NOVA: { name: 'Nova', emoji: '💭', role: 'Sentiment Analyzer', action: 'analyzing sentiment' },
+  ECHO: { name: 'Echo', emoji: '🔍', role: 'Intent Detective', action: 'detecting intent' },
+  ATLAS: { name: 'Atlas', emoji: '⚡', role: 'Priority Scorer', action: 'scoring priority' },
+  SAGE: { name: 'Sage', emoji: '✍️', role: 'Response Writer', action: 'crafting reply' },
+  QUINN: { name: 'Quinn', emoji: '🤖', role: 'Auto-Reply Decision Maker', action: 'routing decision' }
+};
 
 /**
  * Comment Analysis State Schema
@@ -71,13 +80,14 @@ function getModel(apiKey) {
 }
 
 /**
- * Agent 1: Sentiment Analyzer
+ * Agent 1: Nova - Sentiment Analyzer
  * Analyzes emotional tone of the comment
  */
 async function sentimentAnalyzerAgent(state, config) {
   const apiKey = config?.configurable?.openaiApiKey;
 
   try {
+    console.log(`[CommentAgents] ${COMMENT_AGENTS.NOVA.emoji} ${COMMENT_AGENTS.NOVA.name} is ${COMMENT_AGENTS.NOVA.action}...`);
     const model = getModel(apiKey);
 
     const prompt = `Analyze the sentiment of this social media comment.
@@ -134,13 +144,14 @@ Be especially sensitive to:
 }
 
 /**
- * Agent 2: Intent Classifier
+ * Agent 2: Echo - Intent Detective
  * Identifies the purpose/type of the comment
  */
 async function intentClassifierAgent(state, config) {
   const apiKey = config?.configurable?.openaiApiKey;
 
   try {
+    console.log(`[CommentAgents] ${COMMENT_AGENTS.ECHO.emoji} ${COMMENT_AGENTS.ECHO.name} is ${COMMENT_AGENTS.ECHO.action}...`);
     const model = getModel(apiKey);
 
     const prompt = `Classify the intent of this social media comment.
@@ -188,13 +199,14 @@ Respond with JSON:
 }
 
 /**
- * Agent 3: Priority Scorer
+ * Agent 3: Atlas - Priority Scorer
  * Determines urgency and priority level
  */
 async function priorityScorerAgent(state, config) {
   const apiKey = config?.configurable?.openaiApiKey;
 
   try {
+    console.log(`[CommentAgents] ${COMMENT_AGENTS.ATLAS.emoji} ${COMMENT_AGENTS.ATLAS.name} is ${COMMENT_AGENTS.ATLAS.action}...`);
     const model = getModel(apiKey);
 
     const prompt = `Determine the priority level of this comment requiring response.
@@ -240,13 +252,14 @@ Respond with JSON:
 }
 
 /**
- * Agent 4: Response Generator
+ * Agent 4: Sage - Response Writer
  * Creates brand-appropriate reply suggestions
  */
 async function responseGeneratorAgent(state, config) {
   const apiKey = config?.configurable?.openaiApiKey;
 
   try {
+    console.log(`[CommentAgents] ${COMMENT_AGENTS.SAGE.emoji} ${COMMENT_AGENTS.SAGE.name} is ${COMMENT_AGENTS.SAGE.action}...`);
     const model = getModel(apiKey);
 
     const brandName = state.brandInfo.company || 'our team';
@@ -321,13 +334,14 @@ Respond with JSON:
 }
 
 /**
- * Agent 5: Escalation Router
+ * Agent 5: Quinn - Auto-Reply Decision Maker
  * Decides if auto-reply is safe or needs human review
  */
 async function escalationRouterAgent(state, config) {
   const apiKey = config?.configurable?.openaiApiKey;
 
   try {
+    console.log(`[CommentAgents] ${COMMENT_AGENTS.QUINN.emoji} ${COMMENT_AGENTS.QUINN.name} is making ${COMMENT_AGENTS.QUINN.action}...`);
     const model = getModel(apiKey);
 
     const prompt = `Decide if this comment response can be auto-posted or needs human review.
@@ -435,8 +449,9 @@ async function processComment({
       }
     );
 
-    console.log(`[CommentAgents] Completed. Decision: ${result.shouldAutoReply ? 'AUTO' : 'REVIEW'}`);
-    console.log(`[CommentAgents] Processing steps:`, result.processingSteps);
+    const decisionIcon = result.shouldAutoReply ? '✅' : '👤';
+    console.log(`[CommentAgents] ${decisionIcon} ${COMMENT_AGENTS.QUINN.name}'s decision: ${result.shouldAutoReply ? 'AUTO-REPLY' : 'HUMAN REVIEW'}`);
+    console.log(`[CommentAgents] Agent pipeline: ${COMMENT_AGENTS.NOVA.name} → ${COMMENT_AGENTS.ECHO.name} → ${COMMENT_AGENTS.ATLAS.name} → ${COMMENT_AGENTS.SAGE.name} → ${COMMENT_AGENTS.QUINN.name}`);
 
     return {
       success: true,
@@ -458,6 +473,7 @@ async function processComment({
         reason: result.escalationReason
       },
       processingSteps: result.processingSteps,
+      agentTeam: `${COMMENT_AGENTS.NOVA.emoji}${COMMENT_AGENTS.ECHO.emoji}${COMMENT_AGENTS.ATLAS.emoji}${COMMENT_AGENTS.SAGE.emoji}${COMMENT_AGENTS.QUINN.emoji}`,
       error: result.error
     };
 
@@ -479,5 +495,7 @@ async function processComment({
 
 module.exports = {
   commentAgentGraph,
-  processComment
+  processComment,
+  COMMENT_AGENTS, // Export agent personalities
+  COMMENT_MANAGEMENT_TEAM: [COMMENT_AGENTS.NOVA, COMMENT_AGENTS.ECHO, COMMENT_AGENTS.ATLAS, COMMENT_AGENTS.SAGE, COMMENT_AGENTS.QUINN]
 };

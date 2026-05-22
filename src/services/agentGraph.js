@@ -1,6 +1,11 @@
 /**
  * LangGraph Autonomous Post Generation Agent
  * Self-correcting workflow: Draft → Critique → Improve → Publish
+ *
+ * Meet the Content Planning Team:
+ * - Lily 📝: The Creative Writer (generates engaging drafts)
+ * - Marcus 🎯: The Quality Critic (ensures excellence)
+ * - Kai 📊: The Strategy Optimizer (refines with feedback)
  */
 
 // Node.js 18 compatibility: polyfill crypto for uuid module
@@ -15,6 +20,13 @@ const { ChatOpenAI } = require("@langchain/openai");
 const MAX_RETRIES = 3;
 const QUALITY_THRESHOLD = 8; // Score out of 10
 
+// Agent personalities
+const AGENTS = {
+  LILY: { name: 'Lily', emoji: '📝', role: 'Creative Writer', action: 'drafting' },
+  MARCUS: { name: 'Marcus', emoji: '🎯', role: 'Quality Critic', action: 'reviewing' },
+  KAI: { name: 'Kai', emoji: '📊', role: 'Strategy Optimizer', action: 'optimizing' }
+};
+
 /**
  * State schema for the agent workflow
  */
@@ -27,6 +39,8 @@ const GraphState = Annotation.Root({
   feedback: Annotation({ default: "" }),
   retryCount: Annotation({ default: 0 }),
   error: Annotation({ default: null }),
+  agentStatus: Annotation({ default: "" }), // Current agent activity for UI
+  agentLog: Annotation({ default: [] }), // Activity history
 });
 
 /**
@@ -47,11 +61,20 @@ function getModel() {
 }
 
 /**
- * Node 1: Draft Writer Agent
+ * Node 1: Draft Writer Agent (Lily)
  * Generates social media post optimized for platform
  */
 async function draftNode(state) {
   try {
+    const agentLog = [...(state.agentLog || [])];
+    const attemptNum = (state.retryCount || 0) + 1;
+    const status = attemptNum === 1
+      ? `${AGENTS.LILY.emoji} ${AGENTS.LILY.name} is ${AGENTS.LILY.action} your ${state.platform} post...`
+      : `${AGENTS.KAI.emoji} ${AGENTS.KAI.name} is ${AGENTS.KAI.action} based on ${AGENTS.MARCUS.name}'s feedback (attempt ${attemptNum})...`;
+
+    agentLog.push({ agent: attemptNum === 1 ? 'Lily' : 'Kai', action: attemptNum === 1 ? 'drafting' : 'optimizing', timestamp: new Date().toISOString() });
+    console.log(`[AgentGraph] ${status}`);
+
     const model = getModel();
 
     const brandContext = state.brandSettings
@@ -101,7 +124,9 @@ Write ONLY the post caption. No explanations or meta-commentary.`;
     return {
       draft,
       retryCount: (state.retryCount || 0) + 1,
-      error: null
+      error: null,
+      agentStatus: status,
+      agentLog
     };
   } catch (error) {
     console.error('[AgentGraph] Draft generation error:', error);
@@ -113,7 +138,7 @@ Write ONLY the post caption. No explanations or meta-commentary.`;
 }
 
 /**
- * Node 2: Critique Agent
+ * Node 2: Critique Agent (Marcus)
  * Evaluates draft quality and provides feedback
  */
 async function critiqueNode(state) {
@@ -125,6 +150,11 @@ async function critiqueNode(state) {
         feedback: state.error || "No draft to critique"
       };
     }
+
+    const agentLog = [...(state.agentLog || [])];
+    const status = `${AGENTS.MARCUS.emoji} ${AGENTS.MARCUS.name} is ${AGENTS.MARCUS.action} the quality...`;
+    agentLog.push({ agent: 'Marcus', action: 'reviewing', timestamp: new Date().toISOString() });
+    console.log(`[AgentGraph] ${status}`);
 
     const model = getModel();
     const platform = state.platform || 'instagram';
@@ -178,7 +208,9 @@ You MUST respond with ONLY valid JSON in this exact format:
 
     return {
       critiqueScore: validScore,
-      feedback: result.feedback || ""
+      feedback: result.feedback || "",
+      agentStatus: status,
+      agentLog
     };
   } catch (error) {
     console.error('[AgentGraph] Critique error:', error);
@@ -196,24 +228,24 @@ You MUST respond with ONLY valid JSON in this exact format:
 function shouldContinue(state) {
   // Stop if error occurred
   if (state.error) {
-    console.log('[AgentGraph] Stopping due to error:', state.error);
+    console.log(`[AgentGraph] ❌ Stopping due to error: ${state.error}`);
     return END;
   }
 
   // Stop if quality threshold met
   if (state.critiqueScore >= QUALITY_THRESHOLD) {
-    console.log(`[AgentGraph] Quality threshold met (${state.critiqueScore}/${QUALITY_THRESHOLD}). Publishing.`);
+    console.log(`[AgentGraph] ✅ ${AGENTS.MARCUS.name} approved! Score: ${state.critiqueScore}/${QUALITY_THRESHOLD}. Ready to publish.`);
     return END;
   }
 
   // Stop if max retries reached
   if (state.retryCount >= MAX_RETRIES) {
-    console.log(`[AgentGraph] Max retries reached (${state.retryCount}/${MAX_RETRIES}). Using best draft with score ${state.critiqueScore}.`);
+    console.log(`[AgentGraph] ⏰ Max attempts reached (${state.retryCount}/${MAX_RETRIES}). Using best draft with score ${state.critiqueScore}.`);
     return END;
   }
 
   // Otherwise, retry with feedback
-  console.log(`[AgentGraph] Score ${state.critiqueScore}/${QUALITY_THRESHOLD}. Retry ${state.retryCount}/${MAX_RETRIES}. Feedback: ${state.feedback}`);
+  console.log(`[AgentGraph] 🔄 ${AGENTS.MARCUS.name} says: Score ${state.critiqueScore}/${QUALITY_THRESHOLD}. Sending to ${AGENTS.KAI.name} for optimization...`);
   return "writer";
 }
 
@@ -258,7 +290,7 @@ async function generateAutonomousPost(config) {
       throw new Error('Agent failed to generate any draft content');
     }
 
-    console.log(`[AgentGraph] Completed. Final score: ${result.critiqueScore}/10 after ${result.retryCount} attempts`);
+    console.log(`[AgentGraph] ✨ Content ready! Final score: ${result.critiqueScore}/10 after ${result.retryCount} attempts`);
 
     return {
       success: true,
@@ -266,10 +298,12 @@ async function generateAutonomousPost(config) {
       score: result.critiqueScore,
       attempts: result.retryCount,
       feedback: result.feedback,
+      agentLog: result.agentLog || [],
       metadata: {
         platform,
         niche,
-        qualityThresholdMet: result.critiqueScore >= QUALITY_THRESHOLD
+        qualityThresholdMet: result.critiqueScore >= QUALITY_THRESHOLD,
+        agents: `${AGENTS.LILY.name} → ${AGENTS.MARCUS.name}${result.retryCount > 1 ? ` → ${AGENTS.KAI.name}` : ''}`
       }
     };
   } catch (error) {
@@ -284,5 +318,7 @@ async function generateAutonomousPost(config) {
 
 module.exports = {
   autonomousPostGenerator,
-  generateAutonomousPost
+  generateAutonomousPost,
+  AGENTS, // Export agent personalities
+  CONTENT_PLANNING_TEAM: [AGENTS.LILY, AGENTS.MARCUS, AGENTS.KAI]
 };
