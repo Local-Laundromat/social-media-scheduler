@@ -49,6 +49,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
 
     if (!response.ok) {
+      console.error('[Dashboard] Auth failed:', response.status, response.statusText);
+      const errorText = await response.text();
+      console.error('[Dashboard] Response:', errorText);
       localStorage.removeItem('auth_token');
       window.location.href = '/login';
       return;
@@ -61,7 +64,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Update UI
     initializeDashboard();
   } catch (error) {
-    console.error('Auth error:', error);
+    console.error('[Dashboard] Auth error:', error);
+    console.error('[Dashboard] Error details:', error.message, error.stack);
     localStorage.removeItem('auth_token');
     window.location.href = '/login';
   }
