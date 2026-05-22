@@ -8,6 +8,7 @@ const router = express.Router();
 const { supabase } = require('../database/supabase');
 const { generateAutonomousPost } = require('../services/agentGraph');
 const { authenticateToken } = require('../middleware/auth');
+const { checkAIQuota, trackAIUsage } = require('../services/usageTracking');
 
 /**
  * POST /api/agent/generate-post
@@ -38,6 +39,23 @@ router.post('/generate-post', authenticateToken, async (req, res) => {
       return res.status(400).json({
         success: false,
         error: `Invalid platform. Must be one of: ${validPlatforms.join(', ')}`
+      });
+    }
+
+    // CHECK QUOTA BEFORE RUNNING AI
+    const quotaCheck = await checkAIQuota(userId);
+    if (!quotaCheck.allowed) {
+      return res.status(429).json({
+        success: false,
+        error: quotaCheck.error || 'AI usage limit exceeded',
+        code: 'AI_QUOTA_EXCEEDED',
+        usage: {
+          current: quotaCheck.current,
+          limit: quotaCheck.limit,
+          resetDate: quotaCheck.resetDate
+        },
+        message: `You've used ${quotaCheck.current}/${quotaCheck.limit} AI plans this month. Upgrade your plan or wait until ${quotaCheck.resetDate ? new Date(quotaCheck.resetDate).toLocaleDateString() : 'next month'} for reset.`,
+        cta: 'Upgrade Plan'
       });
     }
 
@@ -76,6 +94,9 @@ router.post('/generate-post', authenticateToken, async (req, res) => {
         details: agentResult.error
       });
     }
+
+    // TRACK USAGE AFTER SUCCESSFUL GENERATION
+    await trackAIUsage(userId, agentResult.attempts || 1);
 
     // If saveToQueue is false, just return the draft
     if (!saveToQueue) {
@@ -191,6 +212,22 @@ router.post('/generate-batch', authenticateToken, async (req, res) => {
       });
     }
 
+    // CHECK QUOTA for batch generation
+    const quotaCheck = await checkAIQuota(userId);
+    if (!quotaCheck.allowed) {
+      return res.status(429).json({
+        success: false,
+        error: 'AI usage limit exceeded',
+        code: 'AI_QUOTA_EXCEEDED',
+        usage: {
+          current: quotaCheck.current,
+          limit: quotaCheck.limit,
+          resetDate: quotaCheck.resetDate
+        },
+        message: `You've used ${quotaCheck.current}/${quotaCheck.limit} AI plans this month. Cannot generate batch.`
+      });
+    }
+
     const postCount = Math.min(Math.max(1, count), 10); // Clamp 1-10
 
     // Fetch brand settings once
@@ -221,6 +258,9 @@ router.post('/generate-batch', authenticateToken, async (req, res) => {
           });
 
           if (agentResult.success) {
+            // Track usage for each successful generation
+            await trackAIUsage(userId, agentResult.attempts || 1);
+
             // Calculate scheduled time
             let scheduledAt = null;
             if (startDate) {

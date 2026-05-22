@@ -1,8 +1,20 @@
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+
+// Import security middleware
+const {
+  configureHelmet,
+  configureCORS,
+  generalLimiter,
+  authLimiter,
+  aiLimiter,
+  sanitizeInputs,
+  securityLogger,
+  securityErrorHandler,
+  cookieParser
+} = require('./middleware/security');
 
 // Import routes and services
 const apiRoutes = require('./routes/api'); // External API for OmniBroker/Sun Production
@@ -23,10 +35,31 @@ const scheduler = require('./services/scheduler');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// ============================================
+// SECURITY MIDDLEWARE (Applied First)
+// ============================================
+
+// Security headers
+app.use(configureHelmet());
+
+// CORS protection
+app.use(configureCORS());
+
+// Cookie parsing (for httpOnly session cookies)
+app.use(cookieParser);
+
+// Body parsing
+app.use(express.json({ limit: '10mb' })); // Limit payload size
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Input sanitization (XSS protection)
+app.use(sanitizeInputs);
+
+// Request logging (security audit trail)
+app.use(securityLogger);
+
+// General rate limiting
+app.use(generalLimiter);
 
 // Create data directory if it doesn't exist
 const dataDir = path.join(__dirname, '../data');
@@ -49,20 +82,28 @@ app.get('/dashboard.js', (req, res) => {
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, '../public')));
 
-// Routes
-app.use('/api', apiRoutes); // External API for OmniBroker/Sun Production
-app.use('/api', aiCaptionRoutes);
-app.use('/api/auth', authApiRoutes); // Supabase Auth (signup, login, password reset)
-app.use('/api/users', userRoutes); // External user management
+// ============================================
+// API ROUTES (with rate limiting)
+// ============================================
+
+// Authentication routes (strict rate limiting)
+app.use('/api/auth', authLimiter, authApiRoutes);
+app.use('/auth', authRoutes); // OAuth routes (Facebook/Instagram)
+
+// AI-powered routes (AI usage rate limiting)
+app.use('/api/agent', aiLimiter, agentPostRoutes);
+app.use('/api/agent', aiLimiter, agentCommentsRoutes);
+app.use('/api/rag', aiLimiter, ragCaptionRoutes);
+app.use('/api/content-planner', aiLimiter, contentPlannerRoutes);
+app.use('/api', aiLimiter, aiCaptionRoutes);
+
+// Standard API routes (general rate limiting already applied globally)
+app.use('/api', apiRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/csv', csvRoutes);
 app.use('/api/comments', commentsRoutes);
-app.use('/api/reviews', reviewsRoutes); // Google Business Reviews
-app.use('/api/agent', agentPostRoutes); // LangGraph autonomous post generation
-app.use('/api/agent', agentCommentsRoutes); // LangGraph multi-agent comment system
-app.use('/api/rag', ragCaptionRoutes); // RAG-powered caption generation
-app.use('/api/content-planner', contentPlannerRoutes); // LangGraph content planning agent
-app.use('/auth', authRoutes); // OAuth routes (Facebook/Instagram)
+app.use('/api/reviews', reviewsRoutes);
 
 // Page routes
 app.get('/', (req, res) => {
@@ -113,6 +154,11 @@ app.get('/health', (req, res) => {
 // Serve uploaded files (for Instagram public URLs)
 app.use('/files', express.static(process.env.MEDIA_FOLDER || '/Users/aminatamansaray/Downloads/PK Property/Combined Social Media Posts'));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// ============================================
+// ERROR HANDLING (Must be last)
+// ============================================
+app.use(securityErrorHandler);
 
 // Start server
 app.listen(PORT, () => {
