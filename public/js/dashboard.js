@@ -3,6 +3,7 @@
 let currentUser = null;
 let uploadedFile = null;
 let socialAccounts = { facebook: [], instagram: [], tiktok: [], pinterest: [], youtube: [], google: [] };
+let currentGlobalAccount = null; // Global account filter: { platform: 'facebook', accountId: '123', name: 'Page Name' }
 
 /** Ensure social_accounts from API always has array fields (avoids .forEach on undefined). */
 function normalizeSocialAccounts(sa) {
@@ -95,6 +96,9 @@ function initializeDashboard() {
 
   // Populate account selectors (no API call, just UI)
   populateAccountSelectors();
+
+  // Populate global account switcher
+  populateGlobalAccountSwitcher();
 
   // DEFER: Load posts only when Posts tab is opened
   // DEFER: Load settings only when Settings tab is opened
@@ -3355,6 +3359,177 @@ async function submitBulkPosts() {
     console.error('Bulk submit error:', error);
     notify('Failed to submit posts: ' + error.message, 'error');
     showBulkReviewStep();
+  }
+}
+
+// ===== GLOBAL ACCOUNT SWITCHER =====
+
+// Populate global account switcher dropdown
+function populateGlobalAccountSwitcher() {
+  const switcher = document.getElementById('globalAccountSwitcher');
+  const select = document.getElementById('globalAccountSelect');
+
+  // Collect all accounts across all platforms
+  let allAccounts = [];
+
+  // Facebook Pages
+  if (socialAccounts.facebook && socialAccounts.facebook.length > 0) {
+    socialAccounts.facebook.forEach((acc, idx) => {
+      allAccounts.push({
+        platform: 'facebook',
+        platformName: 'Facebook',
+        accountId: acc.page_id || acc.id || idx,
+        name: acc.page_name || acc.name || `Facebook Page ${idx + 1}`,
+        icon: '📘'
+      });
+    });
+  }
+
+  // Instagram Accounts
+  if (socialAccounts.instagram && socialAccounts.instagram.length > 0) {
+    socialAccounts.instagram.forEach((acc, idx) => {
+      allAccounts.push({
+        platform: 'instagram',
+        platformName: 'Instagram',
+        accountId: acc.instagram_business_account_id || acc.id || idx,
+        name: acc.username || acc.name || `Instagram Account ${idx + 1}`,
+        icon: '📷'
+      });
+    });
+  }
+
+  // TikTok Accounts
+  if (socialAccounts.tiktok && socialAccounts.tiktok.length > 0) {
+    socialAccounts.tiktok.forEach((acc, idx) => {
+      allAccounts.push({
+        platform: 'tiktok',
+        platformName: 'TikTok',
+        accountId: acc.open_id || acc.id || idx,
+        name: acc.display_name || acc.name || `TikTok Account ${idx + 1}`,
+        icon: '🎵'
+      });
+    });
+  }
+
+  // Pinterest Accounts
+  if (socialAccounts.pinterest && socialAccounts.pinterest.length > 0) {
+    socialAccounts.pinterest.forEach((acc, idx) => {
+      allAccounts.push({
+        platform: 'pinterest',
+        platformName: 'Pinterest',
+        accountId: acc.pinterest_user_id || acc.id || idx,
+        name: acc.username || acc.name || `Pinterest Account ${idx + 1}`,
+        icon: '📌'
+      });
+    });
+  }
+
+  // YouTube Channels
+  if (socialAccounts.youtube && socialAccounts.youtube.length > 0) {
+    socialAccounts.youtube.forEach((acc, idx) => {
+      allAccounts.push({
+        platform: 'youtube',
+        platformName: 'YouTube',
+        accountId: acc.channel_id || acc.id || idx,
+        name: acc.channel_title || acc.name || `YouTube Channel ${idx + 1}`,
+        icon: '📺'
+      });
+    });
+  }
+
+  // Google Business Profiles
+  if (socialAccounts.google && socialAccounts.google.length > 0) {
+    socialAccounts.google.forEach((acc, idx) => {
+      allAccounts.push({
+        platform: 'google',
+        platformName: 'Google Business',
+        accountId: acc.id || idx,
+        name: acc.business_name || acc.account_display_name || acc.location_name || `Google Business ${idx + 1}`,
+        icon: '🏢'
+      });
+    });
+  }
+
+  // Show switcher only if user has multiple accounts
+  if (allAccounts.length > 1) {
+    switcher.style.display = 'block';
+
+    // Build dropdown options
+    select.innerHTML = '<option value="">All Accounts</option>';
+
+    // Group by platform
+    const platforms = ['facebook', 'instagram', 'tiktok', 'pinterest', 'youtube', 'google'];
+    platforms.forEach(platform => {
+      const platformAccounts = allAccounts.filter(acc => acc.platform === platform);
+      if (platformAccounts.length > 0) {
+        platformAccounts.forEach(acc => {
+          const value = JSON.stringify({ platform: acc.platform, accountId: acc.accountId });
+          select.innerHTML += `<option value='${value}'>${acc.icon} ${acc.name}</option>`;
+        });
+      }
+    });
+  } else {
+    switcher.style.display = 'none';
+  }
+}
+
+// Switch global account filter
+function switchGlobalAccount() {
+  const select = document.getElementById('globalAccountSelect');
+  const value = select.value;
+
+  if (!value) {
+    // "All Accounts" selected
+    currentGlobalAccount = null;
+  } else {
+    try {
+      currentGlobalAccount = JSON.parse(value);
+    } catch (e) {
+      console.error('Failed to parse account selection:', e);
+      currentGlobalAccount = null;
+    }
+  }
+
+  // Reload current tab data with new filter
+  const activeTab = document.querySelector('.tab.active');
+  if (activeTab) {
+    const tabName = activeTab.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+    if (tabName) {
+      // Reload data for current tab
+      refreshCurrentTab(tabName);
+    }
+  }
+
+  // Update welcome message
+  if (currentGlobalAccount) {
+    const accountName = select.options[select.selectedIndex].text.replace(/^[^\s]+\s/, ''); // Remove emoji
+    document.getElementById('welcomeSubtitle').textContent = `Viewing: ${accountName}`;
+  } else {
+    document.getElementById('welcomeSubtitle').textContent = 'Queue. Post. Grow.';
+  }
+}
+
+// Refresh current tab data based on global account filter
+function refreshCurrentTab(tabName) {
+  switch (tabName) {
+    case 'posts':
+      loadPosts();
+      break;
+    case 'comments':
+      if (typeof loadComments === 'function') loadComments();
+      break;
+    case 'reviews':
+      if (typeof loadReviews === 'function') loadReviews();
+      break;
+    case 'analytics':
+      loadAnalytics();
+      break;
+    case 'calendar':
+      loadCalendar();
+      break;
+    default:
+      // No action for other tabs
+      break;
   }
 }
 

@@ -928,6 +928,12 @@
       <img src="/logo.svg" alt="Quu">
     </h1>
     <div class="topbar-right">
+      <!-- Global Account Switcher -->
+      <div id="globalAccountSwitcher" style="display: none; margin-right: 16px;">
+        <select id="globalAccountSelect" onchange="switchGlobalAccount()" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; background: white; font-size: 14px; min-width: 200px; max-width: 250px;">
+          <option value="">All Accounts</option>
+        </select>
+      </div>
       <div class="user-menu" id="userMenu">
         <span id="userName">Loading...</span>
       </div>
