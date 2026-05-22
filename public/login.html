@@ -276,7 +276,7 @@
         <label>Password</label>
         <div class="password-wrapper">
           <input type="password" id="password" placeholder="••••••••" required>
-          <button type="button" class="toggle-password" onclick="togglePasswordVisibility()">
+          <button type="button" class="toggle-password" id="togglePasswordBtn">
             <span id="eyeIcon">👁️</span>
           </button>
         </div>
@@ -323,7 +323,7 @@
     </div>
 
     <div class="toggle-form" id="forgotPasswordLink" style="margin-top: 10px;">
-      <a href="#" onclick="showForgotPassword(event)" style="color: #6b7280; font-size: 13px;">Forgot password?</a>
+      <a href="#" id="forgotPasswordBtn" style="color: #6b7280; font-size: 13px;">Forgot password?</a>
     </div>
   </div>
 
@@ -555,6 +555,10 @@
         eyeIcon.textContent = '👁️';
       }
     }
+
+    // Attach event listeners
+    document.getElementById('togglePasswordBtn').addEventListener('click', togglePasswordVisibility);
+    document.getElementById('forgotPasswordBtn').addEventListener('click', showForgotPassword);
 
     // Check if already logged in
     const authToken = localStorage.getItem('auth_token');
