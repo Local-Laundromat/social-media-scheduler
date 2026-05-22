@@ -101,10 +101,9 @@ COMMENT ON FUNCTION public.increment_user_usage(uuid) IS 'Increment user usage c
 -- ============================================
 -- 2. FIX: SECURITY DEFINER Function Exposure
 -- ============================================
--- The handle_new_user function should not be callable by anon/authenticated users
--- It should only be callable by the trigger, not via RPC
+-- These functions should not be callable by anon/authenticated users via RPC
 
--- Revoke EXECUTE permissions from anon and authenticated roles
+-- Revoke EXECUTE permissions from anon and authenticated roles on trigger functions
 REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM anon;
 REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM authenticated;
 REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM public;
@@ -113,6 +112,29 @@ REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM public;
 GRANT EXECUTE ON FUNCTION public.handle_new_user() TO postgres;
 
 COMMENT ON FUNCTION public.handle_new_user() IS 'Trigger-only function - not callable via RPC';
+
+-- Revoke public access from usage tracking functions
+-- These should only be called by the service role, not by clients
+REVOKE EXECUTE ON FUNCTION public.check_user_has_quota(uuid) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.check_user_has_quota(uuid) FROM authenticated;
+REVOKE EXECUTE ON FUNCTION public.check_user_has_quota(uuid) FROM public;
+
+REVOKE EXECUTE ON FUNCTION public.increment_user_usage(uuid) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.increment_user_usage(uuid) FROM authenticated;
+REVOKE EXECUTE ON FUNCTION public.increment_user_usage(uuid) FROM public;
+
+REVOKE EXECUTE ON FUNCTION public.reset_monthly_usage() FROM anon;
+REVOKE EXECUTE ON FUNCTION public.reset_monthly_usage() FROM authenticated;
+REVOKE EXECUTE ON FUNCTION public.reset_monthly_usage() FROM public;
+
+-- Grant EXECUTE only to service role (server-side only)
+GRANT EXECUTE ON FUNCTION public.check_user_has_quota(uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.increment_user_usage(uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.reset_monthly_usage() TO service_role;
+
+COMMENT ON FUNCTION public.check_user_has_quota(uuid) IS 'Service role only - check user quota';
+COMMENT ON FUNCTION public.increment_user_usage(uuid) IS 'Service role only - increment usage counter';
+COMMENT ON FUNCTION public.reset_monthly_usage() IS 'Service role only - reset monthly counters';
 
 -- ============================================
 -- 3. FIX: Overly Permissive RLS Policies
