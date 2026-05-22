@@ -486,7 +486,17 @@ async function loadPosts() {
   const postsList = document.getElementById('postsList');
 
   try {
-    const response = await fetch(`/api/users/${currentUser.id}/posts`, {
+    // Build URL with optional account filter
+    let url = `/api/users/${currentUser.id}/posts`;
+    if (currentGlobalAccount) {
+      const params = new URLSearchParams({
+        platform: currentGlobalAccount.platform,
+        accountId: currentGlobalAccount.accountId
+      });
+      url += `?${params.toString()}`;
+    }
+
+    const response = await fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 

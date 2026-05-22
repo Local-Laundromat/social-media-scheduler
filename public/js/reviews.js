@@ -16,9 +16,9 @@ async function loadReviews(syncNew = false) {
 
     let url = syncNew ? '/api/reviews?syncNew=true' : '/api/reviews';
 
-    // Add accountId if selected
-    if (currentAccountId) {
-      url += (syncNew ? '&' : '?') + `accountId=${currentAccountId}`;
+    // Use global account switcher if available and it's a Google Business account
+    if (typeof currentGlobalAccount !== 'undefined' && currentGlobalAccount && currentGlobalAccount.platform === 'google_business') {
+      url += (syncNew ? '&' : '?') + `accountId=${currentGlobalAccount.accountId}`;
     }
 
     const response = await fetch(url, {

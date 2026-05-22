@@ -11,10 +11,11 @@ const path = require('path');
 
 /**
  * GET /api/posts - Get all posts
+ * Supports filtering by status, platform, and accountId
  */
 router.get('/posts', optionalApiKey, async (req, res) => {
   try {
-    const { status, limit = 100 } = req.query;
+    const { status, limit = 100, platform, accountId } = req.query;
 
     let query = supabase
       .from('posts')
@@ -26,11 +27,35 @@ router.get('/posts', optionalApiKey, async (req, res) => {
       query = query.eq('status', status);
     }
 
+    // Filter by specific account if provided
+    if (platform && accountId) {
+      switch (platform) {
+        case 'facebook':
+          query = query.eq('facebook_page_id', accountId);
+          break;
+        case 'instagram':
+          query = query.eq('instagram_account_id', accountId);
+          break;
+        case 'tiktok':
+          query = query.eq('tiktok_open_id', accountId);
+          break;
+        case 'pinterest':
+          query = query.eq('pinterest_user_id', accountId);
+          break;
+        case 'youtube':
+          query = query.eq('youtube_channel_id', accountId);
+          break;
+        case 'google_business':
+          query = query.eq('google_business_location_id', accountId);
+          break;
+      }
+    }
+
     const { data: posts, error } = await query;
 
     if (error) throw error;
 
-    console.log(`📊 GET /api/posts - Found ${posts?.length || 0} posts`);
+    console.log(`📊 GET /api/posts - Found ${posts?.length || 0} posts${platform && accountId ? ` for ${platform} account ${accountId}` : ''}`);
     res.json({ posts: posts || [] });
   } catch (err) {
     console.error('❌ GET /api/posts error:', err);
@@ -143,13 +168,46 @@ router.post('/posts', optionalApiKey, async (req, res) => {
       webhook_url: webhook
     };
 
+    // Store PLATFORM-SPECIFIC ACCOUNT IDs for multi-account filtering
+    // Frontend sends database IDs, we need to look up platform IDs
     if (facebook_account_id != null && facebook_account_id !== '') {
+      // Look up the Facebook page_id
+      const { data: fbAccount } = await supabase
+        .from('facebook_accounts')
+        .select('page_id')
+        .eq('id', facebook_account_id)
+        .single();
+      if (fbAccount?.page_id) {
+        postPayload.facebook_page_id = fbAccount.page_id;
+      }
+      // Also store old field for backwards compatibility
       postPayload.facebook_account_id = Number(facebook_account_id);
     }
+
     if (instagram_account_id != null && instagram_account_id !== '') {
-      postPayload.instagram_account_id = Number(instagram_account_id);
+      // Look up the Instagram account_id (business account ID)
+      const { data: igAccount } = await supabase
+        .from('instagram_accounts')
+        .select('account_id')
+        .eq('id', instagram_account_id)
+        .single();
+      if (igAccount?.account_id) {
+        postPayload.instagram_account_id = igAccount.account_id;
+      }
+      // Note: instagram_account_id now stores the platform-specific ID
     }
+
     if (tiktok_account_id != null && tiktok_account_id !== '') {
+      // Look up the TikTok open_id
+      const { data: ttAccount } = await supabase
+        .from('tiktok_accounts')
+        .select('open_id')
+        .eq('id', tiktok_account_id)
+        .single();
+      if (ttAccount?.open_id) {
+        postPayload.tiktok_open_id = ttAccount.open_id;
+      }
+      // Also store old field for backwards compatibility
       postPayload.tiktok_account_id = Number(tiktok_account_id);
     }
 

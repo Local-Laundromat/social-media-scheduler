@@ -11,12 +11,14 @@ const { supabase } = require('../database/supabase');
 
 /**
  * GET /api/comments/monitor - Get new comments with AI suggestions
+ * Supports filtering by platform and accountId
  */
 router.get('/monitor', authenticateSupabase, async (req, res) => {
   try {
     const userId = req.userId;
+    const { platform, accountId } = req.query;
 
-    const comments = await commentMonitor.monitorUserComments(userId);
+    const comments = await commentMonitor.monitorUserComments(userId, { platform, accountId });
 
     res.json({
       success: true,
@@ -198,18 +200,35 @@ router.post('/analyze', authenticateSupabase, async (req, res) => {
 
 /**
  * GET /api/comments/history - Get reply history
+ * Supports filtering by platform and accountId
  */
 router.get('/history', authenticateSupabase, async (req, res) => {
   try {
     const userId = req.userId;
     const limit = parseInt(req.query.limit) || 50;
+    const { platform, accountId } = req.query;
 
-    const { data: replies, error } = await supabase
+    let query = supabase
       .from('comment_replies')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(limit);
+
+    // Filter by specific account if provided
+    if (platform && accountId) {
+      // Only filter by platform first
+      query = query.eq('platform', platform);
+
+      // Then filter by platform-specific account ID
+      if (platform === 'facebook') {
+        query = query.eq('facebook_page_id', accountId);
+      } else if (platform === 'instagram') {
+        query = query.eq('instagram_account_id', accountId);
+      }
+    }
+
+    const { data: replies, error } = await query;
 
     if (error) throw error;
 

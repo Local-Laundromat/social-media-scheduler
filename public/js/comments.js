@@ -11,7 +11,17 @@ async function loadComments() {
   try {
     commentsList.innerHTML = '<div class="loading"><div class="spinner"></div>Loading comments...</div>';
 
-    const response = await fetch('/api/comments/monitor', {
+    // Build URL with optional account filter
+    let url = '/api/comments/monitor';
+    if (typeof currentGlobalAccount !== 'undefined' && currentGlobalAccount) {
+      const params = new URLSearchParams({
+        platform: currentGlobalAccount.platform,
+        accountId: currentGlobalAccount.accountId
+      });
+      url += `?${params.toString()}`;
+    }
+
+    const response = await fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 
@@ -309,7 +319,13 @@ async function showReplyHistory() {
   const token = localStorage.getItem('auth_token');
 
   try {
-    const response = await fetch('/api/comments/history?limit=50', {
+    // Build URL with optional account filter
+    let url = '/api/comments/history?limit=50';
+    if (typeof currentGlobalAccount !== 'undefined' && currentGlobalAccount) {
+      url += `&platform=${currentGlobalAccount.platform}&accountId=${currentGlobalAccount.accountId}`;
+    }
+
+    const response = await fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 
