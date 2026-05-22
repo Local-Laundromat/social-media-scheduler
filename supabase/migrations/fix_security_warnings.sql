@@ -98,6 +98,24 @@ $$;
 
 COMMENT ON FUNCTION public.increment_user_usage(uuid) IS 'Increment user usage counter with fixed search_path';
 
+-- Fix the overloaded increment_user_usage function (if it exists)
+-- This handles AI usage tracking with feature type, tokens, and cost
+DO $$
+BEGIN
+  -- Check if the function exists before altering it
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON p.pronamespace = n.oid
+    WHERE n.nspname = 'public'
+    AND p.proname = 'increment_user_usage'
+    AND pg_get_function_identity_arguments(p.oid) = 'p_user_id uuid, p_feature_type text, p_tokens_used integer, p_cost_usd numeric'
+  ) THEN
+    -- Alter the function to add search_path
+    ALTER FUNCTION public.increment_user_usage(uuid, text, integer, numeric)
+    SET search_path = public;
+  END IF;
+END $$;
+
 -- ============================================
 -- 2. FIX: SECURITY DEFINER Function Exposure
 -- ============================================
