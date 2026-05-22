@@ -289,9 +289,94 @@ function requireFeature(featureName) {
   };
 }
 
+/**
+ * Check if user can connect another social account based on their tier limits
+ * Call this BEFORE allowing new account connections
+ */
+async function checkAccountLimit(userId) {
+  try {
+    // Get user's subscription tier and current account count
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('subscription_tier')
+      .eq('id', userId)
+      .single();
+
+    if (profileError || !profile) {
+      return {
+        allowed: false,
+        error: 'User profile not found',
+        code: 'PROFILE_NOT_FOUND'
+      };
+    }
+
+    // Get tier limits from subscription_tiers table
+    const { data: tier, error: tierError } = await supabase
+      .from('subscription_tiers')
+      .select('max_social_accounts, tier_name')
+      .eq('tier_name', profile.subscription_tier)
+      .single();
+
+    if (tierError || !tier) {
+      // If no tier found, default to free tier with 0 accounts
+      return {
+        allowed: false,
+        error: 'No active subscription. Please upgrade to connect social accounts.',
+        code: 'NO_SUBSCRIPTION',
+        currentCount: 0,
+        limit: 0,
+        tier: 'none'
+      };
+    }
+
+    // Count total active accounts across all platforms
+    const accountTables = [
+      'facebook_accounts',
+      'instagram_accounts',
+      'tiktok_accounts',
+      'pinterest_accounts',
+      'youtube_accounts',
+      'google_business_accounts'
+    ];
+
+    let totalAccounts = 0;
+    for (const table of accountTables) {
+      const { count } = await supabase
+        .from(table)
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('is_active', true);
+
+      totalAccounts += count || 0;
+    }
+
+    // Check if user has reached their limit
+    const maxAccounts = tier.max_social_accounts;
+    const allowed = totalAccounts < maxAccounts;
+
+    return {
+      allowed,
+      currentCount: totalAccounts,
+      limit: maxAccounts,
+      tier: tier.tier_name,
+      error: allowed ? null : `Account limit reached. Your ${tier.tier_name} plan allows ${maxAccounts} social accounts.`,
+      code: allowed ? null : 'ACCOUNT_LIMIT_REACHED'
+    };
+
+  } catch (err) {
+    console.error('[AccountLimitCheck] Internal error:', err);
+    return {
+      allowed: false,
+      error: 'Failed to check account limits',
+      code: 'INTERNAL_ERROR'
+    };
+  }
+}
+
 module.exports = {
   verifyActivePaidUser,
   logUsage,
   logFailure,
-  requireFeature
+  requireFeature,
+  checkAccountLimit
 };

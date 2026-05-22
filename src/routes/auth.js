@@ -9,6 +9,7 @@ const {
   saveYouTubeAccount,
   saveGoogleBusinessAccount
 } = require('../database/supabase');
+const { checkAccountLimit } = require('../middleware/verifySubscription');
 
 /**
  * OAuth Configuration
@@ -136,6 +137,27 @@ router.get('/facebook/callback', async (req, res) => {
     try {
       // For testing, use user_id as the UUID (you'll need proper auth later)
       const userId = user_id;
+
+      // Check account limits before saving
+      const limitCheck = await checkAccountLimit(userId);
+      if (!limitCheck.allowed) {
+        return res.send(`
+          <html>
+          <body style="font-family: system-ui; text-align: center; padding: 40px;">
+            <h1 style="color: #f59e0b;">⚠️ Account Limit Reached</h1>
+            <p style="font-size: 16px; margin: 20px 0;">${limitCheck.error}</p>
+            <p style="color: #6b7280;">You have <strong>${limitCheck.currentCount}/${limitCheck.limit}</strong> accounts connected.</p>
+            <p style="margin: 30px 0;">
+              <a href="/settings#billing" style="background: #3b82f6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block;">
+                Upgrade Your Plan
+              </a>
+            </p>
+            <p style="color: #6b7280; font-size: 14px; margin-top: 20px;">You can close this window now.</p>
+            <script>setTimeout(() => window.close(), 8000);</script>
+          </body>
+          </html>
+        `);
+      }
 
       // Save Facebook account
       await saveFacebookAccount(userId, {
@@ -578,6 +600,27 @@ router.get('/pinterest/callback', async (req, res) => {
 
     // Save to Supabase
     try {
+      // Check account limits before saving
+      const limitCheck = await checkAccountLimit(user_id);
+      if (!limitCheck.allowed) {
+        return res.send(`
+          <html>
+          <body style="font-family: system-ui; text-align: center; padding: 40px;">
+            <h1 style="color: #f59e0b;">⚠️ Account Limit Reached</h1>
+            <p style="font-size: 16px; margin: 20px 0;">${limitCheck.error}</p>
+            <p style="color: #6b7280;">You have <strong>${limitCheck.currentCount}/${limitCheck.limit}</strong> accounts connected.</p>
+            <p style="margin: 30px 0;">
+              <a href="/settings#billing" style="background: #3b82f6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block;">
+                Upgrade Your Plan
+              </a>
+            </p>
+            <p style="color: #6b7280; font-size: 14px; margin-top: 20px;">You can close this window now.</p>
+            <script>setTimeout(() => window.close(), 8000);</script>
+          </body>
+          </html>
+        `);
+      }
+
       await savePinterestAccount(user_id, {
         account_id: accountId,
         username: username,
@@ -694,6 +737,27 @@ router.get('/youtube/callback', async (req, res) => {
 
     // Save to Supabase
     try {
+      // Check account limits before saving
+      const limitCheck = await checkAccountLimit(user_id);
+      if (!limitCheck.allowed) {
+        return res.send(`
+          <html>
+          <body style="font-family: system-ui; text-align: center; padding: 40px;">
+            <h1 style="color: #f59e0b;">⚠️ Account Limit Reached</h1>
+            <p style="font-size: 16px; margin: 20px 0;">${limitCheck.error}</p>
+            <p style="color: #6b7280;">You have <strong>${limitCheck.currentCount}/${limitCheck.limit}</strong> accounts connected.</p>
+            <p style="margin: 30px 0;">
+              <a href="/settings#billing" style="background: #3b82f6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block;">
+                Upgrade Your Plan
+              </a>
+            </p>
+            <p style="color: #6b7280; font-size: 14px; margin-top: 20px;">You can close this window now.</p>
+            <script>setTimeout(() => window.close(), 8000);</script>
+          </body>
+          </html>
+        `);
+      }
+
       await saveYouTubeAccount(user_id, {
         channel_id: channelId,
         channel_title: channelTitle,
@@ -823,6 +887,27 @@ router.get('/google/callback', async (req, res) => {
 
     // Save to Supabase
     try {
+      // Check account limits before saving
+      const limitCheck = await checkAccountLimit(user_id);
+      if (!limitCheck.allowed) {
+        return res.send(`
+          <html>
+          <body style="font-family: system-ui; text-align: center; padding: 40px;">
+            <h1 style="color: #f59e0b;">⚠️ Account Limit Reached</h1>
+            <p style="font-size: 16px; margin: 20px 0;">${limitCheck.error}</p>
+            <p style="color: #6b7280;">You have <strong>${limitCheck.currentCount}/${limitCheck.limit}</strong> accounts connected.</p>
+            <p style="margin: 30px 0;">
+              <a href="/settings#billing" style="background: #3b82f6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block;">
+                Upgrade Your Plan
+              </a>
+            </p>
+            <p style="color: #6b7280; font-size: 14px; margin-top: 20px;">You can close this window now.</p>
+            <script>setTimeout(() => window.close(), 8000);</script>
+          </body>
+          </html>
+        `);
+      }
+
       await saveGoogleBusinessAccount(user_id, {
         account_name: accountName,
         account_display_name: accountDisplayName,
