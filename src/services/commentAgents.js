@@ -267,9 +267,40 @@ async function responseGeneratorAgent(state, config) {
     const model = getModel(apiKey);
 
     const brandName = state.brandInfo.company || 'our team';
-    const brandVoice = state.brandInfo.voice || 'professional and friendly';
-    const contactEmail = state.brandInfo.contactInfo?.email || '';
-    const contactPhone = state.brandInfo.contactInfo?.phone || '';
+
+    // Use brand voice settings from profile
+    const brandVoice = state.brandInfo.brand_voice || {};
+    const tone = brandVoice.tone || 'friendly';
+    const customDescription = brandVoice.custom_description || '';
+    const emojiUsage = brandVoice.emoji_usage || 'moderate';
+    const responseLength = brandVoice.response_length || 'medium';
+    const contactEmail = brandVoice.contact_email || state.brandInfo.contactInfo?.email || '';
+    const contactPhone = brandVoice.contact_phone || state.brandInfo.contactInfo?.phone || '';
+
+    // Build tone description
+    const toneDescriptions = {
+      'friendly': 'warm, approachable, and conversational',
+      'professional': 'polished, formal, and business-appropriate',
+      'playful': 'fun, energetic, and lighthearted',
+      'expert': 'knowledgeable, authoritative, and confident',
+      'custom': customDescription || 'professional and friendly'
+    };
+    const toneDescription = tone === 'custom' ? customDescription : toneDescriptions[tone];
+
+    // Build emoji guidance
+    const emojiGuidance = {
+      'heavy': 'Use 3-4 emojis throughout the response for energy and warmth',
+      'moderate': 'Use 1-2 emojis strategically',
+      'light': 'Use 0-1 emoji if highly appropriate',
+      'none': 'Do not use any emojis - professional text only'
+    };
+
+    // Build length guidance
+    const lengthGuidance = {
+      'brief': 'Keep response very concise, under 30 words',
+      'medium': 'Keep response balanced, under 50 words',
+      'detailed': 'Provide thorough response, up to 80 words if needed'
+    };
 
     const prompt = `Generate a response to this ${state.platform} comment.
 
@@ -280,24 +311,24 @@ Sentiment: ${state.sentiment}
 
 Brand Information:
 - Company: ${brandName}
-- Voice: ${brandVoice}
+- Brand Voice: ${toneDescription}
 - Email: ${contactEmail}
 - Phone: ${contactPhone}
 
-Guidelines:
-- Match the brand voice perfectly
-- Keep under 50 words for ${state.platform}
-- Use 1-2 appropriate emojis
+Style Guidelines:
+- Voice & Tone: ${toneDescription}
+- Emoji Usage: ${emojiGuidance[emojiUsage]}
+- Response Length: ${lengthGuidance[responseLength]}
 - Be helpful and authentic
-- ${state.intent === 'complaint' ? 'Apologize and offer solution' : ''}
-- ${state.intent === 'inquiry' ? 'Provide contact info' : ''}
+- ${state.intent === 'complaint' ? 'Apologize sincerely and offer solution' : ''}
+- ${state.intent === 'inquiry' ? 'Provide contact info and encourage them to reach out' : ''}
 - ${state.intent === 'question' ? 'Answer directly or guide to resources' : ''}
-- ${state.intent === 'praise' ? 'Thank them warmly' : ''}
+- ${state.intent === 'praise' ? 'Thank them warmly and reinforce the positive' : ''}
 
-Generate 3 response options:
-1. Formal/Professional
-2. Friendly/Casual
-3. Empathetic/Personal
+Generate 3 response options that match the brand voice:
+1. Main suggestion (perfectly matches brand voice)
+2. Alternative approach (slightly different angle)
+3. Backup option (safe, generic)
 
 Respond with JSON:
 {

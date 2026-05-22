@@ -275,9 +275,40 @@ async function responseGeneratorAgent(state, config) {
     const model = getModel(apiKey);
 
     const businessName = state.businessName || state.brandInfo.company || 'our business';
-    const brandVoice = state.brandInfo.voice || 'professional, warm, and customer-focused';
-    const contactEmail = state.brandInfo.contactInfo?.email || '';
-    const contactPhone = state.brandInfo.contactInfo?.phone || '';
+
+    // Use brand voice settings from profile
+    const brandVoice = state.brandInfo.brand_voice || {};
+    const tone = brandVoice.tone || 'friendly';
+    const customDescription = brandVoice.custom_description || '';
+    const emojiUsage = brandVoice.emoji_usage || 'moderate';
+    const responseLength = brandVoice.response_length || 'medium';
+    const contactEmail = brandVoice.contact_email || state.brandInfo.contactInfo?.email || '';
+    const contactPhone = brandVoice.contact_phone || state.brandInfo.contactInfo?.phone || '';
+
+    // Build tone description
+    const toneDescriptions = {
+      'friendly': 'warm, approachable, and conversational',
+      'professional': 'polished, formal, and business-appropriate',
+      'playful': 'fun, energetic, and lighthearted',
+      'expert': 'knowledgeable, authoritative, and confident',
+      'custom': customDescription || 'professional and friendly'
+    };
+    const toneDescription = tone === 'custom' ? customDescription : toneDescriptions[tone];
+
+    // Build emoji guidance
+    const emojiGuidance = {
+      'heavy': 'Use 2-3 emojis throughout the response for warmth and energy',
+      'moderate': 'Use 1 emoji strategically (optional)',
+      'light': 'Use 0-1 emoji only if highly appropriate',
+      'none': 'Do not use any emojis - professional text only'
+    };
+
+    // Build length guidance (Google reviews support longer responses than comments)
+    const lengthGuidance = {
+      'brief': 'Keep response concise, under 50 words',
+      'medium': 'Keep response balanced, under 100 words',
+      'detailed': 'Provide thorough response, up to 150 words if needed'
+    };
 
     const prompt = `Generate a professional response to this Google Business review.
 
@@ -290,9 +321,17 @@ Key Topics: ${state.keyTopics.join(', ')}
 
 Business Information:
 - Name: ${businessName}
-- Voice: ${brandVoice}
+- Brand Voice: ${toneDescription}
 - Email: ${contactEmail}
 - Phone: ${contactPhone}
+
+Style Guidelines:
+- Voice & Tone: ${toneDescription}
+- Emoji Usage: ${emojiGuidance[emojiUsage]}
+- Response Length: ${lengthGuidance[responseLength]}
+- Be authentic and personalized (not generic templates)
+- Match brand voice perfectly
+- Sound human, not robotic
 
 Response Guidelines:
 ${state.starRating >= 4 ? `
@@ -315,18 +354,10 @@ ${state.starRating === 3 ? `
 - Invite further conversation
 ` : ''}
 
-Best Practices:
-- Keep under 100 words (concise and readable)
-- Use 0-1 professional emoji (optional)
-- Personalize (mention their name if appropriate)
-- Match brand voice perfectly
-- End with invitation to return or contact
-- Sound human, not robotic
-
-Generate 3 response variations:
-1. Formal/Professional
-2. Warm/Personable
-3. Concise/Direct
+Generate 3 response variations that match the brand voice:
+1. Main suggestion (perfectly matches brand voice)
+2. Alternative approach (slightly different angle)
+3. Backup option (safe, professional)
 
 Respond with JSON:
 {
