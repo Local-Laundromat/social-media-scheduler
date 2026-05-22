@@ -16,7 +16,7 @@ const { processReview } = require('../services/reviewAgents');
 router.get('/', authenticateSupabase, async (req, res) => {
   try {
     const userId = req.userId;
-    const { syncNew = 'false', accountId } = req.query;
+    const { syncNew = 'false', accountId, client_id } = req.query;
 
     // Get user's Google Business credentials
     let googleAccountsQuery = supabase
@@ -101,6 +101,7 @@ router.get('/', authenticateSupabase, async (req, res) => {
             .from('google_business_reviews')
             .insert({
               user_id: userId,
+              client_id: googleAccount.client_id || null,  // Link review to client
               location_name: googleAccount.location_name,
               review_name: review.name,
               reviewer_name: review.reviewer?.displayName || null,
@@ -130,6 +131,11 @@ router.get('/', authenticateSupabase, async (req, res) => {
     // Filter by account location if specified
     if (accountId && googleAccount) {
       reviewsQuery = reviewsQuery.eq('location_name', googleAccount.location_name);
+    }
+
+    // Filter by client if specified
+    if (client_id) {
+      reviewsQuery = reviewsQuery.eq('client_id', parseInt(client_id));
     }
 
     const { data: reviews, error } = await reviewsQuery
