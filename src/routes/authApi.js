@@ -400,6 +400,12 @@ router.get('/me', authenticateSupabaseToken, async (req, res) => {
         google_connected: googleAccounts?.length > 0,
         api_key: profile.api_key,
         webhook_url: profile.webhook_url,
+        openai_api_key: profile.openai_api_key,
+        brand_voice: profile.brand_voice || {
+          tone: 'friendly',
+          emoji_usage: 'moderate',
+          response_length: 'medium'
+        },
         created_at: profile.created_at,
         team_id: profile.team_id,
         role: profile.role

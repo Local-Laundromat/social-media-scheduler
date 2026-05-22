@@ -1829,6 +1829,64 @@
             </div>
           </div>
 
+          <!-- Brand Voice Settings -->
+          <div class="settings-section">
+            <h4>🎨 Brand Voice & Personality</h4>
+            <p style="color: #6b7280; font-size: 13px; margin-bottom: 16px;">
+              Customize how AI represents your brand in comments, reviews, and captions
+            </p>
+
+            <div class="form-group">
+              <label>Brand Voice Tone</label>
+              <select id="brandVoiceTone" style="width: 100%;">
+                <option value="friendly">Friendly & Casual</option>
+                <option value="professional">Professional & Formal</option>
+                <option value="playful">Playful & Fun</option>
+                <option value="expert">Expert & Authoritative</option>
+                <option value="custom">Custom (describe below)</option>
+              </select>
+            </div>
+
+            <div class="form-group" id="customVoiceGroup" style="display: none;">
+              <label>Custom Voice Description</label>
+              <textarea id="customVoiceDescription" placeholder="Describe your brand's unique voice and personality..." style="min-height: 80px;"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label>Emoji Usage</label>
+              <select id="emojiUsage" style="width: 100%;">
+                <option value="moderate">Moderate - A few emojis for warmth</option>
+                <option value="heavy">Heavy - Lots of emojis for energy</option>
+                <option value="light">Light - Minimal emojis</option>
+                <option value="none">None - Professional text only</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Response Length</label>
+              <select id="responseLength" style="width: 100%;">
+                <option value="medium">Medium - Balanced responses</option>
+                <option value="brief">Brief - Short and concise</option>
+                <option value="detailed">Detailed - Thorough explanations</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Contact Email (for AI replies)</label>
+              <input type="email" id="brandContactEmail" placeholder="support@yourcompany.com">
+              <div style="font-size: 12px; color: #6b7280; margin-top: 6px;">
+                AI will include this when customers need direct support
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Contact Phone (optional)</label>
+              <input type="tel" id="brandContactPhone" placeholder="(555) 123-4567">
+            </div>
+
+            <button class="btn btn-primary" id="saveBrandVoiceBtn" style="max-width: 200px;">Save Brand Voice</button>
+          </div>
+
           <div class="settings-section">
             <h4>OpenAI API Key (Optional)</h4>
             <p style="color: #6b7280; font-size: 13px; margin-bottom: 12px;">

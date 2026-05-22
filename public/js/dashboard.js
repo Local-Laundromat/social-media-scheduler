@@ -1114,6 +1114,23 @@ function loadSettings() {
   document.getElementById('settingsCompany').value = currentUser.company || '';
   document.getElementById('openaiApiKey').value = currentUser.openai_api_key || '';
 
+  // Load brand voice settings
+  const brandVoice = currentUser.brand_voice || {};
+  document.getElementById('brandVoiceTone').value = brandVoice.tone || 'friendly';
+  document.getElementById('customVoiceDescription').value = brandVoice.custom_description || '';
+  document.getElementById('emojiUsage').value = brandVoice.emoji_usage || 'moderate';
+  document.getElementById('responseLength').value = brandVoice.response_length || 'medium';
+  document.getElementById('brandContactEmail').value = brandVoice.contact_email || '';
+  document.getElementById('brandContactPhone').value = brandVoice.contact_phone || '';
+
+  // Show/hide custom voice description based on tone
+  const customVoiceGroup = document.getElementById('customVoiceGroup');
+  if (brandVoice.tone === 'custom') {
+    customVoiceGroup.style.display = 'block';
+  } else {
+    customVoiceGroup.style.display = 'none';
+  }
+
   // Load team information
   loadTeamInfo();
 
@@ -3646,6 +3663,42 @@ function refreshCurrentTab(tabName) {
   }
 }
 
+// Save brand voice settings
+async function saveBrandVoiceSettings() {
+  try {
+    const brandVoiceData = {
+      tone: document.getElementById('brandVoiceTone').value,
+      custom_description: document.getElementById('customVoiceDescription').value,
+      emoji_usage: document.getElementById('emojiUsage').value,
+      response_length: document.getElementById('responseLength').value,
+      contact_email: document.getElementById('brandContactEmail').value,
+      contact_phone: document.getElementById('brandContactPhone').value
+    };
+
+    const response = await window.SupabaseAuth.apiRequest('/api/profile/brand-voice', {
+      method: 'PUT',
+      body: JSON.stringify(brandVoiceData)
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      // Update local user object
+      currentUser.brand_voice = brandVoiceData;
+
+      notify('Brand voice settings saved successfully!', 'success');
+
+      // Clear settings cache so it reloads fresh next time
+      dataCache.lastLoaded.settings = 0;
+    } else {
+      notify('Failed to save brand voice settings: ' + (result.error || 'Unknown error'), 'error');
+    }
+  } catch (error) {
+    console.error('Error saving brand voice:', error);
+    notify('Failed to save brand voice settings: ' + error.message, 'error');
+  }
+}
+
 
 // ========================================
 // CSP-COMPLIANT EVENT LISTENERS SETUP
@@ -3789,6 +3842,20 @@ document.addEventListener('DOMContentLoaded', function() {
   // Global account selector
   const globalAccountSelect = document.getElementById('globalAccountSelect');
   if (globalAccountSelect) globalAccountSelect.addEventListener('change', switchGlobalAccount);
+
+  // Brand voice settings
+  const brandVoiceTone = document.getElementById('brandVoiceTone');
+  if (brandVoiceTone) brandVoiceTone.addEventListener('change', function() {
+    const customVoiceGroup = document.getElementById('customVoiceGroup');
+    if (this.value === 'custom') {
+      customVoiceGroup.style.display = 'block';
+    } else {
+      customVoiceGroup.style.display = 'none';
+    }
+  });
+
+  const saveBrandVoiceBtn = document.getElementById('saveBrandVoiceBtn');
+  if (saveBrandVoiceBtn) saveBrandVoiceBtn.addEventListener('click', saveBrandVoiceSettings);
 
   console.log('✓ All event listeners attached successfully (CSP-compliant)');
 });
