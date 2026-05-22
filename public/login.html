@@ -243,6 +243,82 @@
       display: block;
       margin-bottom: 4px;
     }
+
+    /* Forgot Password Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .modal-overlay.show {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 32px;
+      border-radius: 16px;
+      max-width: 450px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      animation: slideUp 0.4s ease-out;
+    }
+
+    .modal-header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .modal-header h2 {
+      font-size: 22px;
+      color: #1f2937;
+      margin-bottom: 8px;
+    }
+
+    .modal-header p {
+      font-size: 14px;
+      color: #6b7280;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: none;
+      border: none;
+      font-size: 28px;
+      color: #9ca3af;
+      cursor: pointer;
+      transition: color 0.2s;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-close:hover {
+      color: #374151;
+    }
+
+    .modal-form .btn {
+      margin-top: 8px;
+    }
+
+    .modal-content {
+      position: relative;
+    }
   </style>
 </head>
 <body>
@@ -253,10 +329,6 @@
       <p class="subtitle">Queue. Post. Grow.</p>
     </div>
 
-    <div id="integrationNote" class="integration-note" style="display: none;">
-      <strong>Coming from OmniBroker or Sun Production?</strong>
-      Create an account to connect your integration.
-    </div>
 
     <div id="errorMessage" class="error"></div>
     <div id="successMessage" class="success"></div>
@@ -317,13 +389,40 @@
       <button type="submit" class="btn" id="submitBtn">Sign In</button>
     </form>
 
-    <div class="toggle-form">
+    <div class="toggle-form" style="display: none;">
       <span id="toggleText">Don't have an account?</span>
       <a href="#" id="toggleLink">Sign Up</a>
     </div>
 
+    <div class="toggle-form">
+      <div style="background: #fef3c7; padding: 12px 16px; border-radius: 8px; font-size: 13px; color: #78350f; text-align: left; line-height: 1.5;">
+        <strong style="display: block; margin-bottom: 4px;">New Signups Coming Soon</strong>
+        We're adding payment processing and new features. Existing users can continue to log in normally. Contact support for early access.
+      </div>
+    </div>
+
     <div class="toggle-form" id="forgotPasswordLink" style="margin-top: 10px;">
       <a href="#" id="forgotPasswordBtn" style="color: #6b7280; font-size: 13px;">Forgot password?</a>
+    </div>
+  </div>
+
+  <!-- Forgot Password Modal -->
+  <div class="modal-overlay" id="forgotPasswordModal">
+    <div class="modal-content">
+      <button class="modal-close" id="closeModal">×</button>
+      <div class="modal-header">
+        <h2>🔑 Reset Your Password</h2>
+        <p>Enter your email and we'll send you a reset link</p>
+      </div>
+      <form id="forgotPasswordForm" class="modal-form">
+        <div class="form-group">
+          <label>Email Address</label>
+          <input type="email" id="resetEmail" placeholder="you@example.com" required>
+        </div>
+        <div id="modalError" class="error"></div>
+        <div id="modalSuccess" class="success"></div>
+        <button type="submit" class="btn">Send Reset Link</button>
+      </form>
     </div>
   </div>
 
@@ -343,18 +442,10 @@
     const joinTeamRadio = document.getElementById('joinTeamRadio');
     const errorMessage = document.getElementById('errorMessage');
     const successMessage = document.getElementById('successMessage');
-    const integrationNote = document.getElementById('integrationNote');
 
     // Check if coming from integration (query params)
     const urlParams = new URLSearchParams(window.location.search);
-    const fromApp = urlParams.get('from'); // e.g., ?from=omnibroker
     const returnUrl = urlParams.get('return_url');
-
-    if (fromApp) {
-      integrationNote.style.display = 'block';
-      isSignUp = true;
-      updateFormMode();
-    }
 
     // Toggle between sign in and sign up
     toggleLink.addEventListener('click', (e) => {
@@ -510,18 +601,39 @@
       }
     });
 
-    // Show forgot password modal
-    async function showForgotPassword(e) {
+    // Forgot password modal management
+    const forgotPasswordModal = document.getElementById('forgotPasswordModal');
+    const closeModal = document.getElementById('closeModal');
+    const forgotPasswordForm = document.getElementById('forgotPasswordForm');
+    const modalError = document.getElementById('modalError');
+    const modalSuccess = document.getElementById('modalSuccess');
+
+    function showForgotPassword(e) {
       e.preventDefault();
+      forgotPasswordModal.classList.add('show');
+      document.getElementById('resetEmail').value = '';
+      modalError.style.display = 'none';
+      modalSuccess.style.display = 'none';
+    }
 
-      const email = prompt('Enter your email address to receive a password reset link:');
+    function closeForgotPasswordModal() {
+      forgotPasswordModal.classList.remove('show');
+    }
 
-      if (!email) return;
+    closeModal.addEventListener('click', closeForgotPasswordModal);
 
-      if (!email.includes('@')) {
-        alert('Please enter a valid email address');
-        return;
+    forgotPasswordModal.addEventListener('click', (e) => {
+      if (e.target === forgotPasswordModal) {
+        closeForgotPasswordModal();
       }
+    });
+
+    forgotPasswordForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      modalError.style.display = 'none';
+      modalSuccess.style.display = 'none';
+
+      const email = document.getElementById('resetEmail').value;
 
       try {
         const response = await fetch('/api/auth/forgot-password', {
@@ -533,14 +645,20 @@
         const data = await response.json();
 
         if (data.success) {
-          showSuccess(data.message);
+          modalSuccess.textContent = data.message;
+          modalSuccess.style.display = 'block';
+          setTimeout(() => {
+            closeForgotPasswordModal();
+          }, 3000);
         } else {
-          showError(data.error || 'Failed to send reset email');
+          modalError.textContent = data.error || 'Failed to send reset email';
+          modalError.style.display = 'block';
         }
       } catch (error) {
-        showError('Failed to send reset email. Please try again.');
+        modalError.textContent = 'Failed to send reset email. Please try again.';
+        modalError.style.display = 'block';
       }
-    }
+    });
 
     // Toggle password visibility
     function togglePasswordVisibility() {

@@ -1449,6 +1449,14 @@
               <span style="font-size: 13px;">Pinterest</span>
             </div>
             <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 12px; height: 12px; border-radius: 50%; background: #ff0000;"></div>
+              <span style="font-size: 13px;">YouTube</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 12px; height: 12px; border-radius: 50%; background: #4285f4;"></div>
+              <span style="font-size: 13px;">Google</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
               <div style="width: 12px; height: 12px; border-radius: 50%; background: #fbbf24;"></div>
               <span style="font-size: 13px;">Pending</span>
             </div>
@@ -1559,6 +1567,22 @@
                 </div>
                 <div style="font-size: 28px; font-weight: 700; color: #e60023; margin-bottom: 4px;" id="analyticsPinterest">0</div>
                 <div style="font-size: 13px; color: #6b7280;" id="analyticsPinterestRate">0% of total posts</div>
+              </div>
+              <div style="padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                  <span style="font-size: 24px;">📺</span>
+                  <span style="font-weight: 600;">YouTube</span>
+                </div>
+                <div style="font-size: 28px; font-weight: 700; color: #ff0000; margin-bottom: 4px;" id="analyticsYouTube">0</div>
+                <div style="font-size: 13px; color: #6b7280;" id="analyticsYouTubeRate">0% of total posts</div>
+              </div>
+              <div style="padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                  <span style="font-size: 24px;">🏢</span>
+                  <span style="font-weight: 600;">Google Business</span>
+                </div>
+                <div style="font-size: 28px; font-weight: 700; color: #4285f4; margin-bottom: 4px;" id="analyticsGoogle">0</div>
+                <div style="font-size: 13px; color: #6b7280;" id="analyticsGoogleRate">0% of total posts</div>
               </div>
             </div>
           </div>
@@ -1760,9 +1784,9 @@
           <h3>Settings</h3>
 
           <div class="settings-section">
-            <h4>👋 Quu API Key</h4>
+            <h4>🔑 API Key</h4>
             <p style="color: #6b7280; font-size: 13px; margin-bottom: 12px;">
-              Use this API key to integrate with OmniBroker or Sun Production
+              Use this API key to integrate Quu with your external applications
             </p>
             <div class="api-key-display" id="apiKeyDisplay">Loading...</div>
             <button class="copy-btn">Copy API Key</button>
