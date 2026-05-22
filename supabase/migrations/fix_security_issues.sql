@@ -97,7 +97,6 @@ SELECT
     p.platforms,
     p.status,
     p.scheduled_time,
-    p.published_at,
     p.created_at,
     p.facebook_post_id,
     p.instagram_post_id,
