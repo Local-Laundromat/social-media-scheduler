@@ -1743,8 +1743,18 @@ async function renderCalendar(date) {
   const token = localStorage.getItem('auth_token');
 
   try {
+    // Build URL with optional account filter
+    let postsUrl = `/api/users/${currentUser.id}/posts`;
+    if (currentGlobalAccount) {
+      const params = new URLSearchParams({
+        platform: currentGlobalAccount.platform,
+        accountId: currentGlobalAccount.accountId
+      });
+      postsUrl += `?${params.toString()}`;
+    }
+
     // Fetch all posts
-    const response = await fetch(`/api/users/${currentUser.id}/posts`, {
+    const response = await fetch(postsUrl, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 
@@ -2072,8 +2082,18 @@ async function loadAnalytics() {
   const timeRange = document.getElementById('analyticsTimeRange').value;
 
   try {
+    // Build URL with optional account filter
+    let postsUrl = `/api/users/${currentUser.id}/posts`;
+    if (currentGlobalAccount) {
+      const params = new URLSearchParams({
+        platform: currentGlobalAccount.platform,
+        accountId: currentGlobalAccount.accountId
+      });
+      postsUrl += `?${params.toString()}`;
+    }
+
     const [postsRes, healthRes] = await Promise.all([
-      fetch(`/api/users/${currentUser.id}/posts`, {
+      fetch(postsUrl, {
         headers: { 'Authorization': `Bearer ${token}` }
       }),
       fetch('/health')
