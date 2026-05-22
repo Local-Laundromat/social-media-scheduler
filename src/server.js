@@ -37,6 +37,12 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ============================================
+// PROXY CONFIGURATION
+// ============================================
+// Trust proxy headers (required for Railway, Heroku, AWS, etc.)
+app.set('trust proxy', 1);
+
+// ============================================
 // SECURITY MIDDLEWARE (Applied First)
 // ============================================
 
