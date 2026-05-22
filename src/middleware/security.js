@@ -101,7 +101,9 @@ function configureCORS() {
   const allowedOrigins = [
     process.env.FRONTEND_URL || 'http://localhost:3000',
     'http://localhost:3000',
-    'http://127.0.0.1:3000'
+    'http://127.0.0.1:3000',
+    'https://quu.social',
+    'http://quu.social'
   ];
 
   return cors({
@@ -110,6 +112,7 @@ function configureCORS() {
       if (!origin) return callback(null, true);
 
       if (allowedOrigins.indexOf(origin) === -1) {
+        console.log('[CORS] Blocked origin:', origin);
         return callback(new Error('CORS policy violation'), false);
       }
 
