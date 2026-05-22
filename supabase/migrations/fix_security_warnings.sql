@@ -148,6 +148,7 @@ COMMENT ON FUNCTION public.reset_monthly_usage() IS 'Service role only - reset m
 
 -- Fix accounts table policy
 DROP POLICY IF EXISTS "Enable all access for service role" ON accounts;
+DROP POLICY IF EXISTS "Service role full access" ON accounts;
 CREATE POLICY "Service role full access" ON accounts
     FOR ALL
     USING (auth.role() = 'service_role')
@@ -155,6 +156,7 @@ CREATE POLICY "Service role full access" ON accounts
 
 -- Fix analytics table policy
 DROP POLICY IF EXISTS "Enable all access for service role" ON analytics;
+DROP POLICY IF EXISTS "Service role full access" ON analytics;
 CREATE POLICY "Service role full access" ON analytics
     FOR ALL
     USING (auth.role() = 'service_role')
@@ -162,6 +164,7 @@ CREATE POLICY "Service role full access" ON analytics
 
 -- Fix api_keys table policy
 DROP POLICY IF EXISTS "Enable all access for service role" ON api_keys;
+DROP POLICY IF EXISTS "Service role full access" ON api_keys;
 CREATE POLICY "Service role full access" ON api_keys
     FOR ALL
     USING (auth.role() = 'service_role')
@@ -169,6 +172,7 @@ CREATE POLICY "Service role full access" ON api_keys
 
 -- Fix comment_replies table policy
 DROP POLICY IF EXISTS "Enable all access for service role" ON comment_replies;
+DROP POLICY IF EXISTS "Service role full access" ON comment_replies;
 CREATE POLICY "Service role full access" ON comment_replies
     FOR ALL
     USING (auth.role() = 'service_role')
@@ -176,6 +180,7 @@ CREATE POLICY "Service role full access" ON comment_replies
 
 -- Fix teams table policy
 DROP POLICY IF EXISTS "Enable all access for service role" ON teams;
+DROP POLICY IF EXISTS "Service role full access" ON teams;
 CREATE POLICY "Service role full access" ON teams
     FOR ALL
     USING (auth.role() = 'service_role')
@@ -183,6 +188,7 @@ CREATE POLICY "Service role full access" ON teams
 
 -- Fix webhook_logs table policy
 DROP POLICY IF EXISTS "Enable all access for service role" ON webhook_logs;
+DROP POLICY IF EXISTS "Service role full access" ON webhook_logs;
 CREATE POLICY "Service role full access" ON webhook_logs
     FOR ALL
     USING (auth.role() = 'service_role')
