@@ -73,9 +73,9 @@ SELECT
     DATE_TRUNC('month', p.created_at) as month,
     COUNT(DISTINCT p.id) as posts_created,
     COUNT(DISTINCT CASE WHEN p.status = 'published' THEN p.id END) as posts_published,
-    COUNT(DISTINCT CASE WHEN p.platform = 'facebook' THEN p.id END) as facebook_posts,
-    COUNT(DISTINCT CASE WHEN p.platform = 'instagram' THEN p.id END) as instagram_posts,
-    COUNT(DISTINCT CASE WHEN p.platform = 'tiktok' THEN p.id END) as tiktok_posts
+    COUNT(DISTINCT CASE WHEN p.platforms ? 'facebook' THEN p.id END) as facebook_posts,
+    COUNT(DISTINCT CASE WHEN p.platforms ? 'instagram' THEN p.id END) as instagram_posts,
+    COUNT(DISTINCT CASE WHEN p.platforms ? 'tiktok' THEN p.id END) as tiktok_posts
 FROM profiles pr
 LEFT JOIN posts p ON pr.id = p.user_id
 WHERE p.created_at IS NOT NULL
@@ -94,7 +94,7 @@ SELECT
     p.user_id,
     p.caption,
     p.media_url,
-    p.platform,
+    p.platforms,
     p.status,
     p.scheduled_time,
     p.published_at,
@@ -104,20 +104,11 @@ SELECT
     p.tiktok_post_id,
     pr.name as user_name,
     pr.email as user_email,
-    pr.company,
-    CASE
-        WHEN p.platform = 'facebook' THEN fa.page_name
-        WHEN p.platform = 'instagram' THEN ia.username
-        WHEN p.platform = 'tiktok' THEN ta.username
-        ELSE NULL
-    END as account_name
+    pr.company
 FROM posts p
-JOIN profiles pr ON p.user_id = pr.id
-LEFT JOIN facebook_accounts fa ON p.account_id = fa.id
-LEFT JOIN instagram_accounts ia ON p.account_id = ia.id
-LEFT JOIN tiktok_accounts ta ON p.account_id = ta.id;
+JOIN profiles pr ON p.user_id = pr.id;
 
-COMMENT ON VIEW posts_with_accounts IS 'Posts with associated account details using SECURITY INVOKER';
+COMMENT ON VIEW posts_with_accounts IS 'Posts with associated user details using SECURITY INVOKER';
 
 -- ============================================
 -- 3. FIX: Enable RLS on public tables
