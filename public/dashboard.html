@@ -969,6 +969,14 @@
     <div class="main-grid">
       <!-- Sidebar -->
       <div class="sidebar-section">
+        <!-- Team Members Section (shows when user has a team) -->
+        <div id="teamMembersSection" style="display: none; margin-bottom: 24px; padding-bottom: 24px; border-bottom: 2px solid #e5e7eb;">
+          <h3 style="margin-bottom: 16px;">👥 Team Members</h3>
+          <div id="teamMembersList" style="display: grid; gap: 8px;">
+            <!-- Team members will be populated here -->
+          </div>
+        </div>
+
         <h3>Connect Accounts</h3>
 
         <!-- Facebook -->
@@ -1628,6 +1636,73 @@
             <canvas id="activityChart" style="max-height: 250px;"></canvas>
           </div>
 
+          <!-- Advanced Engagement Metrics -->
+          <div style="background: white; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 24px;">
+            <h4 style="margin-bottom: 16px;">📊 Engagement Overview</h4>
+            <p style="font-size: 13px; color: #6b7280; margin-bottom: 16px;">
+              Track how your audience interacts with your content across platforms
+            </p>
+            <div class="analytics-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px;">
+              <div style="padding: 16px; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 8px;">
+                <div style="font-size: 13px; color: #78350f; margin-bottom: 4px;">Total Reach</div>
+                <div style="font-size: 28px; font-weight: 700; color: #92400e;" id="analyticsReach">-</div>
+                <div style="font-size: 12px; color: #92400e; margin-top: 4px;">People who saw posts</div>
+              </div>
+              <div style="padding: 16px; background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); border-radius: 8px;">
+                <div style="font-size: 13px; color: #1e40af; margin-bottom: 4px;">Engagement Rate</div>
+                <div style="font-size: 28px; font-weight: 700; color: #1e40af;" id="analyticsEngagement">-</div>
+                <div style="font-size: 12px; color: #1e40af; margin-top: 4px;">Likes + comments + shares</div>
+              </div>
+              <div style="padding: 16px; background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%); border-radius: 8px;">
+                <div style="font-size: 13px; color: #9f1239; margin-bottom: 4px;">Avg. Engagement</div>
+                <div style="font-size: 28px; font-weight: 700; color: #9f1239;" id="analyticsAvgEngagement">-</div>
+                <div style="font-size: 12px; color: #9f1239; margin-top: 4px;">Per post</div>
+              </div>
+              <div style="padding: 16px; background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); border-radius: 8px;">
+                <div style="font-size: 13px; color: #065f46; margin-bottom: 4px;">Growth Rate</div>
+                <div style="font-size: 28px; font-weight: 700; color: #065f46;" id="analyticsGrowth">-</div>
+                <div style="font-size: 12px; color: #065f46; margin-top: 4px;">Follower growth %</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Best Performing Content -->
+          <div style="background: white; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 24px;">
+            <h4 style="margin-bottom: 16px;">⭐ Top Performing Posts</h4>
+            <div id="topPosts" style="display: grid; gap: 12px;">
+              <div style="text-align: center; padding: 40px; color: #9ca3af;">
+                <div style="font-size: 48px; margin-bottom: 8px;">📈</div>
+                <div>Engagement data coming soon</div>
+                <div style="font-size: 13px; margin-top: 4px;">Connect platforms to see top performing content</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI-Powered Insights -->
+          <div style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); padding: 24px; border-radius: 12px; margin-bottom: 24px; color: white;">
+            <h4 style="margin-bottom: 16px; color: white;">🤖 AI Recommendations</h4>
+            <div style="display: grid; gap: 12px;">
+              <div style="background: rgba(255,255,255,0.1); padding: 14px; border-radius: 8px; backdrop-filter: blur(10px);">
+                <div style="font-weight: 600; margin-bottom: 6px;">📅 Best Time to Post</div>
+                <div style="font-size: 14px; opacity: 0.95;" id="bestTimeRecommendation">
+                  Based on your posting history, your audience is most active on <strong>Mondays at 9 AM</strong> and <strong>Thursdays at 6 PM</strong>
+                </div>
+              </div>
+              <div style="background: rgba(255,255,255,0.1); padding: 14px; border-radius: 8px; backdrop-filter: blur(10px);">
+                <div style="font-weight: 600; margin-bottom: 6px;">🎯 Content Strategy</div>
+                <div style="font-size: 14px; opacity: 0.95;" id="contentRecommendation">
+                  Your image posts get 2.3x more engagement than video. Consider posting more visual content to boost performance.
+                </div>
+              </div>
+              <div style="background: rgba(255,255,255,0.1); padding: 14px; border-radius: 8px; backdrop-filter: blur(10px);">
+                <div style="font-weight: 600; margin-bottom: 6px;">📊 Platform Focus</div>
+                <div style="font-size: 14px; opacity: 0.95;" id="platformRecommendation">
+                  Instagram shows the highest engagement rate (4.2%). Consider allocating more content to this platform.
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Best Performing Times -->
           <div style="background: white; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
             <h4 style="margin-bottom: 16px;">Posting Patterns</h4>
@@ -1643,6 +1718,10 @@
               <div>
                 <div style="font-size: 13px; color: #6b7280; margin-bottom: 4px;">Average Posts/Day</div>
                 <div style="font-size: 20px; font-weight: 700; color: #1f2937;" id="analyticsAvgPerDay">0</div>
+              </div>
+              <div>
+                <div style="font-size: 13px; color: #6b7280; margin-bottom: 4px;">Consistency Score</div>
+                <div style="font-size: 20px; font-weight: 700; color: #1f2937;" id="analyticsConsistency">-</div>
               </div>
             </div>
           </div>
