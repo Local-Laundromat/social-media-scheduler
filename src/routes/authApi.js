@@ -600,21 +600,26 @@ async function authenticateSupabaseToken(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
 
   if (!token) {
+    console.log('[Auth] No token provided');
     return res.status(401).json({ error: 'Authentication required' });
   }
+
+  console.log('[Auth] Token received, length:', token.length, 'First 20 chars:', token.substring(0, 20));
 
   try {
     const { data: { user }, error } = await supabase.auth.getUser(token);
 
     if (error || !user) {
+      console.error('[Auth] Token validation failed:', error?.message || 'User not found');
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
 
+    console.log('[Auth] Token valid for user:', user.id, user.email);
     req.userId = user.id;
     req.user = user;
     next();
   } catch (error) {
-    console.error('Auth middleware error:', error);
+    console.error('[Auth] Middleware error:', error);
     res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
