@@ -197,6 +197,7 @@ function initializeDashboard() {
   populateGlobalAccountSwitcher();
 
   handleBillingRedirectQuery();
+  applyBillingDeepLink();
 
   // DEFER: Load posts only when Posts tab is opened
   // DEFER: Load settings only when Settings tab is opened
@@ -1293,13 +1294,19 @@ function handleBillingRedirectQuery() {
     if (typeof notify === 'function') {
       notify('Checkout finished — syncing your subscription from Stripe (may take a few seconds).', 'success');
     }
+    switchTab('settings');
+    switchSettingsPane('subscription');
     reloadUserData();
     setTimeout(() => refreshBillingStatus(), 2000);
   } else if (b === 'cancel') {
     if (typeof notify === 'function') notify('Checkout was cancelled.', 'warning');
+    switchTab('settings');
+    switchSettingsPane('subscription');
     refreshBillingStatus();
   } else if (b === 'portal') {
     if (typeof notify === 'function') notify('Welcome back.', 'success');
+    switchTab('settings');
+    switchSettingsPane('subscription');
     reloadUserData();
     refreshBillingStatus();
   }
@@ -1310,15 +1317,126 @@ function handleBillingRedirectQuery() {
   window.history.replaceState({}, '', next);
 }
 
+function switchSettingsPane(paneName) {
+  const generalPane = document.getElementById('settingsPaneGeneral');
+  const subscriptionPane = document.getElementById('settingsPaneSubscription');
+  if (!generalPane || !subscriptionPane || !paneName) return;
+
+  document.querySelectorAll('.settings-inner-tab').forEach((btn) => {
+    const matches = btn.getAttribute('data-settings-pane') === paneName;
+    btn.classList.toggle('active', matches);
+    btn.setAttribute('aria-selected', matches ? 'true' : 'false');
+  });
+
+  generalPane.classList.toggle('active', paneName === 'general');
+  subscriptionPane.classList.toggle('active', paneName === 'subscription');
+}
+
+/** Open Settings → Subscription from marketing links (`#billing`, `#billingSection`, etc.) */
+function applyBillingDeepLink() {
+  const raw = window.location.hash ? window.location.hash.slice(1).toLowerCase() : '';
+  if (!raw) return;
+  const open =
+    raw === 'billing' ||
+    raw === 'billingsection' ||
+    raw === 'subscription' ||
+    raw === 'plans';
+
+  if (open) {
+    switchTab('settings');
+    switchSettingsPane('subscription');
+    requestAnimationFrame(() => {
+      document.getElementById('billingSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+}
+
+function billingCatalogKeyLabel(key) {
+  if (!key && key !== 0) return '';
+  return String(key)
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatUsdCatalogPrice(n) {
+  if (n == null || !Number.isFinite(Number(n))) return null;
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(Number(n));
+  } catch (_) {
+    return `$${Number(n).toFixed(2)}`;
+  }
+}
+
+function formatStripeMoneyMinor(unitAmount, currency) {
+  const ccy = String(currency || 'usd').toUpperCase();
+  const amount = typeof unitAmount === 'number' ? unitAmount / 100 : NaN;
+  if (!Number.isFinite(amount)) return null;
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: ccy }).format(amount);
+  } catch (_) {
+    return `${amount} ${ccy}`;
+  }
+}
+
+function billingFeatureValuePretty(v) {
+  if (v === true) return 'Yes';
+  if (v === false) return 'No';
+  if (v === null || v === undefined || v === '') return '—';
+  if (typeof v === 'object') return escapeHtml(JSON.stringify(v));
+  return escapeHtml(String(v));
+}
+
+function renderBillingTierButtons(tierCatalog, canManageStripe) {
+  const wrap = document.getElementById('billingUpgradeButtons');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+
+  if (!tierCatalog?.length) {
+    wrap.innerHTML =
+      '<span style="font-size:13px;color:#6b7280;">No active catalog rows returned from subscription_tiers.</span>';
+    return;
+  }
+
+  tierCatalog.forEach((tier) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-primary billing-tier-btn';
+    btn.dataset.tier = tier.tierName;
+    btn.style.flex = '1';
+    btn.style.minWidth = '118px';
+
+    const priceLabel = formatUsdCatalogPrice(tier.monthlyPriceUsd);
+    btn.textContent = priceLabel ? `${billingCatalogKeyLabel(tier.tierName)} (${priceLabel}/mo)` : billingCatalogKeyLabel(tier.tierName);
+
+    const tip = [];
+    tip.push(`Catalog — social accounts: ${tier.maxSocialAccounts}, AI executions / month: ${tier.maxAiExecutionsPerMonth}`);
+    if (!tier.checkoutAvailable) {
+      btn.disabled = true;
+      btn.classList.replace('btn-primary', 'btn-secondary');
+      tip.push('Checkout disabled: map a Stripe Price (env or subscription_tiers.stripe_price_id).');
+    }
+    if (canManageStripe === false) {
+      btn.disabled = true;
+      btn.classList.replace('btn-primary', 'btn-secondary');
+      tip.push('Only the workspace owner who created the team can change plans.');
+    }
+    btn.title = tip.join('. ');
+
+    wrap.appendChild(btn);
+  });
+}
+
 async function refreshBillingStatus() {
   const el = document.getElementById('billingStatusSummary');
   const portalWrap = document.getElementById('stripePortalWrap');
+  const setupNote = document.getElementById('billingSetupNote');
+  const planEl = document.getElementById('billingPlanIncluded');
   if (!el) return;
 
   const token = localStorage.getItem('auth_token');
   if (!token) return;
 
-  el.textContent = 'Loading billing status…';
+  el.innerHTML = 'Loading billing status…';
   if (portalWrap) portalWrap.style.display = 'none';
 
   try {
@@ -1326,29 +1444,141 @@ async function refreshBillingStatus() {
     const j = await r.json();
 
     if (!r.ok) {
-      el.textContent = `Unable to load billing: ${j.error || r.status}`;
+      el.innerHTML = escapeHtml(`Unable to load billing: ${j.error || r.status}`);
       return;
     }
 
-    const s = j.subscription;
-    let html = `
-      <div><strong>Status:</strong> ${escapeHtml(String(s.status))}</div>
-      <div><strong>Plan tier:</strong> ${escapeHtml(String(s.tier))}</div>`;
+    const tierCatalog = Array.isArray(j.tierCatalog) ? j.tierCatalog : [];
+    const canStripe = j.billing?.canManageStripe !== false;
+    renderBillingTierButtons(tierCatalog, canStripe);
 
-    if (s.renewsAt) {
-      const d = new Date(s.renewsAt);
-      html += `<div><strong>Renews:</strong> ${escapeHtml(d.toLocaleString())}</div>`;
+    if (setupNote) {
+      const teamBillingNote =
+        j.billing?.viewerIsTeamMemberBilling && !canStripe && j.billing?.ownerContactEmail
+          ? `Subscription is billed to the workspace owner (${escapeHtml(String(j.billing.ownerContactEmail))}). They manage checkout and Stripe.`
+          : j.billing?.viewerIsTeamMemberBilling && !canStripe
+            ? 'Subscription is billed to whoever created your team—they manage Stripe checkout and receipts.'
+            : '';
+
+      const baseStripe =
+        !j.configured
+          ? 'Stripe billing is not fully configured yet (server needs STRIPE_SECRET_KEY + price mapping). Operational plans still load from the database.'
+          : 'Plans and entitlement limits sync from subscription_tiers. Live charges are managed through Stripe Checkout and the Customer Portal.';
+
+      setupNote.innerHTML =
+        (teamBillingNote ? `<span style="display:block;margin-bottom:8px;">${teamBillingNote}</span>` : '') +
+        `<span>${baseStripe}</span>`;
     }
-    html += `
-      <div style="margin-top:8px;font-size:12px;color:#6b7280;line-height:1.4;">
-        Stripe API version used by server: <code>${escapeHtml(String(j.stripeApiVersion || '—'))}</code><br/>
-        Billing keys: ${j.configured ? 'configured ✓' : 'not configured (set STRIPE_SECRET_KEY + prices)'}
-      </div>`;
-    el.innerHTML = html;
 
-    if (portalWrap && s.customerId) portalWrap.style.display = 'flex';
+    const s = j.subscription || {};
+    const sb = j.stripeBilling || null;
+    const current = j.currentTierPlan || null;
+    const renewalIso = j.nextRenewalAt || s.renewsAt || null;
+
+    const cancelBadge = sb?.cancelAtPeriodEnd
+      ? '<span style="background:#fef3c7;color:#92400e;font-size:12px;padding:2px 6px;border-radius:4px;margin-left:8px;">Cancels at period end</span>'
+      : '';
+
+    let titleMiddle = '';
+    if (sb?.productName && String(sb.productName).trim()) {
+      titleMiddle = ` — ${escapeHtml(sb.productName.trim())}`;
+    } else if (current && current.tierName) {
+      const cents = formatUsdCatalogPrice(current.monthlyPriceUsd);
+      titleMiddle =
+        ` — ${escapeHtml(billingCatalogKeyLabel(current.tierName))}` +
+        (cents ? ` <span style="font-weight:500;color:#4b5563;">(${escapeHtml(cents)} / mo catalog)</span>` : '');
+    } else if (s.tier && s.tier !== 'none') {
+      titleMiddle = ` — ${escapeHtml(billingCatalogKeyLabel(s.tier))}`;
+    } else {
+      titleMiddle = ' — <span style="font-weight:500;color:#4b5563;">No paid plan selected</span>';
+    }
+
+    const htmlParts = [
+      `<div style="display:flex;flex-direction:column;gap:8px;line-height:1.45;">`,
+      `<div style="font-size:15px;font-weight:700;color:#111827;">Current plan${titleMiddle}${cancelBadge}</div>`,
+      `<div><strong>Billing status:</strong> ${escapeHtml(String(s.status || 'inactive'))}</div>`,
+      `<div><strong>Plan tier id:</strong> <code>${escapeHtml(String(s.tier || 'none'))}</code></div>`,
+    ];
+
+    if (sb && typeof sb.unitAmount === 'number' && sb.interval) {
+      const pretty = formatStripeMoneyMinor(sb.unitAmount, sb.currency);
+      if (pretty) {
+        let cadence = ` per ${sb.interval}`;
+        if (sb.intervalCount && sb.intervalCount !== 1) {
+          cadence = ` every ${sb.intervalCount} ${sb.interval}(s)`;
+        }
+        htmlParts.push(`<div><strong>Billed (Stripe):</strong> ${escapeHtml(pretty)}${escapeHtml(cadence)}</div>`);
+      }
+    }
+
+    if (renewalIso) {
+      htmlParts.push(
+        `<div><strong>Renews:</strong> ${escapeHtml(new Date(renewalIso).toLocaleString())}</div>`
+      );
+    }
+
+    if (sb?.priceId) {
+      htmlParts.push(
+        `<div style="font-size:12px;color:#6b7280;"><strong>Stripe price ID:</strong> <code>${escapeHtml(sb.priceId)}</code></div>`
+      );
+    }
+
+    htmlParts.push(
+      `<div style="margin-top:8px;font-size:12px;color:#6b7280;line-height:1.35;">Stripe API version: ` +
+      `<code>${escapeHtml(String(j.stripeApiVersion || '—'))}</code> · Billing keys ${j.configured ? 'configured ✓' : 'not configured'}</div>`
+    );
+
+    htmlParts.push('</div>');
+    el.innerHTML = htmlParts.join('');
+
+    if (planEl) {
+      if (!current || s.tier === 'none') {
+        planEl.innerHTML =
+          `<p style="font-size:13px;color:#6b7280;margin:0;">No active tier from the catalog matches this workspace yet.` +
+          ` Choose a plan below.${s.subscriptionId ? ' If you just subscribed, refresh in a few seconds.' : ''}</p>` +
+          `<p style="font-size:12px;color:#6b7280;margin:10px 0 0;"><strong>This period usage:</strong> ` +
+          `${escapeHtml(String(s.currentMonthlyUsage ?? 0))} / ${escapeHtml(String(s.maxAllowedUsage ?? 0))}</p>`;
+      } else {
+        const feats = current.features || {};
+        const featKeys = Object.keys(feats).sort((a, b) => a.localeCompare(b));
+        let inc = `<div style="padding:14px;background:#ecfdf5;border-radius:10px;border:1px solid #bbf7d0;color:#065f46;">`;
+        inc += `<div style="font-weight:700;margin-bottom:8px;color:#065f46;font-size:14px;">What you get (${escapeHtml(
+          billingCatalogKeyLabel(current.tierName)
+        )})</div>`;
+        inc += `<ul style="margin:0 0 10px;padding-left:18px;line-height:1.55;color:#065f46;font-size:13px;">`;
+        inc += `<li>Social accounts (catalog cap): ${escapeHtml(String(current.maxSocialAccounts))}</li>`;
+        inc += `<li>AI executions / month cap: ${escapeHtml(String(current.maxAiExecutionsPerMonth))}</li>`;
+        inc += `<li>This period AI usage so far: ${escapeHtml(String(s.currentMonthlyUsage ?? 0))} / ${escapeHtml(
+          String(s.maxAllowedUsage ?? 0)
+        )}</li>`;
+        if (current.requiresOwnApiKey) {
+          inc += `<li>${escapeHtml('This tier requires bringing your own OpenAI API key (BYOK).')}</li>`;
+        }
+        inc += '</ul>';
+
+        if (featKeys.length) {
+          inc += `<div style="font-size:12px;font-weight:600;color:#047857;text-transform:uppercase;letter-spacing:0.04em;">Catalog metadata</div>`;
+          inc += `<ul style="margin:8px 0 0;padding-left:18px;line-height:1.5;color:#047857;font-size:13px;">`;
+          featKeys.forEach((k) => {
+            inc += `<li><strong>${escapeHtml(billingCatalogKeyLabel(k))}:</strong> ${billingFeatureValuePretty(
+              feats[k]
+            )}</li>`;
+          });
+          inc += '</ul>';
+        }
+
+        inc += `<div style="font-size:11px;color:#065f46;opacity:.9;margin-top:10px;">Values come from subscription_tiers; usage from your billing profile.` +
+          (s.usesOwnApiKey ? ' BYOK detected for this workspace.' : '') +
+          '</div>';
+        inc += '</div>';
+        planEl.innerHTML = inc;
+      }
+    }
+
+    if (portalWrap && s.customerId && j.billing?.canManageStripe !== false) portalWrap.style.display = 'flex';
   } catch (e) {
-    el.textContent = e.name === 'AbortError' ? 'Billing status timed out.' : ('Billing error: ' + e.message);
+    el.textContent =
+      e.name === 'AbortError' ? 'Billing status timed out.' : 'Billing error: ' + String(e.message);
   }
 }
 
@@ -4162,6 +4392,14 @@ document.addEventListener('DOMContentLoaded', function() {
   const saveBrandVoiceBtn = document.getElementById('saveBrandVoiceBtn');
   if (saveBrandVoiceBtn) saveBrandVoiceBtn.addEventListener('click', saveBrandVoiceSettings);
 
+  document.querySelectorAll('.settings-inner-tab').forEach((btn) => {
+    btn.addEventListener('click', function () {
+      const pane = this.getAttribute('data-settings-pane');
+      if (pane) switchSettingsPane(pane);
+      if (pane === 'subscription') refreshBillingStatus();
+    });
+  });
+
   const settingsTab = document.getElementById('settingsTab');
   if (settingsTab) {
     settingsTab.addEventListener('click', function(e) {
@@ -4174,6 +4412,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
   const openStripePortalBtn = document.getElementById('openStripePortalBtn');
   if (openStripePortalBtn) openStripePortalBtn.addEventListener('click', openStripeBillingPortal);
+
+  window.addEventListener('hashchange', applyBillingDeepLink);
 
   console.log('✓ All event listeners attached successfully (CSP-compliant)');
 });

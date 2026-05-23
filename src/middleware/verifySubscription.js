@@ -8,6 +8,7 @@
  */
 
 const { supabase } = require('../database/supabase');
+const { getBillingContext, resolveStripeBillingProfileId } = require('../services/teamBillingContext');
 
 /**
  * TIER-BASED AGENT ACCESS CONTROL
@@ -90,11 +91,14 @@ async function verifyActivePaidUser(req, res, next) {
       });
     }
 
-    // Query user's subscription and usage data
+    const billedUserId = await resolveStripeBillingProfileId(userId);
+    const ctx = await getBillingContext(userId);
+
+    // Query payer profile (team owner shares subscription across members)
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('stripe_subscription_status, subscription_tier, current_monthly_usage, max_allowed_usage, uses_own_api_key, openai_api_key')
-      .eq('id', userId)
+      .eq('id', billedUserId)
       .single();
 
     if (error || !profile) {
@@ -111,7 +115,9 @@ async function verifyActivePaidUser(req, res, next) {
     // ============================================
     const validStatuses = ['active', 'trialing'];
     if (!validStatuses.includes(profile.stripe_subscription_status)) {
-      console.log(`[SubscriptionCheck] User ${userId} blocked - subscription status: ${profile.stripe_subscription_status}`);
+      console.log(
+        `[SubscriptionCheck] User ${userId} billed=${billedUserId} blocked - subscription status: ${profile.stripe_subscription_status}`
+      );
 
       return res.status(403).json({
         success: false,
@@ -198,10 +204,13 @@ async function verifyActivePaidUser(req, res, next) {
     // ============================================
     // ALL CHECKS PASSED - Allow Request
     // ============================================
-    console.log(`[SubscriptionCheck] User ${userId} approved - ${currentUsage}/${maxUsage} used`);
+    console.log(`[SubscriptionCheck] User ${userId} approved (billed workspace ${billedUserId}) - ${currentUsage}/${maxUsage} used`);
 
     req.userSubscription = {
       tier: profile.subscription_tier,
+      billedUserId,
+      actingUserId: userId,
+      teamId: ctx.teamId,
       byok: false,
       currentUsage,
       maxUsage,
@@ -227,28 +236,28 @@ async function verifyActivePaidUser(req, res, next) {
  */
 async function logUsage(userId, featureType, tokensUsed = 0, costUsd = 0.00) {
   try {
-    // Get user's BYOK status
+    const billedUserId = await resolveStripeBillingProfileId(userId);
     const { data: profile } = await supabase
       .from('profiles')
       .select('uses_own_api_key')
-      .eq('id', userId)
+      .eq('id', billedUserId)
       .single();
 
     const byok = profile?.uses_own_api_key || false;
 
-    // Increment usage counter (only if not BYOK)
+    // Increment quota on payer/workspace billing profile only
     if (!byok) {
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ current_monthly_usage: supabase.raw('current_monthly_usage + 1') })
-        .eq('id', userId);
+        .eq('id', billedUserId);
 
       if (updateError) {
         console.error('[UsageLog] Failed to increment usage:', updateError);
       }
     }
 
-    // Always log for analytics (even BYOK users)
+    // Always log for analytics (even BYOK users); row keeps acting user id
     const { error: logError } = await supabase
       .from('usage_logs')
       .insert({
@@ -267,7 +276,9 @@ async function logUsage(userId, featureType, tokensUsed = 0, costUsd = 0.00) {
       console.error('[UsageLog] Failed to log usage:', logError);
     }
 
-    console.log(`[UsageLog] Logged ${featureType} usage for user ${userId} (BYOK: ${byok})`);
+    console.log(
+      `[UsageLog] Logged ${featureType} for actor ${userId} (billing profile ${billedUserId}; BYOK: ${byok})`
+    );
 
   } catch (err) {
     console.error('[UsageLog] Error logging usage:', err);
@@ -351,11 +362,14 @@ function requireFeature(featureName) {
  */
 async function checkAccountLimit(userId) {
   try {
-    // Get user's subscription tier and current account count
+    const ctx = await getBillingContext(userId);
+    const billedId = ctx.billingProfileId;
+    const idList = ctx.memberProfileIds?.length ? ctx.memberProfileIds : [String(userId)];
+
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('subscription_tier')
-      .eq('id', userId)
+      .eq('id', billedId)
       .single();
 
     if (profileError || !profile) {
@@ -366,7 +380,6 @@ async function checkAccountLimit(userId) {
       };
     }
 
-    // Get tier limits from subscription_tiers table
     const { data: tier, error: tierError } = await supabase
       .from('subscription_tiers')
       .select('max_social_accounts, tier_name')
@@ -374,7 +387,6 @@ async function checkAccountLimit(userId) {
       .single();
 
     if (tierError || !tier) {
-      // If no tier found, default to free tier with 0 accounts
       return {
         allowed: false,
         error: 'No active subscription. Please upgrade to connect social accounts.',
@@ -385,7 +397,6 @@ async function checkAccountLimit(userId) {
       };
     }
 
-    // Count total active accounts across all platforms
     const accountTables = [
       'facebook_accounts',
       'instagram_accounts',
@@ -396,17 +407,20 @@ async function checkAccountLimit(userId) {
     ];
 
     let totalAccounts = 0;
+
     for (const table of accountTables) {
-      const { count } = await supabase
+      let qb = supabase
         .from(table)
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
         .eq('is_active', true);
+
+      qb = qb.in('user_id', idList);
+
+      const { count } = await qb;
 
       totalAccounts += count || 0;
     }
 
-    // Check if user has reached their limit
     const maxAccounts = tier.max_social_accounts;
     const allowed = totalAccounts < maxAccounts;
 
@@ -415,7 +429,7 @@ async function checkAccountLimit(userId) {
       currentCount: totalAccounts,
       limit: maxAccounts,
       tier: tier.tier_name,
-      error: allowed ? null : `Account limit reached. Your ${tier.tier_name} plan allows ${maxAccounts} social accounts.`,
+      error: allowed ? null : `Account limit reached. Your ${tier.tier_name} plan allows ${maxAccounts} social accounts across your workspace.`,
       code: allowed ? null : 'ACCOUNT_LIMIT_REACHED'
     };
 
@@ -435,10 +449,11 @@ async function checkAccountLimit(userId) {
  */
 async function checkAgentAccess(userId, workflowType) {
   try {
+    const billedId = await resolveStripeBillingProfileId(userId);
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('subscription_tier')
-      .eq('id', userId)
+      .eq('id', billedId)
       .single();
 
     if (error || !profile) {
@@ -568,10 +583,11 @@ function getSuggestedTierForAgents(requiredAgents, workflowType) {
  */
 async function getUserAgentStatus(userId) {
   try {
+    const billedId = await resolveStripeBillingProfileId(userId);
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('subscription_tier')
-      .eq('id', userId)
+      .eq('id', billedId)
       .single();
 
     if (error || !profile) {
