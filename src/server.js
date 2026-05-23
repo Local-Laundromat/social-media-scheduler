@@ -34,6 +34,7 @@ const agentCommentsRoutes = require('./routes/agentComments'); // Multi-agent co
 const contentPlannerRoutes = require('./routes/contentPlanner'); // Content planning agent
 const billingRoutes = require('./routes/billing'); // Stripe subscription billing (API)
 const pricingPublicRoutes = require('./routes/pricingPublic'); // Marketing page ↔ Stripe Prices
+const teamsRoutes = require('./routes/teams'); // Team collaboration & invitations
 const { stripeWebhookHandler } = require('./routes/billingWebhook');
 const { isStripeConfigured, getStripeApiVersion } = require('./services/stripeClient');
 const scheduler = require('./services/scheduler');
@@ -141,6 +142,7 @@ app.use('/api', aiLimiter, aiCaptionRoutes);
 app.use('/api', apiRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/clients', clientsRoutes);
+app.use('/api/teams', teamsRoutes); // Team collaboration
 app.use('/api/profile', profileRoutes);
 app.use('/api/billing', billingRoutes); // Stripe billing routes
 app.use('/api/upload', uploadRoutes);
