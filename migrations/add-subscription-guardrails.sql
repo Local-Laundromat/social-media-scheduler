@@ -186,7 +186,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION reset_monthly_usage IS 'Resets monthly usage counters - run daily via cron';
+COMMENT ON FUNCTION reset_monthly_usage() IS 'Resets monthly usage counters - run daily via cron';
 
 -- ============================================
 -- 6. CREATE FUNCTION TO CHECK USER QUOTA
@@ -239,7 +239,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION check_user_has_quota IS 'Checks if user can execute AI features based on quota and subscription';
+COMMENT ON FUNCTION check_user_has_quota(uuid) IS 'Checks if user can execute AI features based on quota and subscription';
 
 -- ============================================
 -- 7. CREATE FUNCTION TO INCREMENT USAGE
@@ -275,7 +275,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION increment_user_usage IS 'Increments usage counter and logs usage event';
+COMMENT ON FUNCTION increment_user_usage(uuid, text, integer, numeric)
+  IS 'Increments usage counter and logs usage event';
 
 -- ============================================
 -- 8. CREATE INDEXES FOR SUBSCRIPTION QUERIES

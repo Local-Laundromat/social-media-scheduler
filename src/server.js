@@ -33,6 +33,7 @@ const ragCaptionRoutes = require('./routes/ragCaption'); // RAG-powered brand vo
 const agentCommentsRoutes = require('./routes/agentComments'); // Multi-agent comment system
 const contentPlannerRoutes = require('./routes/contentPlanner'); // Content planning agent
 const billingRoutes = require('./routes/billing'); // Stripe subscription billing (API)
+const pricingPublicRoutes = require('./routes/pricingPublic'); // Marketing page ↔ Stripe Prices
 const { stripeWebhookHandler } = require('./routes/billingWebhook');
 const { isStripeConfigured, getStripeApiVersion } = require('./services/stripeClient');
 const scheduler = require('./services/scheduler');
@@ -126,6 +127,7 @@ app.use(express.static(path.join(__dirname, '../public')));
 // Authentication routes (no global rate limiting - applied per-route in authApi.js)
 app.use('/api/auth', authApiRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api', pricingPublicRoutes);
 app.use('/auth', authRoutes); // OAuth routes (Facebook/Instagram)
 
 // AI-powered routes (AI usage rate limiting)

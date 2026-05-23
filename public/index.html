@@ -881,9 +881,13 @@
         <span style="background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%); color: #1f2937; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 700;">Save 20%</span>
       </div>
 
+      <p id="pricingLiveNote" style="display:none; text-align:center; color:#15803d; font-size:0.9rem; margin-bottom: 16px;">
+        Prices shown here are loaded from Stripe (same as checkout).
+      </p>
+
       <div class="pricing-grid">
         <!-- Starter Tier -->
-        <div class="pricing-card" data-monthly="19" data-annual="15">
+        <div class="pricing-card" data-tier="starter" data-monthly="19" data-annual="15">
           <h3>Starter</h3>
           <div class="price" data-price-display><span class="price-amount">$19</span><span>/mo</span></div>
           <p style="color: #6b7280; margin-bottom: 20px;"><span class="billing-period">Billed monthly</span></p>
@@ -900,7 +904,7 @@
         </div>
 
         <!-- Growth Tier (Featured) -->
-        <div class="pricing-card featured" data-monthly="59" data-annual="47">
+        <div class="pricing-card featured" data-tier="growth" data-monthly="59" data-annual="47">
           <div class="badge">POPULAR</div>
           <h3>Growth</h3>
           <div class="price" data-price-display><span class="price-amount">$59</span><span>/mo</span></div>
@@ -917,7 +921,7 @@
         </div>
 
         <!-- Pro Tier -->
-        <div class="pricing-card" data-monthly="149" data-annual="119">
+        <div class="pricing-card" data-tier="pro" data-monthly="149" data-annual="119">
           <h3>Pro</h3>
           <div class="price" data-price-display><span class="price-amount">$149</span><span>/mo</span></div>
           <p style="color: #6b7280; margin-bottom: 20px;"><span class="billing-period">Billed monthly</span></p>
@@ -934,7 +938,7 @@
         </div>
 
         <!-- Agency Tier -->
-        <div class="pricing-card" data-monthly="499" data-annual="399">
+        <div class="pricing-card" data-tier="agency" data-monthly="499" data-annual="399">
           <h3>Agency</h3>
           <div class="price" data-price-display><span class="price-amount">$499</span><span>/mo</span></div>
           <p style="color: #6b7280; margin-bottom: 20px;"><span class="billing-period">Billed monthly</span></p>
@@ -989,49 +993,83 @@
   </footer>
 
   <script>
-    // Billing Toggle Functionality
     const billingToggle = document.getElementById('billingToggle');
     const monthlyLabel = document.getElementById('monthlyLabel');
     const annualLabel = document.getElementById('annualLabel');
-    const pricingCards = document.querySelectorAll('.pricing-card');
+    const pricingCards = document.querySelectorAll('.pricing-card[data-tier]');
+    const pricingLiveNote = document.getElementById('pricingLiveNote');
 
-    billingToggle.addEventListener('change', function() {
-      const isAnnual = this.checked;
+    function refreshPricingCards() {
+      const isAnnual = billingToggle.checked;
 
-      // Update label colors
       if (isAnnual) {
         monthlyLabel.style.color = '#6b7280';
         annualLabel.style.color = '#1f2937';
-        // Move toggle to right
-        this.nextElementSibling.nextElementSibling.style.transform = 'translateX(26px)';
-        this.nextElementSibling.style.backgroundColor = '#ca8a04';
+        billingToggle.nextElementSibling.nextElementSibling.style.transform = 'translateX(26px)';
+        billingToggle.nextElementSibling.style.backgroundColor = '#ca8a04';
       } else {
         monthlyLabel.style.color = '#1f2937';
         annualLabel.style.color = '#6b7280';
-        // Move toggle to left
-        this.nextElementSibling.nextElementSibling.style.transform = 'translateX(0)';
-        this.nextElementSibling.style.backgroundColor = '#e5e7eb';
+        billingToggle.nextElementSibling.nextElementSibling.style.transform = 'translateX(0)';
+        billingToggle.nextElementSibling.style.backgroundColor = '#e5e7eb';
       }
 
-      // Update all pricing cards
       pricingCards.forEach(card => {
-        const monthlyPrice = parseInt(card.dataset.monthly);
-        const annualPrice = parseInt(card.dataset.annual);
+        const monthlyPrice = parseInt(card.dataset.monthly, 10);
+        const annualPrice = parseInt(card.dataset.annual, 10);
+        const yearlyTotalParsed = parseInt(card.dataset.yearlyTotal, 10);
+        const yearlyTotal = Number.isFinite(yearlyTotalParsed) ? yearlyTotalParsed : (annualPrice * 12);
 
         if (monthlyPrice && annualPrice) {
           const priceAmount = card.querySelector('.price-amount');
           const billingPeriod = card.querySelector('.billing-period');
 
+          const displayMonthly = card.dataset.monthlyDisplay || String(monthlyPrice);
+          const displayAnnual = card.dataset.annualDisplay || String(annualPrice);
+
           if (isAnnual) {
-            priceAmount.textContent = `$${annualPrice}`;
-            billingPeriod.textContent = `Billed annually ($${annualPrice * 12}/year)`;
+            priceAmount.textContent = '$' + displayAnnual;
+            billingPeriod.textContent = 'Billed annually ($' + yearlyTotal + '/year)';
           } else {
-            priceAmount.textContent = `$${monthlyPrice}`;
+            priceAmount.textContent = '$' + displayMonthly;
             billingPeriod.textContent = 'Billed monthly';
           }
         }
       });
-    });
+    }
+
+    billingToggle.addEventListener('change', refreshPricingCards);
+
+    /** Match marketing page to live Stripe Prices (same STRIPE_PRICE_* IDs as Checkout). */
+    async function loadStripePricing() {
+      try {
+        const res = await fetch('/api/public/pricing');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.tiers) return;
+
+        pricingCards.forEach(card => {
+          const tier = card.dataset.tier;
+          const t = data.tiers[tier];
+          if (!t) return;
+
+          card.dataset.monthlyDisplay = String(t.monthlyDisplayUsd != null ? t.monthlyDisplayUsd : t.monthlyAmountUsd);
+          card.dataset.annualDisplay = String(t.annualMonthlyEquivalentUsd);
+          card.dataset.monthly = String(t.monthlyAmountUsd);
+          card.dataset.annual = String(t.annualMonthlyEquivalentUsd);
+          card.dataset.yearlyTotal = String(Math.round(Number(t.annualYearlyTotalUsd) || (t.annualMonthlyEquivalentUsd * 12)));
+        });
+
+        if (pricingLiveNote && data.source === 'stripe') {
+          pricingLiveNote.style.display = 'block';
+        }
+      } catch (e) {
+        console.warn('[pricing] hydrate skipped:', e.message);
+      }
+      refreshPricingCards();
+    }
+
+    loadStripePricing();
 
     // Scroll Progress Bar
     window.addEventListener('scroll', () => {

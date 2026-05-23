@@ -17,6 +17,9 @@ Copy from [.env.supabase.example](.env.supabase.example) `Stripe` section into y
 | `STRIPE_SECRET_KEY` | Secret API key (`sk_live_…` / `sk_test_…`) |
 | `STRIPE_WEBHOOK_SECRET` | Signing secret from Dashboard or `stripe listen` (`whsec_…`) |
 | `STRIPE_PRICE_STARTER` … `STRIPE_PRICE_AGENCY` | Price IDs (`price_…`) for each tier |
+| `STRIPE_PRICE_*_ANNUAL` (optional) | Yearly recurring price IDs → exact annual amounts on homepage |
+| `PUBLIC_PRICING_ANNUAL_DISCOUNT_PERCENT` (optional) | When annual price IDs omitted, approximate % off monthly for display |
+| `PUBLIC_PRICING_CACHE_SECONDS` (optional) | TTL for `/api/public/pricing` in-memory cache (default 60s) |
 | `APP_PUBLIC_URL` | Site origin, e.g. `https://quu.social` (used for success/cancel / portal return URLs) |
 | `STRIPE_API_VERSION` | Optional override of pinned Stripe API version |
 
@@ -33,6 +36,15 @@ Optional URL overrides:
 | `POST` | `/api/billing/create-checkout-session` | Bearer | Body `{ "tier": "starter" \| "growth" \| "pro" \| "agency" }` → `{ url }` (redirect user) |
 | `POST` | `/api/billing/create-portal-session` | Bearer | `{ url }` for Stripe Customer Portal |
 | `POST` | `/api/billing/webhook` | Stripe signature | Raw JSON body — **do not** send through `express.json` |
+| `GET` | `/api/public/pricing` | None | Homepage JSON — amounts from Stripe `STRIPE_PRICE_*` (cached; see `.env.supabase.example`) |
+
+## Marketing homepage pricing
+
+`public/index.html` calls **`GET /api/public/pricing`** so **`#pricing`** matches **Checkout** (`STRIPE_PRICE_STARTER` … `STRIPE_PRICE_AGENCY`).
+
+- **Charges follow Stripe Prices**, not the HTML: changing numbers only in `index.html` does **not** update billing. In Stripe Dashboard, create a **new Price**, put its `price_…` id into the matching **`STRIPE_PRICE_*`** env var (redeploy/restart). The homepage and checkout then stay aligned.
+- Optional **`STRIPE_PRICE_*_ANNUAL`** drives the yearly toggle from Stripe. If omitted, **`PUBLIC_PRICING_ANNUAL_DISCOUNT_PERCENT`** (default **20**) approximates the annual display; checkout remains **monthly** until you extend `billing.js` for annual sessions.
+- Responses are memoized **`PUBLIC_PRICING_CACHE_SECONDS`** (default **60**) to limit Stripe reads.
 
 ## Webhook configuration
 
