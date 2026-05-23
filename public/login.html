@@ -446,6 +446,21 @@
     // Check if coming from integration (query params)
     const urlParams = new URLSearchParams(window.location.search);
     const returnUrl = urlParams.get('return_url');
+    const stripeSessionId = urlParams.get('session_id');
+
+    // If coming from Stripe checkout, enable signup mode
+    if (stripeSessionId) {
+      isSignUp = true;
+      updateFormMode();
+      // Show success message about payment
+      showSuccess('Payment successful! Complete your account setup below.');
+      // Hide the "signup coming soon" banner
+      document.querySelectorAll('.toggle-form').forEach(el => {
+        if (el.textContent.includes('New Signups Coming Soon')) {
+          el.style.display = 'none';
+        }
+      });
+    }
 
     // Toggle between sign in and sign up
     toggleLink.addEventListener('click', (e) => {
@@ -521,6 +536,11 @@
         if (isSignUp) {
           // Prepare signup data with team info
           const signupData = { email, password, name, company };
+
+          // Add Stripe session ID if coming from checkout
+          if (stripeSessionId) {
+            signupData.stripeSessionId = stripeSessionId;
+          }
 
           // Add team creation or invite code
           const teamMode = document.querySelector('input[name="teamMode"]:checked').value;

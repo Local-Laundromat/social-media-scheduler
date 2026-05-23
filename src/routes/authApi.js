@@ -13,14 +13,14 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
  * POST /api/auth/signup - Register with Supabase Auth
  */
 router.post('/signup', authLimiter, async (req, res) => {
-  const { email, password, name, teamName, inviteCode } = req.body;
+  const { email, password, name, teamName, inviteCode, stripeSessionId } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
 
-  if (!teamName && !inviteCode) {
-    return res.status(400).json({ error: 'Either team name or invite code is required' });
+  if (!teamName && !inviteCode && !stripeSessionId) {
+    return res.status(400).json({ error: 'Either team name, invite code, or Stripe session ID is required' });
   }
 
   try {
@@ -40,6 +40,40 @@ router.post('/signup', authLimiter, async (req, res) => {
     }
 
     const userId = authData.user.id;
+
+    // Handle Stripe subscription linking if session ID provided
+    if (stripeSessionId) {
+      const { getStripe } = require('../services/stripeClient');
+      const stripe = getStripe();
+
+      if (stripe) {
+        try {
+          // Retrieve the checkout session from Stripe
+          const session = await stripe.checkout.sessions.retrieve(stripeSessionId);
+
+          if (session.status === 'complete' && session.subscription) {
+            // Get subscription details
+            const subscription = await stripe.subscriptions.retrieve(session.subscription);
+            const tier = session.metadata?.tier || subscription.metadata?.tier || 'starter';
+
+            // Update profile with Stripe customer and subscription info
+            await updateProfile(userId, {
+              stripe_customer_id: session.customer,
+              stripe_subscription_id: subscription.id,
+              stripe_subscription_status: subscription.status,
+              subscription_tier: tier,
+              subscription_started_at: new Date(subscription.current_period_start * 1000).toISOString(),
+              subscription_renews_at: new Date(subscription.current_period_end * 1000).toISOString()
+            });
+
+            console.log(`✅ Linked Stripe subscription ${subscription.id} to user ${userId} (tier: ${tier})`);
+          }
+        } catch (stripeError) {
+          console.error('Error linking Stripe subscription:', stripeError);
+          // Don't fail signup if Stripe linking fails - user can fix this later
+        }
+      }
+    }
 
     // Handle team logic
     let teamId = null;

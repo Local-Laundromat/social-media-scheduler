@@ -176,6 +176,76 @@ router.get('/status', authenticateToken, async (req, res) => {
 });
 
 /**
+ * POST /api/billing/create-public-checkout-session
+ * Public endpoint for landing page - creates checkout session BEFORE user account creation
+ * body: { tier: string, email?: string } — tier must exist in subscription_tiers
+ * Returns checkout URL that redirects to /login?session_id={ID} on success
+ */
+router.post('/create-public-checkout-session', async (req, res) => {
+  const stripe = getStripe();
+  if (!stripe) {
+    return res.status(503).json({
+      error: 'Stripe is not configured',
+      hint: 'Set STRIPE_SECRET_KEY and price env vars (see .env.supabase.example)',
+    });
+  }
+
+  const tier = String(req.body?.tier || '').toLowerCase();
+  const email = req.body?.email ? String(req.body.email).trim() : undefined;
+
+  const { data: activeTierRow } = await supabase
+    .from('subscription_tiers')
+    .select('tier_name')
+    .eq('tier_name', tier)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (!activeTierRow) {
+    return res.status(400).json({
+      error: 'Unknown or inactive plan',
+      hint: 'Choose a tier from subscription_tiers marked active.',
+    });
+  }
+
+  const priceId = await resolvePriceIdForTier(tier);
+  if (!priceId) {
+    return res.status(503).json({
+      error: `No Stripe price mapped for tier "${tier}"`,
+      hint: `Set STRIPE_PRICE_${tier.toUpperCase()} or subscription_tiers.stripe_price_id for this tier.`,
+    });
+  }
+
+  try {
+    const base = publicBaseUrl();
+    const successUrl = `${base}/login?session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${base}/#pricing`;
+
+    const sessionConfig = {
+      mode: 'subscription',
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      allow_promotion_codes: true,
+      metadata: { tier },
+      subscription_data: {
+        metadata: { tier },
+      },
+    };
+
+    if (email) {
+      sessionConfig.customer_email = email;
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionConfig);
+
+    res.json({ url: session.url, sessionId: session.id });
+  } catch (e) {
+    console.error('[billing/create-public-checkout-session]', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
  * POST /api/billing/create-checkout-session
  * body: { tier: string } — tier must exist in subscription_tiers (is_active=true) with a Stripe price (env STRIPE_PRICE_* or stripe_price_id)
  */

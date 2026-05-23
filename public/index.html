@@ -1126,6 +1126,51 @@
         }
       });
     });
+
+    // Handle Get Started clicks - redirect to Stripe checkout
+    async function handleGetStarted(tier, button) {
+      try {
+        const originalText = button.textContent;
+        button.textContent = 'Loading...';
+        button.style.opacity = '0.6';
+        button.style.pointerEvents = 'none';
+
+        const response = await fetch('/api/billing/create-public-checkout-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tier })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to create checkout session');
+        }
+
+        const data = await response.json();
+
+        // Redirect to Stripe checkout
+        window.location.href = data.url;
+      } catch (error) {
+        console.error('Checkout error:', error);
+        alert('Unable to start checkout: ' + error.message);
+        button.textContent = originalText;
+        button.style.opacity = '1';
+        button.style.pointerEvents = 'auto';
+      }
+    }
+
+    // Add click handlers to all pricing card buttons
+    document.querySelectorAll('.pricing-card').forEach(card => {
+      const tier = card.dataset.tier;
+      const button = card.querySelector('.btn');
+
+      if (button && tier) {
+        button.addEventListener('click', (e) => {
+          e.preventDefault();
+          handleGetStarted(tier, button);
+        });
+      }
+    });
   </script>
 
 </body>
