@@ -33,6 +33,14 @@ function getPlatformsArray(platforms) {
   return [];
 }
 
+const DASHBOARD_FETCH_DEADLINE_MS = 22000;
+
+function fetchWithDeadline(url, options = {}, deadlineMs = DASHBOARD_FETCH_DEADLINE_MS) {
+  const controller = new AbortController();
+  const tid = setTimeout(() => controller.abort(), deadlineMs);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(tid));
+}
+
 // Check authentication on load
 window.addEventListener('DOMContentLoaded', async () => {
   const token = localStorage.getItem('auth_token');
@@ -44,11 +52,20 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // Verify token and load user data
   try {
-    const response = await fetch('/api/auth/me', {
+    const response = await fetchWithDeadline('/api/auth/me', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 
     if (!response.ok) {
+      if (response.status === 503 || response.status === 504) {
+        const el = document.getElementById('userName');
+        if (el) el.textContent = 'Server busy';
+        if (typeof notify === 'function') {
+          notify('The server could not verify your session in time (Supabase auth). Reload in a minute or check hosting logs.', 'error');
+        }
+        console.error('[Dashboard] Auth unreachable:', response.status, await response.text());
+        return;
+      }
       console.error('[Dashboard] Auth failed:', response.status, response.statusText);
       const errorText = await response.text();
       console.error('[Dashboard] Response:', errorText);
@@ -64,6 +81,15 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Update UI
     initializeDashboard();
   } catch (error) {
+    if (error.name === 'AbortError') {
+      const el = document.getElementById('userName');
+      if (el) el.textContent = "Can't reach server";
+      if (typeof notify === 'function') {
+        notify('Request timed out. Check your connection, then reload the page.', 'error');
+      }
+      console.error('[Dashboard] /api/auth/me timed out or was aborted:', error.message);
+      return;
+    }
     console.error('[Dashboard] Auth error:', error);
     console.error('[Dashboard] Error details:', error.message, error.stack);
     localStorage.removeItem('auth_token');

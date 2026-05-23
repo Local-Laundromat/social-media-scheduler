@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const { supabase: supabaseHelper, getProfileById } = require('../database/supabase');
+const { verifySupabaseJwt, jwtVerifyTimeoutMs } = require('../lib/supabaseJwtVerify');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
@@ -20,8 +21,23 @@ const authenticateSupabase = async (req, res, next) => {
       });
     }
 
-    // Verify token with Supabase
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    // Verify token with Supabase (timeout so requests do not hang forever)
+    let authResult;
+    try {
+      authResult = await verifySupabaseJwt(supabase, token);
+    } catch (verErr) {
+      if (verErr && verErr.message === 'SUPABASE_AUTH_TIMEOUT') {
+        console.error('Authentication JWT verify timed out after', jwtVerifyTimeoutMs(), 'ms');
+        return res.status(503).json({
+          error: 'Authentication service timed out',
+          code: 'AUTH_SERVICE_TIMEOUT',
+          message: 'Supabase Auth did not respond in time'
+        });
+      }
+      throw verErr;
+    }
+
+    const { data: { user }, error } = authResult;
 
     if (error || !user) {
       return res.status(403).json({
@@ -63,7 +79,18 @@ const optionalSupabaseAuth = async (req, res, next) => {
   }
 
   try {
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    let authResult;
+    try {
+      authResult = await verifySupabaseJwt(supabase, token);
+    } catch (verErr) {
+      if (verErr && verErr.message === 'SUPABASE_AUTH_TIMEOUT') {
+        console.warn('Optional auth: JWT verify timed out');
+        return next();
+      }
+      throw verErr;
+    }
+
+    const { data: { user }, error } = authResult;
 
     if (!error && user) {
       req.userId = user.id;

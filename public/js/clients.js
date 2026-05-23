@@ -6,11 +6,19 @@
 let allClients = [];
 let currentSelectedClient = null;
 
+const CLIENT_FETCH_DEADLINE_MS = 22000;
+
+function fetchClientsWithDeadline(url, options = {}, deadlineMs = CLIENT_FETCH_DEADLINE_MS) {
+  const controller = new AbortController();
+  const tid = setTimeout(() => controller.abort(), deadlineMs);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(tid));
+}
+
 // Load clients on page load
 async function loadClients() {
   try {
     const token = localStorage.getItem('auth_token');
-    const response = await fetch('/api/clients', {
+    const response = await fetchClientsWithDeadline('/api/clients', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 
@@ -60,7 +68,7 @@ document.getElementById('clientSelect')?.addEventListener('change', async (e) =>
 
   try {
     const token = localStorage.getItem('auth_token');
-    const response = await fetch(`/api/clients/${clientId}`, {
+    const response = await fetchClientsWithDeadline(`/api/clients/${clientId}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 
@@ -217,7 +225,7 @@ async function createClient() {
 
   try {
     const token = localStorage.getItem('auth_token');
-    const response = await fetch('/api/clients', {
+    const response = await fetchClientsWithDeadline('/api/clients', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,

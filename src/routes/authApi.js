@@ -3,6 +3,7 @@ const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const { supabase: supabaseHelper, getProfileById, createProfile, updateProfile } = require('../database/supabase');
 const { authLimiter } = require('../middleware/security');
+const { verifySupabaseJwt, jwtVerifyTimeoutMs } = require('../lib/supabaseJwtVerify');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
@@ -628,7 +629,7 @@ async function authenticateSupabaseToken(req, res, next) {
   console.log('[Auth] Token received, length:', token.length, 'First 20 chars:', token.substring(0, 20));
 
   try {
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    const { data: { user }, error } = await verifySupabaseJwt(supabase, token);
 
     if (error || !user) {
       console.error('[Auth] Token validation failed:', error?.message || 'User not found');
@@ -640,6 +641,15 @@ async function authenticateSupabaseToken(req, res, next) {
     req.user = user;
     next();
   } catch (error) {
+    if (error && error.message === 'SUPABASE_AUTH_TIMEOUT') {
+      console.error('[Auth] JWT verify timed out after', jwtVerifyTimeoutMs(), 'ms (set SUPABASE_AUTH_TIMEOUT_MS)');
+      return res.status(503).json({
+        success: false,
+        error: 'Authentication service timed out',
+        code: 'AUTH_SERVICE_TIMEOUT',
+        message: 'Supabase Auth did not respond in time'
+      });
+    }
     console.error('[Auth] Middleware error:', error);
     res.status(401).json({ error: 'Invalid or expired token' });
   }
