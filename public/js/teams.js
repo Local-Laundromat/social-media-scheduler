@@ -700,11 +700,19 @@ class TeamManager {
 
   // Helper methods
   getInitials(nameOrEmail) {
+    // Handle null/undefined/empty values
+    if (!nameOrEmail || typeof nameOrEmail !== 'string') {
+      return '??';
+    }
+
     const parts = nameOrEmail.split(/[\s@]/);
-    if (parts.length >= 2) {
+    if (parts.length >= 2 && parts[0] && parts[1]) {
       return (parts[0][0] + parts[1][0]).toUpperCase();
     }
-    return nameOrEmail.substring(0, 2).toUpperCase();
+
+    // Return first 2 characters or pad with ?
+    const initials = nameOrEmail.substring(0, 2).toUpperCase();
+    return initials.length === 2 ? initials : initials + '?';
   }
 
   getRoleLabel(role) {
@@ -747,8 +755,9 @@ class TeamManager {
   }
 
   escapeHtml(text) {
+    if (!text && text !== 0) return '';
     const div = document.createElement('div');
-    div.textContent = text;
+    div.textContent = String(text);
     return div.innerHTML;
   }
 
