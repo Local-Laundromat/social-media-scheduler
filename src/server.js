@@ -66,8 +66,25 @@ app.use(sanitizeInputs);
 // Request logging (security audit trail)
 app.use(securityLogger);
 
-// General rate limiting
-app.use(generalLimiter);
+// General rate limiting (exclude static files)
+app.use((req, res, next) => {
+  // Skip rate limiting for static files
+  if (req.path.startsWith('/js/') ||
+      req.path.startsWith('/css/') ||
+      req.path.startsWith('/images/') ||
+      req.path.startsWith('/files/') ||
+      req.path.startsWith('/uploads/') ||
+      req.path.endsWith('.svg') ||
+      req.path.endsWith('.ico') ||
+      req.path.endsWith('.png') ||
+      req.path.endsWith('.jpg') ||
+      req.path.endsWith('.jpeg') ||
+      req.path.endsWith('.gif') ||
+      req.path.endsWith('.webp')) {
+    return next();
+  }
+  generalLimiter(req, res, next);
+});
 
 // Create data directory if it doesn't exist
 const dataDir = path.join(__dirname, '../data');
