@@ -3538,6 +3538,10 @@ function populateGlobalAccountSwitcher() {
   const switcher = document.getElementById('globalAccountSwitcher');
   const select = document.getElementById('globalAccountSelect');
 
+  if (!switcher || !select) {
+    return;
+  }
+
   // Collect all accounts across all platforms
   let allAccounts = [];
 
