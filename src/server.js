@@ -94,8 +94,8 @@ app.use(express.static(path.join(__dirname, '../public')));
 // API ROUTES (with rate limiting)
 // ============================================
 
-// Authentication routes (strict rate limiting)
-app.use('/api/auth', authLimiter, authApiRoutes);
+// Authentication routes (no global rate limiting - applied per-route in authApi.js)
+app.use('/api/auth', authApiRoutes);
 app.use('/auth', authRoutes); // OAuth routes (Facebook/Instagram)
 
 // AI-powered routes (AI usage rate limiting)

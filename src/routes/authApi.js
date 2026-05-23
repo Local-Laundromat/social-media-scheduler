@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const { supabase: supabaseHelper, getProfileById, updateProfile } = require('../database/supabase');
+const { authLimiter } = require('../middleware/security');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
@@ -10,7 +11,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 /**
  * POST /api/auth/signup - Register with Supabase Auth
  */
-router.post('/signup', async (req, res) => {
+router.post('/signup', authLimiter, async (req, res) => {
   const { email, password, name, teamName, inviteCode } = req.body;
 
   if (!email || !password) {
@@ -121,7 +122,7 @@ router.post('/signup', async (req, res) => {
 /**
  * POST /api/auth/login - Sign in with Supabase Auth
  */
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
