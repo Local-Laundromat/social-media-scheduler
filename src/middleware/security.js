@@ -103,8 +103,18 @@ function configureCORS() {
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'https://quu.social',
-    'http://quu.social'
+    'http://quu.social',
+    'https://www.quu.social',
+    'http://www.quu.social'
   ];
+
+  const extra = (process.env.CORS_EXTRA_ORIGINS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  extra.forEach((o) => {
+    if (allowedOrigins.indexOf(o) === -1) allowedOrigins.push(o);
+  });
 
   return cors({
     origin: function (origin, callback) {
@@ -127,14 +137,30 @@ function configureCORS() {
 }
 
 /**
+ * Rate limiting — tighten with env in production; relax locally if needed.
+ * - GENERAL_RATE_LIMIT_MAX (default 100 per window)
+ * - AUTH_RATE_LIMIT_MAX (default 5 failed auth attempts per window; successes skipped when skipSuccessfulRequests)
+ * - DISABLE_RATE_LIMIT=true — skip all Express rate limits (local dev only, never enable in production)
+ */
+function disabledRateLimits() {
+  return process.env.DISABLE_RATE_LIMIT === 'true';
+}
+
+function rateLimitMax(envName, fallback) {
+  const n = Number.parseInt(process.env[envName], 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+/**
  * Rate Limiting - Prevent brute force attacks
  */
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: rateLimitMax('GENERAL_RATE_LIMIT_MAX', 100),
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  skip: disabledRateLimits,
   handler: (req, res) => {
     res.status(429).json({
       success: false,
@@ -150,8 +176,9 @@ const generalLimiter = rateLimit({
  */
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 attempts
+  max: rateLimitMax('AUTH_RATE_LIMIT_MAX', 5), // failed attempts count; successes skipped below
   message: 'Too many login attempts, please try again later.',
+  skip: disabledRateLimits,
   skipSuccessfulRequests: true,
   handler: (req, res) => {
     res.status(429).json({
@@ -168,8 +195,9 @@ const authLimiter = rateLimit({
  */
 const aiLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 50, // 50 AI requests per hour
+  max: rateLimitMax('AI_RATE_LIMIT_MAX', 50),
   message: 'AI usage limit exceeded',
+  skip: disabledRateLimits,
   handler: (req, res) => {
     res.status(429).json({
       success: false,

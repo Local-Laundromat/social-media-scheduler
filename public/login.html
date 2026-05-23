@@ -555,9 +555,11 @@
 
           // Store token and user data
           const token = data.session?.access_token || data.token;
-          if (token) {
-            localStorage.setItem('auth_token', token);
+          if (!token) {
+            showSuccess('Account created. Check your email to confirm your account, then sign in.');
+            return;
           }
+          localStorage.setItem('auth_token', token);
           localStorage.setItem('user', JSON.stringify(data.user));
           if (data.team) {
             localStorage.setItem('team', JSON.stringify(data.team));
@@ -585,9 +587,11 @@
 
           // Store token and user data
           const token = data.session?.access_token || data.token;
-          if (token) {
-            localStorage.setItem('auth_token', token);
+          if (!token) {
+            showError('Signed in but no session was returned. Try again or confirm your email if signup required verification.');
+            return;
           }
+          localStorage.setItem('auth_token', token);
           localStorage.setItem('user', JSON.stringify(data.user));
           if (data.team) {
             localStorage.setItem('team', JSON.stringify(data.team));

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
-const { supabase: supabaseHelper, getProfileById, updateProfile } = require('../database/supabase');
+const { supabase: supabaseHelper, getProfileById, createProfile, updateProfile } = require('../database/supabase');
 const { authLimiter } = require('../middleware/security');
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -304,10 +304,30 @@ router.get('/verify', async (req, res) => {
  */
 router.get('/me', authenticateSupabaseToken, async (req, res) => {
   try {
-    const profile = await getProfileById(req.userId);
+    let profile = await getProfileById(req.userId);
+
+    /** Authenticated users must have a profiles row or the dashboard treats /me as failure and redirects. */
+    if (!profile) {
+      const metaName = req.user.user_metadata?.name || req.user.user_metadata?.full_name;
+      const email = req.user.email || '';
+      const fallbackName =
+        typeof metaName === 'string' && metaName.trim()
+          ? metaName.trim()
+          : (email.includes('@') ? email.split('@')[0] : 'User');
+      try {
+        profile = await createProfile({
+          id: req.userId,
+          email,
+          name: fallbackName
+        });
+      } catch (createErr) {
+        console.warn('[Auth /me] createProfile:', createErr?.message || createErr);
+        profile = await getProfileById(req.userId);
+      }
+    }
 
     if (!profile) {
-      return res.status(404).json({ error: 'Profile not found' });
+      return res.status(500).json({ error: 'Profile could not be loaded or created' });
     }
 
     // Get Facebook accounts for user or their team
