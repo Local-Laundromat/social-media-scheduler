@@ -1,6 +1,7 @@
 // Dashboard JavaScript - Makes all buttons work!
 
 let currentUser = null;
+let teamManager = null;
 let uploadedFile = null;
 let socialAccounts = { facebook: [], instagram: [], tiktok: [], pinterest: [], youtube: [], google: [] };
 let currentGlobalAccount = null; // Global account filter: { platform: 'facebook', accountId: '123', name: 'Page Name' }
@@ -198,6 +199,14 @@ function initializeDashboard() {
 
   handleBillingRedirectQuery();
   applyBillingDeepLink();
+
+  // Initialize team manager if available
+  if (window.TeamManager) {
+    teamManager = new window.TeamManager();
+    teamManager.init(currentUser).catch(err => {
+      console.error('Failed to initialize team manager:', err);
+    });
+  }
 
   // DEFER: Load posts only when Posts tab is opened
   // DEFER: Load settings only when Settings tab is opened
