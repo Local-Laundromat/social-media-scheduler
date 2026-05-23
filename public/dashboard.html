@@ -1179,6 +1179,7 @@
       <button class="mobile-nav-tab" data-tab="posts">My Posts</button>
       <button class="mobile-nav-tab" data-tab="comments">Comments</button>
       <button class="mobile-nav-tab" data-tab="reviews">Reviews</button>
+      <button class="mobile-nav-tab" data-tab="brands">Brands</button>
       <button class="mobile-nav-tab" data-tab="team">Team</button>
       <button class="mobile-nav-tab" data-tab="settings">Settings</button>
     </nav>
@@ -1335,6 +1336,7 @@
           <div class="tab" data-tab="posts">My Posts</div>
           <div class="tab" data-tab="comments">Comments</div>
           <div class="tab" data-tab="reviews">Reviews</div>
+          <div class="tab" data-tab="brands">Brands</div>
           <div class="tab" data-tab="team">Team</div>
           <div class="tab" data-tab="settings">Settings</div>
         </div>
@@ -1384,6 +1386,20 @@
               </select>
               <div style="font-size: 12px; color: #6b7280; margin-top: 6px;" id="postTypeHint">
                 Choose "Instagram Reel" for vertical videos or "Facebook Story" for 24-hour posts
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Brand/Client (Optional)</label>
+              <select id="brandSelect" onchange="handleBrandSelection()">
+                <option value="">No brand - Personal post</option>
+              </select>
+              <div style="font-size: 12px; color: #6b7280; margin-top: 6px;">
+                Select a brand to organize this post and use brand voice settings
+              </div>
+              <!-- Brand Voice Hint -->
+              <div id="brandVoiceHint" style="display: none; margin-top: 12px; padding: 12px; background: #eff6ff; border: 1px solid #3b82f6; border-radius: 6px; font-size: 13px; color: #1e40af;">
+                <strong>Brand Voice:</strong> <span id="brandVoiceText"></span>
               </div>
             </div>
 
@@ -1682,6 +1698,14 @@
             </div>
           </div>
 
+          <!-- Brand Filter -->
+          <div style="margin-bottom: 20px;">
+            <label style="font-weight: 600; margin-right: 8px;">Filter by Brand:</label>
+            <select id="calendarFilterBrand" onchange="loadCalendar()" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; background: white; cursor: pointer; min-width: 200px;">
+              <option value="">All Brands</option>
+            </select>
+          </div>
+
           <!-- Calendar Legend -->
           <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
             <div style="display: flex; align-items: center; gap: 6px;">
@@ -1753,15 +1777,26 @@
 
           <div id="analyticsPublishingHint" style="display: none; margin-bottom: 20px; padding: 14px 16px; background: #fefce8; border: 1px solid #eab308; border-radius: 8px; color: #713f12; font-size: 14px; line-height: 1.55;"></div>
 
-          <!-- Time Range Selector -->
-          <div style="margin-bottom: 24px;">
-            <label style="font-weight: 600; margin-right: 12px;">Time Range:</label>
-            <select id="analyticsTimeRange" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db;">
-              <option value="7">Last 7 days</option>
-              <option value="30" selected>Last 30 days</option>
-              <option value="90">Last 90 days</option>
-              <option value="all">All time</option>
-            </select>
+          <!-- Filters Row -->
+          <div style="display: flex; gap: 20px; margin-bottom: 24px; flex-wrap: wrap;">
+            <!-- Brand Filter -->
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <label style="font-weight: 600;">Brand:</label>
+              <select id="analyticsFilterBrand" onchange="loadAnalytics()" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; min-width: 200px;">
+                <option value="">All Brands</option>
+              </select>
+            </div>
+
+            <!-- Time Range Selector -->
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <label style="font-weight: 600;">Time Range:</label>
+              <select id="analyticsTimeRange" onchange="loadAnalytics()" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db;">
+                <option value="7">Last 7 days</option>
+                <option value="30" selected>Last 30 days</option>
+                <option value="90">Last 90 days</option>
+                <option value="all">All time</option>
+              </select>
+            </div>
           </div>
 
           <!-- Key Metrics Grid -->
@@ -1974,6 +2009,15 @@
         <!-- Posts Tab -->
         <div id="postsTab" class="tab-content">
           <h3>My Posts</h3>
+
+          <!-- Brand Filter -->
+          <div style="margin-bottom: 20px; display: flex; gap: 12px; align-items: center;">
+            <label style="font-weight: 500; color: #374151;">Filter by Brand:</label>
+            <select id="postsFilterBrand" onchange="loadPosts()" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; background: white; cursor: pointer; min-width: 200px;">
+              <option value="">All Posts (No Brand Filter)</option>
+            </select>
+          </div>
+
           <div id="postsList">
             <div class="loading">
               <div class="spinner"></div>
@@ -2100,6 +2144,17 @@
               Loading reviews...
             </div>
           </div>
+        </div>
+
+        <!-- Brands Tab -->
+        <div id="brandsTab" class="tab-content">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <h3 style="margin: 0;">My Brands</h3>
+            <button onclick="showCreateBrandModal()" class="btn btn-primary">
+              + New Brand
+            </button>
+          </div>
+          <div id="brandsList"></div>
         </div>
 
         <!-- Team Tab -->
@@ -2417,6 +2472,312 @@
   <script src="/js/clients.js?v=1.3"></script>
   <script src="/js/comments.js?v=2.0"></script>
   <script src="/js/reviews.js?v=1.1"></script>
+  <script src="/js/brands.js?v=1.0"></script>
   <script src="/js/teams.js?v=1.0"></script>
+
+  <!-- Brand Modals -->
+  <div id="brandModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeModal('brandModal')">&times;</span>
+      <h2 id="modalTitle">Create New Brand</h2>
+      <form id="brandForm">
+        <div class="form-group">
+          <label for="brandName">Brand Name *</label>
+          <input type="text" id="brandName" required placeholder="e.g., Nike, Starbucks, etc.">
+        </div>
+
+        <div class="form-group">
+          <label for="brandDescription">Description</label>
+          <textarea id="brandDescription" placeholder="Brief description of this brand/client" rows="3"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="brandLogoUrl">Logo URL</label>
+          <input type="url" id="brandLogoUrl" placeholder="https://example.com/logo.png">
+        </div>
+
+        <div class="form-group">
+          <label for="brandTone">Brand Tone</label>
+          <select id="brandTone">
+            <option value="friendly">Friendly</option>
+            <option value="professional">Professional</option>
+            <option value="playful">Playful</option>
+            <option value="expert">Expert</option>
+            <option value="casual">Casual</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="brandStyle">Brand Style</label>
+          <select id="brandStyle">
+            <option value="casual">Casual</option>
+            <option value="formal">Formal</option>
+            <option value="conversational">Conversational</option>
+            <option value="informative">Informative</option>
+          </select>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-top: 24px;">
+          <button type="submit" class="btn btn-primary" style="flex: 1;">Save Brand</button>
+          <button type="button" onclick="closeModal('brandModal')" class="btn btn-secondary" style="flex: 1;">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="brandDetailsModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeModal('brandDetailsModal')">&times;</span>
+      <div id="brandDetailsContent"></div>
+    </div>
+  </div>
+
+  <style>
+    /* Brand Cards */
+    .brand-card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .brand-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .brand-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .brand-logo {
+      width: 64px;
+      height: 64px;
+      border-radius: 8px;
+      object-fit: cover;
+    }
+
+    .brand-logo-large {
+      width: 100px;
+      height: 100px;
+      border-radius: 12px;
+      object-fit: cover;
+    }
+
+    .brand-info h3 {
+      margin: 0 0 8px 0;
+      font-size: 20px;
+    }
+
+    .brand-description {
+      color: #6b7280;
+      margin: 0;
+    }
+
+    .brand-stats {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 16px;
+      padding: 16px 0;
+      border-top: 1px solid #e5e7eb;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .stat {
+      text-align: center;
+    }
+
+    .stat-value {
+      display: block;
+      font-size: 24px;
+      font-weight: 600;
+      color: #7c3aed;
+    }
+
+    .stat-label {
+      display: block;
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+
+    .brand-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+    }
+
+    .empty-state p {
+      color: #6b7280;
+      margin-bottom: 24px;
+    }
+
+    /* Modal Styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+    }
+
+    .modal-content {
+      background-color: white;
+      margin: 5% auto;
+      padding: 32px;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 600px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .close {
+      color: #aaa;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .close:hover {
+      color: #000;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .form-group input:focus,
+    .form-group textarea:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #7c3aed;
+    }
+
+    /* Brand details modal specific styles */
+    .brand-header-detail {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 24px;
+      padding-bottom: 24px;
+      border-bottom: 2px solid #e5e7eb;
+    }
+
+    .brand-stats-detail {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: #f9fafb;
+      padding: 16px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .stat-card h4 {
+      margin: 0 0 8px 0;
+      font-size: 28px;
+      color: #7c3aed;
+    }
+
+    .stat-card p {
+      margin: 0;
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .brand-accounts-section,
+    .brand-voice-section {
+      margin-top: 24px;
+    }
+
+    .platform-accounts {
+      margin-bottom: 16px;
+    }
+
+    .platform-accounts h4 {
+      margin-bottom: 8px;
+    }
+
+    .accounts-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .accounts-list li {
+      padding: 8px 12px;
+      background: #f9fafb;
+      margin-bottom: 4px;
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .badge {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .badge-success {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .badge-secondary {
+      background: #e5e7eb;
+      color: #6b7280;
+    }
+
+    .text-muted {
+      color: #9ca3af;
+      font-style: italic;
+    }
+
+    .brand-voice-info {
+      background: #f9fafb;
+      padding: 16px;
+      border-radius: 8px;
+    }
+
+    .brand-voice-info p {
+      margin: 8px 0;
+    }
+  </style>
 </body>
 </html>

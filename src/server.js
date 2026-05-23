@@ -36,6 +36,7 @@ const billingRoutes = require('./routes/billing'); // Stripe subscription billin
 const pricingPublicRoutes = require('./routes/pricingPublic'); // Marketing page ↔ Stripe Prices
 const teamsRoutes = require('./routes/teams'); // Team collaboration & invitations
 const adminRoutes = require('./routes/admin'); // SaaS owner admin dashboard
+const brandsRoutes = require('./routes/brands'); // Brand profiles for multi-client management
 const { stripeWebhookHandler } = require('./routes/billingWebhook');
 const { isStripeConfigured, getStripeApiVersion } = require('./services/stripeClient');
 const scheduler = require('./services/scheduler');
@@ -143,6 +144,7 @@ app.use('/api', aiLimiter, aiCaptionRoutes);
 app.use('/api', apiRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/clients', clientsRoutes);
+app.use('/api/brands', brandsRoutes); // Brand profiles
 app.use('/api/teams', teamsRoutes); // Team collaboration
 app.use('/api/admin', adminRoutes); // Admin dashboard
 app.use('/api/profile', profileRoutes);

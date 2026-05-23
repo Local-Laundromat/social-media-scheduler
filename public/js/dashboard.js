@@ -197,6 +197,9 @@ function initializeDashboard() {
   // Populate global account switcher
   populateGlobalAccountSwitcher();
 
+  // Populate brand filter dropdown
+  populateBrandFilterDropdown();
+
   handleBillingRedirectQuery();
   applyBillingDeepLink();
 
@@ -637,6 +640,59 @@ function populateAccountSelectors() {
   toggleAccountSelector('google');
 }
 
+// Populate brand filter dropdowns (posts, analytics, calendar)
+async function populateBrandFilterDropdown() {
+  try {
+    const token = localStorage.getItem('auth_token');
+    const response = await fetch('/api/brands', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (!response.ok) return;
+
+    const data = await response.json();
+    const brands = data.brands || [];
+
+    // Populate Posts tab brand filter
+    const postsFilter = document.getElementById('postsFilterBrand');
+    if (postsFilter) {
+      postsFilter.innerHTML = '<option value="">All Posts (No Brand Filter)</option>';
+      brands.forEach(brand => {
+        const option = document.createElement('option');
+        option.value = brand.id;
+        option.textContent = brand.name;
+        postsFilter.appendChild(option);
+      });
+    }
+
+    // Populate Analytics tab brand filter
+    const analyticsFilter = document.getElementById('analyticsFilterBrand');
+    if (analyticsFilter) {
+      analyticsFilter.innerHTML = '<option value="">All Brands</option>';
+      brands.forEach(brand => {
+        const option = document.createElement('option');
+        option.value = brand.id;
+        option.textContent = brand.name;
+        analyticsFilter.appendChild(option);
+      });
+    }
+
+    // Populate Calendar tab brand filter (will add later)
+    const calendarFilter = document.getElementById('calendarFilterBrand');
+    if (calendarFilter) {
+      calendarFilter.innerHTML = '<option value="">All Brands</option>';
+      brands.forEach(brand => {
+        const option = document.createElement('option');
+        option.value = brand.id;
+        option.textContent = brand.name;
+        calendarFilter.appendChild(option);
+      });
+    }
+  } catch (error) {
+    console.error('Error loading brands for filters:', error);
+  }
+}
+
 // Toggle account selector visibility based on platform checkbox
 function toggleAccountSelector(platform) {
   const checkbox = document.querySelector(`input[name="platform"][value="${platform}"]`);
@@ -713,7 +769,7 @@ async function loadPosts() {
   const postsList = document.getElementById('postsList');
 
   try {
-    // Build URL with optional account and client filters
+    // Build URL with optional account, client, and brand filters
     let url = `/api/users/${currentUser.id}/posts`;
     const params = new URLSearchParams();
 
@@ -724,6 +780,12 @@ async function loadPosts() {
 
     if (currentSelectedClient) {
       params.set('client_id', currentSelectedClient.id);
+    }
+
+    // Add brand filter
+    const brandFilter = document.getElementById('postsFilterBrand');
+    if (brandFilter && brandFilter.value) {
+      params.set('brand_profile_id', brandFilter.value);
     }
 
     if (params.toString()) {
@@ -2333,13 +2395,22 @@ async function renderCalendar(date) {
   const token = localStorage.getItem('auth_token');
 
   try {
-    // Build URL with optional account filter
+    // Build URL with optional account and brand filters
     let postsUrl = `/api/users/${currentUser.id}/posts`;
+    const params = new URLSearchParams();
+
     if (currentGlobalAccount) {
-      const params = new URLSearchParams({
-        platform: currentGlobalAccount.platform,
-        accountId: currentGlobalAccount.accountId
-      });
+      params.set('platform', currentGlobalAccount.platform);
+      params.set('accountId', currentGlobalAccount.accountId);
+    }
+
+    // Add brand filter
+    const brandFilter = document.getElementById('calendarFilterBrand');
+    if (brandFilter && brandFilter.value) {
+      params.set('brand_profile_id', brandFilter.value);
+    }
+
+    if (params.toString()) {
       postsUrl += `?${params.toString()}`;
     }
 
@@ -2672,13 +2743,22 @@ async function loadAnalytics() {
   const timeRange = document.getElementById('analyticsTimeRange').value;
 
   try {
-    // Build URL with optional account filter
+    // Build URL with optional account and brand filters
     let postsUrl = `/api/users/${currentUser.id}/posts`;
+    const params = new URLSearchParams();
+
     if (currentGlobalAccount) {
-      const params = new URLSearchParams({
-        platform: currentGlobalAccount.platform,
-        accountId: currentGlobalAccount.accountId
-      });
+      params.set('platform', currentGlobalAccount.platform);
+      params.set('accountId', currentGlobalAccount.accountId);
+    }
+
+    // Add brand filter
+    const brandFilter = document.getElementById('analyticsFilterBrand');
+    if (brandFilter && brandFilter.value) {
+      params.set('brand_profile_id', brandFilter.value);
+    }
+
+    if (params.toString()) {
       postsUrl += `?${params.toString()}`;
     }
 

@@ -221,7 +221,7 @@ router.get('/:userId', async (req, res) => {
  */
 router.get('/:userId/posts', optionalSupabaseAuth, attachResolvedProfile, requirePostsListEmbedOrJwt, async (req, res) => {
   const profile = req.resolvedProfile;
-  const { status, limit = 50, client_id, platform, accountId } = req.query;
+  const { status, limit = 50, client_id, brand_profile_id, platform, accountId } = req.query;
 
   console.log(`📊 GET /api/users/${req.params.userId}/posts — profile ${profile?.id ?? '?'}`);
 
@@ -251,6 +251,11 @@ router.get('/:userId/posts', optionalSupabaseAuth, attachResolvedProfile, requir
     if (client_id) {
       console.log(`  → Filtering by client_id: ${client_id}`);
       query = query.eq('client_id', parseInt(client_id));
+    }
+
+    if (brand_profile_id) {
+      console.log(`  → Filtering by brand_profile_id: ${brand_profile_id}`);
+      query = query.eq('brand_profile_id', parseInt(brand_profile_id));
     }
 
     query = applyPostPlatformAccountFilter(query, platform, accountId);
