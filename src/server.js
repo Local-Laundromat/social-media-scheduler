@@ -142,6 +142,7 @@ app.use('/api', apiRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/clients', clientsRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/billing', billingRoutes); // Stripe billing routes
 app.use('/api/upload', uploadRoutes);
 app.use('/api/csv', csvRoutes);
 app.use('/api/comments', commentsRoutes);
