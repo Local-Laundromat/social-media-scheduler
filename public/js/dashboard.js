@@ -107,19 +107,74 @@ const dataCache = {
   lastLoaded: {}
 };
 
-// Initialize dashboard with user data
-function initializeDashboard() {
-  // Update welcome message
-  document.getElementById('userName').textContent = currentUser.name || currentUser.email;
-  document.getElementById('welcomeName').textContent = currentUser.name || 'there';
+/** Sidebar + switcher use the same account list: full team, or one client when an agency client is selected */
+function deriveSidebarAccountsForPlatform(platform) {
+  if (typeof currentSelectedClient !== 'undefined' && currentSelectedClient && currentSelectedClient.accounts) {
+    return normalizeSocialAccounts(currentSelectedClient.accounts)[platform] || [];
+  }
+  return socialAccounts[platform] || [];
+}
 
-  // Update connection status
+function globalAccountFilterPlatform() {
+  if (!currentGlobalAccount) return null;
+  return currentGlobalAccount.platform === 'google_business' ? 'google' : currentGlobalAccount.platform;
+}
+
+/** True if this row is the one chosen in the Social account toolbar filter */
+function socialRowMatchesGlobalFilter(platform, account) {
+  const g = currentGlobalAccount;
+  if (!g) return true;
+  const want = String(g.accountId);
+  switch (platform) {
+    case 'facebook':
+      return String(account.page_id ?? '') === want || String(account.id ?? '') === want;
+    case 'instagram':
+      return (
+        String(account.account_id ?? '') === want ||
+        String(account.instagram_business_account_id ?? '') === want ||
+        String(account.id ?? '') === want
+      );
+    case 'tiktok':
+      return String(account.open_id ?? '') === want || String(account.id ?? '') === want;
+    case 'pinterest':
+      return (
+        String(account.pinterest_user_id ?? '') === want ||
+        String(account.account_id ?? '') === want ||
+        String(account.username ?? '') === want
+      );
+    case 'youtube':
+      return String(account.channel_id ?? '') === want || String(account.id ?? '') === want;
+    case 'google':
+      return (
+        String(account.location_name ?? '') === want ||
+        String(account.location_id ?? '') === want ||
+        String(account.id ?? '') === want
+      );
+    default:
+      return true;
+  }
+}
+
+function refreshSidebarConnectionStatuses() {
+  if (!currentUser) return;
   updateConnectionStatus('facebook', currentUser.facebook_connected, currentUser.facebook_page_name);
   updateConnectionStatus('instagram', currentUser.instagram_connected, currentUser.instagram_username);
   updateConnectionStatus('tiktok', currentUser.tiktok_connected, currentUser.tiktok_username);
   updateConnectionStatus('pinterest', currentUser.pinterest_connected, currentUser.pinterest_username);
   updateConnectionStatus('youtube', currentUser.youtube_connected, currentUser.youtube_channel_title);
   updateConnectionStatus('google', currentUser.google_connected, currentUser.google_account_display_name);
+}
+
+window.refreshSidebarConnectionStatuses = refreshSidebarConnectionStatuses;
+
+// Initialize dashboard with user data
+function initializeDashboard() {
+  // Update welcome message
+  document.getElementById('userName').textContent = currentUser.name || currentUser.email;
+  document.getElementById('welcomeName').textContent = currentUser.name || 'there';
+
+  // Update connection status (respects client + social account filter)
+  refreshSidebarConnectionStatuses();
 
   // ONLY load stats on initial load (lightweight)
   loadStats();
@@ -143,8 +198,31 @@ function updateConnectionStatus(platform, connected, accountName) {
   const details = document.getElementById(`${platform}Details`);
   const btn = document.getElementById(`${platform}Btn`);
 
-  // Get accounts for this platform
-  const accounts = socialAccounts[platform] || [];
+  if (!card || !status || !details || !btn) return;
+
+  btn.style.display = '';
+
+  const filterPlat = globalAccountFilterPlatform();
+  const allAccounts = deriveSidebarAccountsForPlatform(platform);
+
+  if (currentGlobalAccount && filterPlat && filterPlat !== platform && allAccounts.length > 0) {
+    card.classList.add('connected');
+    status.className = 'status-badge disconnected';
+    status.textContent = 'Hidden';
+    details.innerHTML =
+      '<p style="font-size: 13px; color: #6b7280; margin: 0;">You are viewing another account in the toolbar. Choose <strong>All accounts</strong> there to show every connection on this screen.</p>';
+    btn.style.display = 'none';
+    return;
+  }
+
+  let accounts = allAccounts;
+  if (currentGlobalAccount && filterPlat === platform && allAccounts.length > 1) {
+    const filtered = allAccounts.filter((acc) => socialRowMatchesGlobalFilter(platform, acc));
+    accounts = filtered.length > 0 ? filtered : allAccounts;
+    if (filtered.length === 0 && allAccounts.length > 0) {
+      console.warn('[Dashboard] Global filter did not match any row; showing all for', platform);
+    }
+  }
 
   // Platform configuration
   const platformConfig = {
@@ -435,15 +513,11 @@ async function reloadUserData() {
     currentUser = data.user;
     socialAccounts = normalizeSocialAccounts(data.social_accounts);
 
-    updateConnectionStatus('facebook', currentUser.facebook_connected, currentUser.facebook_page_name);
-    updateConnectionStatus('instagram', currentUser.instagram_connected, currentUser.instagram_username);
-    updateConnectionStatus('tiktok', currentUser.tiktok_connected, currentUser.tiktok_username);
-    updateConnectionStatus('pinterest', currentUser.pinterest_connected, currentUser.pinterest_username);
-    updateConnectionStatus('youtube', currentUser.youtube_connected, currentUser.youtube_channel_title);
-    updateConnectionStatus('google', currentUser.google_connected, currentUser.google_account_display_name);
+    refreshSidebarConnectionStatuses();
 
-    // Repopulate account selectors
+    // Repopulate account selectors & toolbar switcher
     populateAccountSelectors();
+    populateGlobalAccountSwitcher();
   } catch (error) {
     console.error('Failed to reload user data:', error);
   }
@@ -3710,14 +3784,18 @@ function switchGlobalAccount() {
     }
   }
 
-  // Reload current tab data with new filter
+  // Invalidate lazy-load caches — filter changed, old tab payloads would be misleading
+  dataCache.lastLoaded.posts = 0;
+  dataCache.lastLoaded.calendar = 0;
+  dataCache.lastLoaded.analytics = 0;
+  dataCache.lastLoaded.comments = 0;
+  dataCache.lastLoaded.reviews = 0;
+
+  // Reload current tab data with new filter (tabs use data-tab, not onclick)
   const activeTab = document.querySelector('.tab.active');
-  if (activeTab) {
-    const tabName = activeTab.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
-    if (tabName) {
-      // Reload data for current tab
-      refreshCurrentTab(tabName);
-    }
+  const tabName = activeTab?.getAttribute?.('data-tab');
+  if (tabName) {
+    refreshCurrentTab(tabName);
   }
 
   // Update welcome message
@@ -3731,6 +3809,7 @@ function switchGlobalAccount() {
     }
   }
 
+  refreshSidebarConnectionStatuses();
   loadStats();
 }
 

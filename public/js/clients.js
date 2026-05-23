@@ -72,6 +72,9 @@ document.getElementById('clientSelect')?.addEventListener('change', async (e) =>
     if (typeof populateGlobalAccountSwitcher === 'function') {
       populateGlobalAccountSwitcher();
     }
+    if (typeof window.refreshSidebarConnectionStatuses === 'function') {
+      window.refreshSidebarConnectionStatuses();
+    }
     return;
   }
 
@@ -101,6 +104,9 @@ document.getElementById('clientSelect')?.addEventListener('change', async (e) =>
     }
     if (typeof populateGlobalAccountSwitcher === 'function') {
       populateGlobalAccountSwitcher();
+    }
+    if (typeof window.refreshSidebarConnectionStatuses === 'function') {
+      window.refreshSidebarConnectionStatuses();
     }
   } catch (error) {
     console.error('Client selection error:', error);
