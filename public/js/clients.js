@@ -18,22 +18,32 @@ function fetchClientsWithDeadline(url, options = {}, deadlineMs = CLIENT_FETCH_D
 async function loadClients() {
   try {
     const token = localStorage.getItem('auth_token');
+
+    // Skip if no token (user not logged in yet)
+    if (!token || token === 'null') {
+      return;
+    }
+
     const response = await fetchClientsWithDeadline('/api/clients', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 
-    if (!response.ok) throw new Error('Failed to load clients');
+    if (!response.ok) {
+      // Silently fail - clients are optional
+      return;
+    }
 
     const data = await response.json();
     allClients = data.clients || [];
 
     // Show client selector if user has clients
     if (allClients.length > 0) {
-      document.getElementById('clientSwitcher').style.display = 'flex';
+      document.getElementById('clientSwitcher')?.style.display = 'flex';
       populateClientSelector();
     }
   } catch (error) {
-    console.error('Load clients error:', error);
+    // Silently fail - clients are optional
+    console.debug('Clients not loaded:', error.message);
   }
 }
 
