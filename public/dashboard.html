@@ -31,6 +31,15 @@
       justify-content: space-between;
       align-items: center;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
 
     .topbar h1 {
@@ -47,6 +56,116 @@
       display: flex;
       align-items: center;
       gap: 16px;
+    }
+
+    .mobile-menu-btn {
+      display: none;
+      background: none;
+      border: none;
+      padding: 8px;
+      cursor: pointer;
+      color: #1f2937;
+      border-radius: 6px;
+      transition: background 0.2s;
+    }
+
+    .mobile-menu-btn:hover {
+      background: #f3f4f6;
+    }
+
+    .mobile-nav-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 200;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .mobile-nav-overlay.active {
+      display: block;
+      opacity: 1;
+    }
+
+    .mobile-nav-drawer {
+      position: fixed;
+      top: 0;
+      left: -100%;
+      width: 280px;
+      max-width: 80vw;
+      height: 100vh;
+      background: white;
+      z-index: 201;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+      transition: left 0.3s;
+      overflow-y: auto;
+    }
+
+    .mobile-nav-drawer.active {
+      left: 0;
+    }
+
+    .mobile-nav-header {
+      padding: 20px;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+      color: #1f2937;
+    }
+
+    .mobile-nav-header h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .mobile-nav-close {
+      background: none;
+      border: none;
+      padding: 8px;
+      cursor: pointer;
+      color: #1f2937;
+      border-radius: 6px;
+      transition: background 0.2s;
+    }
+
+    .mobile-nav-close:hover {
+      background: rgba(0, 0, 0, 0.1);
+    }
+
+    .mobile-nav-tabs {
+      padding: 8px 0;
+    }
+
+    .mobile-nav-tab {
+      width: 100%;
+      padding: 16px 20px;
+      border: none;
+      background: none;
+      text-align: left;
+      font-size: 16px;
+      font-weight: 500;
+      color: #4b5563;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-left: 3px solid transparent;
+    }
+
+    .mobile-nav-tab:hover {
+      background: #f9fafb;
+      color: #1f2937;
+    }
+
+    .mobile-nav-tab.active {
+      background: #fef3c7;
+      color: #ca8a04;
+      border-left-color: #ca8a04;
     }
 
     .user-menu {
@@ -661,6 +780,10 @@
 
     /* Mobile Responsive Styles */
     @media (max-width: 768px) {
+      .mobile-menu-btn {
+        display: block;
+      }
+
       .topbar {
         padding: 12px 16px;
       }
@@ -669,8 +792,16 @@
         font-size: 18px;
       }
 
+      .topbar h1 img {
+        height: 32px;
+      }
+
       .topbar-right {
         gap: 8px;
+      }
+
+      .user-menu span {
+        display: none;
       }
 
       .btn-logout {
@@ -761,12 +892,41 @@
       .tabs {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-        -ms-overflow-style: none;
+        scrollbar-width: thin;
+        -ms-overflow-style: auto;
+        position: relative;
+        padding-bottom: 8px;
+        margin-bottom: 20px;
       }
 
       .tabs::-webkit-scrollbar {
-        display: none;
+        height: 4px;
+      }
+
+      .tabs::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+      }
+
+      .tabs::-webkit-scrollbar-thumb {
+        background: #ca8a04;
+        border-radius: 4px;
+      }
+
+      .tabs::-webkit-scrollbar-thumb:hover {
+        background: #a16207;
+      }
+
+      .tabs::after {
+        content: '← Scroll for more tabs →';
+        position: absolute;
+        bottom: -18px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 11px;
+        color: #9ca3af;
+        pointer-events: none;
       }
 
       .app-notify-stack {
@@ -963,9 +1123,18 @@
 </head>
 <body>
   <div class="topbar">
-    <h1>
-      <img src="/logo.svg" alt="Quu">
-    </h1>
+    <div class="topbar-left">
+      <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle menu">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="12" x2="21" y2="12"></line>
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+      </button>
+      <h1>
+        <img src="/logo.svg" alt="Quu">
+      </h1>
+    </div>
     <div class="topbar-right">
       <!-- Client Selector (for agencies) -->
       <div id="clientSwitcher" style="display: none; margin-right: 16px;">
@@ -988,6 +1157,31 @@
       </div>
       <button class="btn-logout" id="logoutBtn">Logout</button>
     </div>
+  </div>
+
+  <!-- Mobile Navigation Drawer -->
+  <div class="mobile-nav-overlay" id="mobileNavOverlay"></div>
+  <div class="mobile-nav-drawer" id="mobileNavDrawer">
+    <div class="mobile-nav-header">
+      <h2>Navigation</h2>
+      <button class="mobile-nav-close" id="mobileNavClose" aria-label="Close menu">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+    <nav class="mobile-nav-tabs">
+      <button class="mobile-nav-tab active" data-tab="create">Create Post</button>
+      <button class="mobile-nav-tab" data-tab="bulk">Bulk Upload</button>
+      <button class="mobile-nav-tab" data-tab="calendar">Calendar</button>
+      <button class="mobile-nav-tab" data-tab="analytics">Analytics</button>
+      <button class="mobile-nav-tab" data-tab="posts">My Posts</button>
+      <button class="mobile-nav-tab" data-tab="comments">Comments</button>
+      <button class="mobile-nav-tab" data-tab="reviews">Reviews</button>
+      <button class="mobile-nav-tab" data-tab="team">Team</button>
+      <button class="mobile-nav-tab" data-tab="settings">Settings</button>
+    </nav>
   </div>
 
   <div class="container">
@@ -2136,6 +2330,89 @@
   </div>
 
   <script src="/js/app-notify.js?v=1.0"></script>
+
+  <!-- Mobile Navigation Script -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+      const mobileNavDrawer = document.getElementById('mobileNavDrawer');
+      const mobileNavOverlay = document.getElementById('mobileNavOverlay');
+      const mobileNavClose = document.getElementById('mobileNavClose');
+      const mobileNavTabs = document.querySelectorAll('.mobile-nav-tab');
+
+      function openMobileNav() {
+        mobileNavDrawer.classList.add('active');
+        mobileNavOverlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      }
+
+      function closeMobileNav() {
+        mobileNavDrawer.classList.remove('active');
+        mobileNavOverlay.classList.remove('active');
+        document.body.style.overflow = '';
+      }
+
+      // Open mobile menu
+      if (mobileMenuBtn) {
+        mobileMenuBtn.addEventListener('click', openMobileNav);
+      }
+
+      // Close mobile menu
+      if (mobileNavClose) {
+        mobileNavClose.addEventListener('click', closeMobileNav);
+      }
+
+      // Close when clicking overlay
+      if (mobileNavOverlay) {
+        mobileNavOverlay.addEventListener('click', closeMobileNav);
+      }
+
+      // Handle mobile nav tab clicks
+      mobileNavTabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+          const tabName = this.getAttribute('data-tab');
+
+          // Update mobile nav tabs active state
+          mobileNavTabs.forEach(t => t.classList.remove('active'));
+          this.classList.add('active');
+
+          // Click the corresponding desktop tab
+          const desktopTab = document.querySelector(`.tabs .tab[data-tab="${tabName}"]`);
+          if (desktopTab) {
+            desktopTab.click();
+          }
+
+          // Close mobile menu after selection
+          closeMobileNav();
+        });
+      });
+
+      // Sync mobile nav when desktop tabs are clicked
+      const desktopTabs = document.querySelectorAll('.tabs .tab');
+      desktopTabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+          const tabName = this.getAttribute('data-tab');
+
+          // Update mobile nav to match
+          mobileNavTabs.forEach(t => {
+            if (t.getAttribute('data-tab') === tabName) {
+              t.classList.add('active');
+            } else {
+              t.classList.remove('active');
+            }
+          });
+        });
+      });
+
+      // Close mobile menu on escape key
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && mobileNavDrawer.classList.contains('active')) {
+          closeMobileNav();
+        }
+      });
+    });
+  </script>
+
   <script src="/js/dashboard.js?v=3.2"></script>
   <script src="/js/clients.js?v=1.3"></script>
   <script src="/js/comments.js?v=2.0"></script>
