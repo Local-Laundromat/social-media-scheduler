@@ -35,6 +35,7 @@ const contentPlannerRoutes = require('./routes/contentPlanner'); // Content plan
 const billingRoutes = require('./routes/billing'); // Stripe subscription billing (API)
 const pricingPublicRoutes = require('./routes/pricingPublic'); // Marketing page ↔ Stripe Prices
 const teamsRoutes = require('./routes/teams'); // Team collaboration & invitations
+const adminRoutes = require('./routes/admin'); // SaaS owner admin dashboard
 const { stripeWebhookHandler } = require('./routes/billingWebhook');
 const { isStripeConfigured, getStripeApiVersion } = require('./services/stripeClient');
 const scheduler = require('./services/scheduler');
@@ -143,6 +144,7 @@ app.use('/api', apiRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/clients', clientsRoutes);
 app.use('/api/teams', teamsRoutes); // Team collaboration
+app.use('/api/admin', adminRoutes); // Admin dashboard
 app.use('/api/profile', profileRoutes);
 app.use('/api/billing', billingRoutes); // Stripe billing routes
 app.use('/api/upload', uploadRoutes);
@@ -181,6 +183,10 @@ app.get('/data-deletion', (req, res) => {
 
 app.get('/terms', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/terms.html'));
+});
+
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/admin.html'));
 });
 
 // Health check endpoint (used by dashboard Analytics to explain stuck "pending" posts)

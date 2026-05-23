@@ -49,6 +49,7 @@ const authenticateSupabase = async (req, res, next) => {
     // Attach user info to request
     req.userId = user.id;
     req.user = user;
+    req.userEmail = user.email; // For admin access check
 
     // Get profile info
     const profile = await getProfileById(user.id);

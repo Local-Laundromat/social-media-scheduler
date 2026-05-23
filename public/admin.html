@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - Social Media Scheduler</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #f5f7fa;
+      color: #333;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: 600;
+    }
+
+    .header .subtitle {
+      font-size: 14px;
+      opacity: 0.9;
+      margin-top: 4px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+
+    .stat-card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .stat-card .label {
+      font-size: 14px;
+      color: #6b7280;
+      margin-bottom: 8px;
+    }
+
+    .stat-card .value {
+      font-size: 32px;
+      font-weight: 700;
+      color: #111827;
+    }
+
+    .stat-card .change {
+      font-size: 13px;
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .stat-card .change.positive {
+      color: #10b981;
+    }
+
+    .stat-card .change.negative {
+      color: #ef4444;
+    }
+
+    .section {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #111827;
+    }
+
+    .filters {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .filters input,
+    .filters select {
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead {
+      background: #f9fafb;
+    }
+
+    th {
+      text-align: left;
+      padding: 12px;
+      font-weight: 600;
+      color: #6b7280;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    td {
+      padding: 12px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    tbody tr:hover {
+      background: #f9fafb;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .badge.active {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .badge.trialing {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .badge.inactive {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .badge.canceled {
+      background: #f3f4f6;
+      color: #6b7280;
+    }
+
+    .badge.starter {
+      background: #e0e7ff;
+      color: #3730a3;
+    }
+
+    .badge.growth {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .badge.pro {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .badge.agency {
+      background: #f3e8ff;
+      color: #5b21b6;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #e5e7eb;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea, #764ba2);
+      transition: width 0.3s;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 48px;
+      color: #6b7280;
+    }
+
+    .spinner {
+      border: 3px solid #e5e7eb;
+      border-top-color: #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .empty {
+      text-align: center;
+      padding: 48px;
+      color: #9ca3af;
+    }
+
+    .chart-container {
+      margin-top: 20px;
+      height: 300px;
+    }
+
+    .tier-breakdown {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .tier-item {
+      text-align: center;
+      padding: 16px;
+      border-radius: 8px;
+      background: #f9fafb;
+    }
+
+    .tier-item .tier-name {
+      font-size: 12px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .tier-item .tier-count {
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .tier-item .tier-mrr {
+      font-size: 13px;
+      color: #10b981;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>SaaS Admin Dashboard</h1>
+    <div class="subtitle">Monitor your business metrics and customer subscriptions</div>
+  </div>
+
+  <div class="container">
+    <!-- Key Metrics -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">Total Users</div>
+        <div class="value" id="totalUsers">-</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="label">Active Subscriptions</div>
+        <div class="value" id="activeSubscriptions">-</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="label">Monthly Recurring Revenue</div>
+        <div class="value" id="mrr">$-</div>
+        <div class="change positive" id="mrrGrowth"></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="label">AI Calls This Month</div>
+        <div class="value" id="aiCalls">-</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="label">Total Teams</div>
+        <div class="value" id="totalTeams">-</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="label">Posts This Month</div>
+        <div class="value" id="postsThisMonth">-</div>
+      </div>
+    </div>
+
+    <!-- Tier Breakdown -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Subscription Tier Breakdown</div>
+      </div>
+
+      <div class="tier-breakdown" id="tierBreakdown">
+        <!-- Populated dynamically -->
+      </div>
+    </div>
+
+    <!-- Revenue Analytics -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Revenue Analytics</div>
+      </div>
+
+      <div id="revenueStats">
+        <div class="loading">
+          <div class="spinner"></div>
+          Loading revenue data...
+        </div>
+      </div>
+    </div>
+
+    <!-- Users List -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">All Users</div>
+      </div>
+
+      <div class="filters">
+        <input type="text" id="searchUsers" placeholder="Search by name or email...">
+        <select id="filterStatus">
+          <option value="">All Statuses</option>
+          <option value="active">Active</option>
+          <option value="trialing">Trialing</option>
+          <option value="inactive">Inactive</option>
+          <option value="canceled">Canceled</option>
+        </select>
+        <select id="filterTier">
+          <option value="">All Tiers</option>
+          <option value="starter">Starter</option>
+          <option value="growth">Growth</option>
+          <option value="pro">Pro</option>
+          <option value="agency">Agency</option>
+        </select>
+      </div>
+
+      <div id="usersTable">
+        <div class="loading">
+          <div class="spinner"></div>
+          Loading users...
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '';
+    const token = localStorage.getItem('auth_token');
+
+    if (!token) {
+      window.location.href = '/login';
+    }
+
+    // Fetch with auth
+    async function apiCall(endpoint) {
+      const response = await fetch(endpoint, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        if (response.status === 403) {
+          alert('Admin access required');
+          window.location.href = '/dashboard';
+        }
+        throw new Error('API call failed');
+      }
+      return response.json();
+    }
+
+    // Load dashboard stats
+    async function loadStats() {
+      try {
+        const stats = await apiCall('/api/admin/stats');
+
+        document.getElementById('totalUsers').textContent = stats.totalUsers || 0;
+        document.getElementById('activeSubscriptions').textContent = stats.activeSubscriptions || 0;
+        document.getElementById('mrr').textContent = '$' + (stats.mrr || 0).toLocaleString();
+        document.getElementById('aiCalls').textContent = (stats.aiCallsThisMonth || 0).toLocaleString();
+        document.getElementById('totalTeams').textContent = stats.totalTeams || 0;
+        document.getElementById('postsThisMonth').textContent = (stats.postsThisMonth || 0).toLocaleString();
+
+        // Tier breakdown
+        const tierPrices = { starter: 19, growth: 59, pro: 149, agency: 499 };
+        const tierBreakdown = document.getElementById('tierBreakdown');
+        tierBreakdown.innerHTML = '';
+
+        ['starter', 'growth', 'pro', 'agency'].forEach(tier => {
+          const count = stats.tierBreakdown[tier] || 0;
+          const mrr = count * tierPrices[tier];
+
+          tierBreakdown.innerHTML += `
+            <div class="tier-item">
+              <div class="tier-name">${tier}</div>
+              <div class="tier-count">${count}</div>
+              <div class="tier-mrr">$${mrr.toLocaleString()}/mo</div>
+            </div>
+          `;
+        });
+      } catch (error) {
+        console.error('Error loading stats:', error);
+      }
+    }
+
+    // Load revenue analytics
+    async function loadRevenue() {
+      try {
+        const revenue = await apiCall('/api/admin/revenue');
+
+        const revenueStats = document.getElementById('revenueStats');
+        revenueStats.innerHTML = `
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="label">Current MRR</div>
+              <div class="value">$${revenue.currentMRR.toLocaleString()}</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">Annual Recurring Revenue</div>
+              <div class="value">$${revenue.arr.toLocaleString()}</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">New MRR This Month</div>
+              <div class="value">$${revenue.newMRRThisMonth.toLocaleString()}</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">Churned MRR</div>
+              <div class="value">$${revenue.churnedMRR.toLocaleString()}</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">MRR Growth</div>
+              <div class="value">$${revenue.mrrGrowth.toLocaleString()}</div>
+              <div class="change ${revenue.mrrGrowth >= 0 ? 'positive' : 'negative'}">
+                ${revenue.mrrGrowthPercent}%
+              </div>
+            </div>
+          </div>
+        `;
+
+        // Update header MRR growth
+        if (revenue.mrrGrowth !== 0) {
+          document.getElementById('mrrGrowth').innerHTML = `
+            ${revenue.mrrGrowth >= 0 ? '↑' : '↓'} ${revenue.mrrGrowthPercent}% this month
+          `;
+          document.getElementById('mrrGrowth').className = `change ${revenue.mrrGrowth >= 0 ? 'positive' : 'negative'}`;
+        }
+      } catch (error) {
+        console.error('Error loading revenue:', error);
+        document.getElementById('revenueStats').innerHTML = '<div class="empty">Failed to load revenue data</div>';
+      }
+    }
+
+    // Load users
+    async function loadUsers(search = '', status = '', tier = '') {
+      try {
+        const params = new URLSearchParams();
+        if (search) params.append('search', search);
+        if (status) params.append('status', status);
+        if (tier) params.append('tier', tier);
+
+        const data = await apiCall(`/api/admin/users?${params.toString()}`);
+
+        const table = document.getElementById('usersTable');
+
+        if (!data.users || data.users.length === 0) {
+          table.innerHTML = '<div class="empty">No users found</div>';
+          return;
+        }
+
+        table.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Status</th>
+                <th>Tier</th>
+                <th>Usage</th>
+                <th>Team</th>
+                <th>Joined</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.users.map(user => `
+                <tr>
+                  <td>
+                    <div><strong>${user.name || 'Unnamed'}</strong></div>
+                    <div style="font-size: 13px; color: #6b7280;">${user.email}</div>
+                  </td>
+                  <td>
+                    <span class="badge ${user.stripe_subscription_status || 'inactive'}">
+                      ${user.stripe_subscription_status || 'none'}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="badge ${user.subscription_tier || 'none'}">
+                      ${user.subscription_tier || 'none'}
+                    </span>
+                  </td>
+                  <td>
+                    ${user.current_monthly_usage || 0} / ${user.max_allowed_usage || 0}
+                    <div class="progress-bar">
+                      <div class="progress-fill" style="width: ${user.max_allowed_usage > 0 ? (user.current_monthly_usage / user.max_allowed_usage * 100) : 0}%"></div>
+                    </div>
+                  </td>
+                  <td>
+                    ${user.team ? `<span style="font-size: 13px;">${user.team.name} ${user.team.isOwner ? '(Owner)' : ''}</span>` : '-'}
+                  </td>
+                  <td style="font-size: 13px; color: #6b7280;">
+                    ${new Date(user.created_at).toLocaleDateString()}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      } catch (error) {
+        console.error('Error loading users:', error);
+        document.getElementById('usersTable').innerHTML = '<div class="empty">Failed to load users</div>';
+      }
+    }
+
+    // Filter handlers
+    let searchTimeout;
+    document.getElementById('searchUsers').addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        loadUsers(
+          e.target.value,
+          document.getElementById('filterStatus').value,
+          document.getElementById('filterTier').value
+        );
+      }, 300);
+    });
+
+    document.getElementById('filterStatus').addEventListener('change', (e) => {
+      loadUsers(
+        document.getElementById('searchUsers').value,
+        e.target.value,
+        document.getElementById('filterTier').value
+      );
+    });
+
+    document.getElementById('filterTier').addEventListener('change', (e) => {
+      loadUsers(
+        document.getElementById('searchUsers').value,
+        document.getElementById('filterStatus').value,
+        e.target.value
+      );
+    });
+
+    // Initial load
+    loadStats();
+    loadRevenue();
+    loadUsers();
+
+    // Auto-refresh every 30 seconds
+    setInterval(() => {
+      loadStats();
+      loadRevenue();
+    }, 30000);
+  </script>
+</body>
+</html>
