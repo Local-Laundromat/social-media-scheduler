@@ -27,53 +27,60 @@ class TeamManager {
     try {
       const token = localStorage.getItem('auth_token');
 
-      // Load team info
-      const teamResponse = await fetch('/api/teams/my-team', {
+      // Load user's teams
+      const teamsResponse = await fetch('/api/teams', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
 
-      if (teamResponse.ok) {
-        const data = await teamResponse.json();
-        this.currentTeam = data.team;
-        this.members = data.members || [];
-
-        // Load invitations if user is owner or admin
-        if (this.canManageTeam()) {
-          await this.loadInvitations();
-        }
-
-        this.renderTeamUI();
-      } else {
-        // No team yet
+      if (!teamsResponse.ok) {
         this.renderNoTeam();
+        return;
       }
+
+      const teamsData = await teamsResponse.json();
+      const teams = teamsData.teams || [];
+
+      if (teams.length === 0) {
+        this.renderNoTeam();
+        return;
+      }
+
+      // Use the first team (users can only be on one team)
+      const firstTeam = teams[0];
+
+      // Load full team details including members
+      const teamDetailsResponse = await fetch(`/api/teams/${firstTeam.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!teamDetailsResponse.ok) {
+        this.renderNoTeam();
+        return;
+      }
+
+      const teamDetails = await teamDetailsResponse.json();
+      this.currentTeam = teamDetails.team;
+      this.members = teamDetails.members || [];
+      this.invitations = teamDetails.invitations || [];
+
+      this.renderTeamUI();
     } catch (error) {
       console.error('Error loading team data:', error);
-      this.showError('Failed to load team data');
+      this.renderNoTeam();
     }
   }
 
   /**
    * Load pending invitations
+   * Note: This is now handled in loadTeamData() but kept for backwards compatibility
    */
   async loadInvitations() {
-    try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`/api/teams/${this.currentTeam.id}/invitations`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        this.invitations = data.invitations || [];
-      }
-    } catch (error) {
-      console.error('Error loading invitations:', error);
-    }
+    // Invitations are now loaded as part of team details in loadTeamData()
+    // This method is kept for backwards compatibility but does nothing
   }
 
   /**
