@@ -25,7 +25,7 @@ class TeamManager {
    */
   async loadTeamData() {
     try {
-      const token = localStorage.getItem('supabase_token');
+      const token = localStorage.getItem('auth_token');
 
       // Load team info
       const teamResponse = await fetch('/api/teams/my-team', {
@@ -60,7 +60,7 @@ class TeamManager {
    */
   async loadInvitations() {
     try {
-      const token = localStorage.getItem('supabase_token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`/api/teams/${this.currentTeam.id}/invitations`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -418,7 +418,7 @@ class TeamManager {
     }
 
     try {
-      const token = localStorage.getItem('supabase_token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch('/api/teams', {
         method: 'POST',
         headers: {
@@ -455,7 +455,7 @@ class TeamManager {
     }
 
     try {
-      const token = localStorage.getItem('supabase_token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`/api/teams/${this.currentTeam.id}/invite`, {
         method: 'POST',
         headers: {
@@ -485,7 +485,7 @@ class TeamManager {
    */
   async acceptInvitation(token) {
     try {
-      const authToken = localStorage.getItem('supabase_token');
+      const authToken = localStorage.getItem('auth_token');
       const response = await fetch('/api/teams/accept-invite', {
         method: 'POST',
         headers: {
@@ -523,7 +523,7 @@ class TeamManager {
     }
 
     try {
-      const token = localStorage.getItem('supabase_token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`/api/teams/${this.currentTeam.id}`, {
         method: 'PATCH',
         headers: {
@@ -555,7 +555,7 @@ class TeamManager {
     }
 
     try {
-      const token = localStorage.getItem('supabase_token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`/api/teams/${this.currentTeam.id}`, {
         method: 'DELETE',
         headers: {
@@ -585,7 +585,7 @@ class TeamManager {
     }
 
     try {
-      const token = localStorage.getItem('supabase_token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`/api/teams/${this.currentTeam.id}/leave`, {
         method: 'POST',
         headers: {
@@ -615,7 +615,7 @@ class TeamManager {
     }
 
     try {
-      const token = localStorage.getItem('supabase_token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`/api/teams/${this.currentTeam.id}/members/${userId}`, {
         method: 'DELETE',
         headers: {
@@ -641,7 +641,7 @@ class TeamManager {
    */
   async changeRole(userId, newRole) {
     try {
-      const token = localStorage.getItem('supabase_token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`/api/teams/${this.currentTeam.id}/members/${userId}/role`, {
         method: 'PATCH',
         headers: {
@@ -669,7 +669,7 @@ class TeamManager {
    */
   async cancelInvitation(inviteId) {
     try {
-      const token = localStorage.getItem('supabase_token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`/api/teams/${this.currentTeam.id}/invitations/${inviteId}`, {
         method: 'DELETE',
         headers: {
