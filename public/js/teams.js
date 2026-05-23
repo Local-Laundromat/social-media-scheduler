@@ -47,11 +47,12 @@ class TeamManager {
         return;
       }
 
-      // Use the first team (users can only be on one team)
-      const firstTeam = teams[0];
+      // Sort by creation date (newest first) and use the most recent team
+      teams.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      const selectedTeam = teams[0];
 
       // Load full team details including members
-      const teamDetailsResponse = await fetch(`/api/teams/${firstTeam.id}`, {
+      const teamDetailsResponse = await fetch(`/api/teams/${selectedTeam.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
