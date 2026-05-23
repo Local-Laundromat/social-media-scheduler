@@ -59,9 +59,18 @@ document.getElementById('clientSelect')?.addEventListener('change', async (e) =>
     currentSelectedClient = null;
     updateConnectionsDisplay(socialAccounts);
 
+    if (typeof window.resetSocialAccountFilterFromClientSwitch === 'function') {
+      window.resetSocialAccountFilterFromClientSwitch();
+    }
     // Reload posts to show all posts
     if (typeof loadPosts === 'function') {
       loadPosts();
+    }
+    if (typeof loadStats === 'function') {
+      loadStats();
+    }
+    if (typeof populateGlobalAccountSwitcher === 'function') {
+      populateGlobalAccountSwitcher();
     }
     return;
   }
@@ -80,9 +89,18 @@ document.getElementById('clientSelect')?.addEventListener('change', async (e) =>
     // Update connection display to show only this client's accounts
     updateConnectionsDisplay(currentSelectedClient.accounts);
 
+    if (typeof window.resetSocialAccountFilterFromClientSwitch === 'function') {
+      window.resetSocialAccountFilterFromClientSwitch();
+    }
     // Reload posts to filter by client
     if (typeof loadPosts === 'function') {
       loadPosts();
+    }
+    if (typeof loadStats === 'function') {
+      loadStats();
+    }
+    if (typeof populateGlobalAccountSwitcher === 'function') {
+      populateGlobalAccountSwitcher();
     }
   } catch (error) {
     console.error('Client selection error:', error);

@@ -71,7 +71,7 @@ router.get('/:userId', async (req, res) => {
  */
 router.get('/:userId/posts', async (req, res) => {
   const userId = req.params.userId;
-  const { status, limit = 50, client_id } = req.query;
+  const { status, limit = 50, client_id, platform, accountId } = req.query;
 
   console.log(`📊 GET /api/users/${userId}/posts - Fetching posts...`);
 
@@ -125,6 +125,35 @@ router.get('/:userId/posts', async (req, res) => {
     if (client_id) {
       console.log(`  → Filtering by client_id: ${client_id}`);
       query = query.eq('client_id', parseInt(client_id));
+    }
+
+    // Match dashboard global account switcher (?platform=&accountId=) — same columns as GET /api/posts
+    if (platform && accountId) {
+      const aid = String(accountId);
+      console.log(`  → Filtering by platform: ${platform}, accountId: ${aid}`);
+      switch (platform) {
+        case 'facebook':
+          query = query.eq('facebook_page_id', aid);
+          break;
+        case 'instagram':
+          query = query.eq('instagram_account_id', aid);
+          break;
+        case 'tiktok':
+          query = query.eq('tiktok_open_id', aid);
+          break;
+        case 'pinterest':
+          query = query.eq('pinterest_user_id', aid);
+          break;
+        case 'youtube':
+          query = query.eq('youtube_channel_id', aid);
+          break;
+        case 'google_business':
+        case 'google':
+          query = query.eq('google_business_location_id', aid);
+          break;
+        default:
+          break;
+      }
     }
 
     const { data: posts, error } = await query;

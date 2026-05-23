@@ -557,12 +557,28 @@ function toggleAccountSelector(platform) {
   }
 }
 
-// Load stats
+// Load stats (same filters as posts list: agency client + global account switcher)
 async function loadStats() {
   const token = localStorage.getItem('auth_token');
 
   try {
-    const response = await fetch(`/api/users/${currentUser.id}/posts`, {
+    let url = `/api/users/${currentUser.id}/posts`;
+    const params = new URLSearchParams();
+
+    if (typeof currentGlobalAccount !== 'undefined' && currentGlobalAccount) {
+      params.set('platform', currentGlobalAccount.platform);
+      params.set('accountId', currentGlobalAccount.accountId);
+    }
+
+    if (typeof currentSelectedClient !== 'undefined' && currentSelectedClient) {
+      params.set('client_id', currentSelectedClient.id);
+    }
+
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+
+    const response = await fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 
@@ -3542,16 +3558,22 @@ function populateGlobalAccountSwitcher() {
     return;
   }
 
+  // When an agency selects a client, only that client's connected assets appear in this list
+  const accountsSource =
+    typeof currentSelectedClient !== 'undefined' && currentSelectedClient && currentSelectedClient.accounts
+      ? normalizeSocialAccounts(currentSelectedClient.accounts)
+      : socialAccounts;
+
   // Collect all accounts across all platforms
   let allAccounts = [];
 
   // Facebook Pages
-  if (socialAccounts.facebook && socialAccounts.facebook.length > 0) {
-    socialAccounts.facebook.forEach((acc, idx) => {
+  if (accountsSource.facebook && accountsSource.facebook.length > 0) {
+    accountsSource.facebook.forEach((acc, idx) => {
       allAccounts.push({
         platform: 'facebook',
         platformName: 'Facebook',
-        accountId: acc.page_id || acc.id || idx,
+        accountId: acc.page_id != null ? String(acc.page_id) : String(acc.id ?? idx),
         name: acc.page_name || acc.name || `Facebook Page ${idx + 1}`,
         icon: '📘'
       });
@@ -3559,12 +3581,15 @@ function populateGlobalAccountSwitcher() {
   }
 
   // Instagram Accounts
-  if (socialAccounts.instagram && socialAccounts.instagram.length > 0) {
-    socialAccounts.instagram.forEach((acc, idx) => {
+  if (accountsSource.instagram && accountsSource.instagram.length > 0) {
+    accountsSource.instagram.forEach((acc, idx) => {
       allAccounts.push({
         platform: 'instagram',
         platformName: 'Instagram',
-        accountId: acc.instagram_business_account_id || acc.id || idx,
+        accountId:
+          acc.account_id != null
+            ? String(acc.account_id)
+            : String(acc.instagram_business_account_id ?? acc.id ?? idx),
         name: acc.username || acc.name || `Instagram Account ${idx + 1}`,
         icon: '📷'
       });
@@ -3572,12 +3597,15 @@ function populateGlobalAccountSwitcher() {
   }
 
   // TikTok Accounts
-  if (socialAccounts.tiktok && socialAccounts.tiktok.length > 0) {
-    socialAccounts.tiktok.forEach((acc, idx) => {
+  if (accountsSource.tiktok && accountsSource.tiktok.length > 0) {
+    accountsSource.tiktok.forEach((acc, idx) => {
       allAccounts.push({
         platform: 'tiktok',
         platformName: 'TikTok',
-        accountId: acc.open_id || acc.id || idx,
+        accountId:
+          acc.open_id != null
+            ? String(acc.open_id)
+            : String(acc.id ?? idx),
         name: acc.display_name || acc.name || `TikTok Account ${idx + 1}`,
         icon: '🎵'
       });
@@ -3585,12 +3613,15 @@ function populateGlobalAccountSwitcher() {
   }
 
   // Pinterest Accounts
-  if (socialAccounts.pinterest && socialAccounts.pinterest.length > 0) {
-    socialAccounts.pinterest.forEach((acc, idx) => {
+  if (accountsSource.pinterest && accountsSource.pinterest.length > 0) {
+    accountsSource.pinterest.forEach((acc, idx) => {
       allAccounts.push({
         platform: 'pinterest',
         platformName: 'Pinterest',
-        accountId: acc.pinterest_user_id || acc.id || idx,
+        accountId:
+          acc.pinterest_user_id != null
+            ? String(acc.pinterest_user_id)
+            : String(acc.account_id ?? acc.id ?? idx),
         name: acc.username || acc.name || `Pinterest Account ${idx + 1}`,
         icon: '📌'
       });
@@ -3598,12 +3629,15 @@ function populateGlobalAccountSwitcher() {
   }
 
   // YouTube Channels
-  if (socialAccounts.youtube && socialAccounts.youtube.length > 0) {
-    socialAccounts.youtube.forEach((acc, idx) => {
+  if (accountsSource.youtube && accountsSource.youtube.length > 0) {
+    accountsSource.youtube.forEach((acc, idx) => {
       allAccounts.push({
         platform: 'youtube',
         platformName: 'YouTube',
-        accountId: acc.channel_id || acc.id || idx,
+        accountId:
+          acc.channel_id != null
+            ? String(acc.channel_id)
+            : String(acc.id ?? idx),
         name: acc.channel_title || acc.name || `YouTube Channel ${idx + 1}`,
         icon: '📺'
       });
@@ -3611,13 +3645,21 @@ function populateGlobalAccountSwitcher() {
   }
 
   // Google Business Profiles
-  if (socialAccounts.google && socialAccounts.google.length > 0) {
-    socialAccounts.google.forEach((acc, idx) => {
+  if (accountsSource.google && accountsSource.google.length > 0) {
+    accountsSource.google.forEach((acc, idx) => {
       allAccounts.push({
-        platform: 'google',
+        platform: 'google_business',
         platformName: 'Google Business',
-        accountId: acc.id || idx,
-        name: acc.business_name || acc.account_display_name || acc.location_name || `Google Business ${idx + 1}`,
+        accountId:
+          acc.location_name != null
+            ? String(acc.location_name)
+            : String(acc.location_id ?? acc.id ?? idx),
+        name:
+          acc.business_name ||
+          acc.account_display_name ||
+          acc.location_title ||
+          acc.location_name ||
+          `Google Business ${idx + 1}`,
         icon: '🏢'
       });
     });
@@ -3625,13 +3667,13 @@ function populateGlobalAccountSwitcher() {
 
   // Show switcher only if user has multiple accounts
   if (allAccounts.length > 1) {
-    switcher.style.display = 'block';
+    switcher.style.display = 'flex';
 
     // Build dropdown options
-    select.innerHTML = '<option value="">All Accounts</option>';
+    select.innerHTML = '<option value="">All accounts</option>';
 
     // Group by platform
-    const platforms = ['facebook', 'instagram', 'tiktok', 'pinterest', 'youtube', 'google'];
+    const platforms = ['facebook', 'instagram', 'tiktok', 'pinterest', 'youtube', 'google_business'];
     platforms.forEach(platform => {
       const platformAccounts = allAccounts.filter(acc => acc.platform === platform);
       if (platformAccounts.length > 0) {
@@ -3649,6 +3691,8 @@ function populateGlobalAccountSwitcher() {
 // Switch global account filter
 function switchGlobalAccount() {
   const select = document.getElementById('globalAccountSelect');
+  if (!select) return;
+
   const value = select.value;
 
   if (!value) {
@@ -3657,6 +3701,9 @@ function switchGlobalAccount() {
   } else {
     try {
       currentGlobalAccount = JSON.parse(value);
+      if (currentGlobalAccount && currentGlobalAccount.platform === 'google') {
+        currentGlobalAccount.platform = 'google_business';
+      }
     } catch (e) {
       console.error('Failed to parse account selection:', e);
       currentGlobalAccount = null;
@@ -3674,13 +3721,27 @@ function switchGlobalAccount() {
   }
 
   // Update welcome message
-  if (currentGlobalAccount) {
-    const accountName = select.options[select.selectedIndex].text.replace(/^[^\s]+\s/, ''); // Remove emoji
-    document.getElementById('welcomeSubtitle').textContent = `Viewing: ${accountName}`;
-  } else {
-    document.getElementById('welcomeSubtitle').textContent = 'Queue. Post. Grow.';
+  const sub = document.getElementById('welcomeSubtitle');
+  if (sub) {
+    if (currentGlobalAccount && select.selectedIndex >= 0) {
+      const accountName = select.options[select.selectedIndex].text.replace(/^[^\s]+\s/, ''); // Remove emoji
+      sub.textContent = `Viewing: ${accountName}`;
+    } else {
+      sub.textContent = 'Queue. Post. Grow.';
+    }
   }
+
+  loadStats();
 }
+
+/** Agency client row changed — clear stale social-account filter before repopulating the dropdown */
+window.resetSocialAccountFilterFromClientSwitch = function () {
+  currentGlobalAccount = null;
+  const sel = document.getElementById('globalAccountSelect');
+  if (sel) sel.value = '';
+  const sub = document.getElementById('welcomeSubtitle');
+  if (sub) sub.textContent = 'Queue. Post. Grow.';
+};
 
 // Refresh current tab data based on global account filter
 function refreshCurrentTab(tabName) {
