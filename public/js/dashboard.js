@@ -107,6 +107,17 @@ const dataCache = {
   lastLoaded: {}
 };
 
+/** Escape text for safe insertion into HTML attributes / innerHTML */
+function escapeHtml(value) {
+  if (value == null || value === '') return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 /** Sidebar + switcher use the same account list: full team, or one client when an agency client is selected */
 function deriveSidebarAccountsForPlatform(platform) {
   if (typeof currentSelectedClient !== 'undefined' && currentSelectedClient && currentSelectedClient.accounts) {
@@ -288,7 +299,8 @@ function updateConnectionStatus(platform, connected, accountName) {
     // Build account list HTML
     let accountListHTML = '<div style="margin-bottom: 12px;">';
     accounts.forEach((account, index) => {
-      const accountDisplayName = account[config.nameField] || account.account_name || 'Account ' + (index + 1);
+      const rawName = account[config.nameField] || account.account_name || 'Account ' + (index + 1);
+      const accountDisplayName = escapeHtml(rawName);
       accountListHTML += `
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; ${index < accounts.length - 1 ? 'border-bottom: 1px solid #e5e7eb;' : ''}">
           <div style="display: flex; align-items: center; gap: 8px;">
@@ -471,8 +483,8 @@ async function disconnect(platform) {
 
 // Disconnect a specific account (for multi-account management)
 async function disconnectAccount(platform, accountId) {
-  // Find the account name for confirmation message
-  const accounts = socialAccounts[platform] || [];
+  // Find the account name for confirmation message (same scope as sidebar: team or agency client)
+  const accounts = deriveSidebarAccountsForPlatform(platform);
   const account = accounts.find(acc => acc.id === accountId);
   const accountName = account ? (account.page_name || account.username || account.display_name || account.channel_title || account.location_title || 'this account') : 'this account';
 

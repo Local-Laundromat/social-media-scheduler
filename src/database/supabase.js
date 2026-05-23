@@ -32,6 +32,24 @@ async function getProfileById(userId) {
   return data;
 }
 
+/** Dashboard uses profile UUID; OmniBroker embed uses external_user_id composite string */
+async function getProfileByIdOrExternal(idOrExternal) {
+  if (idOrExternal == null || idOrExternal === '') {
+    return null;
+  }
+  const byId = await getProfileById(idOrExternal);
+  if (byId) return byId;
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('external_user_id', idOrExternal)
+    .single();
+
+  if (error && error.code !== 'PGRST116') throw error;
+  return data || null;
+}
+
 async function createProfile(profileData) {
   const { data, error } = await supabase
     .from('profiles')
@@ -366,6 +384,7 @@ module.exports = {
 
   // Profiles
   getProfileById,
+  getProfileByIdOrExternal,
   createProfile,
   updateProfile,
 

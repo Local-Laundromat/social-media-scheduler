@@ -5,6 +5,7 @@ const scheduler = require('../services/scheduler');
 const webhookService = require('../services/webhooks');
 const { deleteFromPlatforms, getPlatformTokens } = require('../services/deletePost');
 const { authenticateApiKey, optionalApiKey } = require('../middleware/auth');
+const { applyPostPlatformAccountFilter } = require('../lib/postPlatformAccountFilter');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -27,29 +28,7 @@ router.get('/posts', optionalApiKey, async (req, res) => {
       query = query.eq('status', status);
     }
 
-    // Filter by specific account if provided
-    if (platform && accountId) {
-      switch (platform) {
-        case 'facebook':
-          query = query.eq('facebook_page_id', accountId);
-          break;
-        case 'instagram':
-          query = query.eq('instagram_account_id', accountId);
-          break;
-        case 'tiktok':
-          query = query.eq('tiktok_open_id', accountId);
-          break;
-        case 'pinterest':
-          query = query.eq('pinterest_user_id', accountId);
-          break;
-        case 'youtube':
-          query = query.eq('youtube_channel_id', accountId);
-          break;
-        case 'google_business':
-          query = query.eq('google_business_location_id', accountId);
-          break;
-      }
-    }
+    query = applyPostPlatformAccountFilter(query, platform, accountId);
 
     const { data: posts, error } = await query;
 
