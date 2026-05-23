@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { supabase } = require('../database/supabase');
 const { authenticateSupabase } = require('../middleware/auth');
+const { sendTeamInvitationEmail } = require('../services/emailService');
 
 /**
  * POST /api/teams - Create a new team
@@ -349,9 +350,33 @@ router.post('/:teamId/invite', authenticateSupabase, async (req, res) => {
 
     if (inviteError) throw inviteError;
 
-    // TODO: Send invitation email
-    // const inviteUrl = `${process.env.APP_URL}/accept-invite?token=${invitation.invitation_token}`;
-    // await sendInvitationEmail(email, inviteUrl, teamName);
+    // Get team info and inviter name for email
+    const { data: team } = await supabase
+      .from('teams')
+      .select('name')
+      .eq('id', teamId)
+      .single();
+
+    const { data: inviter } = await supabase
+      .from('profiles')
+      .select('name, email')
+      .eq('id', userId)
+      .single();
+
+    // Send invitation email
+    try {
+      await sendTeamInvitationEmail({
+        toEmail: email.trim().toLowerCase(),
+        teamName: team?.name || 'the team',
+        inviterName: inviter?.name || inviter?.email || 'A team member',
+        inviteToken: invitation.invitation_token,
+        role
+      });
+      console.log(`✓ Invitation email sent to ${email}`);
+    } catch (emailError) {
+      console.error('Failed to send invitation email:', emailError);
+      // Don't fail the invitation if email fails - just log it
+    }
 
     res.json({
       success: true,
