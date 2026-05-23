@@ -53,6 +53,7 @@
     "puppeteer": "^24.42.0",
     "remotion": "^4.0.450",
     "sharp": "^0.34.5",
+    "stripe": "^22.1.1",
     "xss": "^1.0.15"
   },
   "devDependencies": {

@@ -120,7 +120,7 @@ async function verifyActivePaidUser(req, res, next) {
         details: {
           currentStatus: profile.stripe_subscription_status,
           requiredStatus: 'active',
-          upgradeUrl: '/settings#billing'
+          upgradeUrl: '/dashboard#billingSection'
         },
         message: '🔒 Upgrade to unlock AI features. Start planning content with AI in seconds!',
         cta: {
@@ -151,7 +151,7 @@ async function verifyActivePaidUser(req, res, next) {
           details: {
             tier: profile.subscription_tier,
             requiresBYOK: true,
-            settingsUrl: '/settings#api-keys'
+            settingsUrl: '/dashboard'
           }
         });
       }
@@ -520,7 +520,7 @@ async function verifyAgentAccess(userId, requiredAgents, workflowType) {
         availableAgents: accessCheck.availableAgents.map(a => AGENT_FEATURES[a]?.name || a),
         unavailableAgents: unavailableAgents.map(a => AGENT_FEATURES[a]?.name || a),
         suggestedTier,
-        upgradeUrl: '/settings#billing'
+        upgradeUrl: '/dashboard#billingSection'
       },
       message: `🔒 ${unavailableAgents.map(a => AGENT_FEATURES[a]?.name || a).join(' & ')} ${unavailableAgents.length === 1 ? 'is' : 'are'} available in the ${suggestedTier} plan and above.`,
       cta: {

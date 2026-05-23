@@ -196,6 +196,8 @@ function initializeDashboard() {
   // Populate global account switcher
   populateGlobalAccountSwitcher();
 
+  handleBillingRedirectQuery();
+
   // DEFER: Load posts only when Posts tab is opened
   // DEFER: Load settings only when Settings tab is opened
   // DEFER: Load comments only when Comments tab is opened
@@ -1274,9 +1276,117 @@ function loadSettings() {
   // Load team information
   loadTeamInfo();
 
+  refreshBillingStatus();
+
   // Cache the settings data and update timestamp
   dataCache.settings = true; // Settings don't need to store data, just mark as loaded
   dataCache.lastLoaded.settings = Date.now();
+}
+
+/** After Stripe redirects back to `/dashboard` */
+function handleBillingRedirectQuery() {
+  const u = new URL(window.location.href);
+  const b = u.searchParams.get('billing');
+  if (!b) return;
+
+  if (b === 'success') {
+    if (typeof notify === 'function') {
+      notify('Checkout finished — syncing your subscription from Stripe (may take a few seconds).', 'success');
+    }
+    reloadUserData();
+    setTimeout(() => refreshBillingStatus(), 2000);
+  } else if (b === 'cancel') {
+    if (typeof notify === 'function') notify('Checkout was cancelled.', 'warning');
+    refreshBillingStatus();
+  } else if (b === 'portal') {
+    if (typeof notify === 'function') notify('Welcome back.', 'success');
+    reloadUserData();
+    refreshBillingStatus();
+  }
+
+  u.searchParams.delete('billing');
+  const qs = u.searchParams.toString();
+  const next = qs ? `${u.pathname}?${qs}` : u.pathname;
+  window.history.replaceState({}, '', next);
+}
+
+async function refreshBillingStatus() {
+  const el = document.getElementById('billingStatusSummary');
+  const portalWrap = document.getElementById('stripePortalWrap');
+  if (!el) return;
+
+  const token = localStorage.getItem('auth_token');
+  if (!token) return;
+
+  el.textContent = 'Loading billing status…';
+  if (portalWrap) portalWrap.style.display = 'none';
+
+  try {
+    const r = await fetchWithDeadline('/api/billing/status', { headers: { Authorization: `Bearer ${token}` } });
+    const j = await r.json();
+
+    if (!r.ok) {
+      el.textContent = `Unable to load billing: ${j.error || r.status}`;
+      return;
+    }
+
+    const s = j.subscription;
+    let html = `
+      <div><strong>Status:</strong> ${escapeHtml(String(s.status))}</div>
+      <div><strong>Plan tier:</strong> ${escapeHtml(String(s.tier))}</div>`;
+
+    if (s.renewsAt) {
+      const d = new Date(s.renewsAt);
+      html += `<div><strong>Renews:</strong> ${escapeHtml(d.toLocaleString())}</div>`;
+    }
+    html += `
+      <div style="margin-top:8px;font-size:12px;color:#6b7280;line-height:1.4;">
+        Stripe API version used by server: <code>${escapeHtml(String(j.stripeApiVersion || '—'))}</code><br/>
+        Billing keys: ${j.configured ? 'configured ✓' : 'not configured (set STRIPE_SECRET_KEY + prices)'}
+      </div>`;
+    el.innerHTML = html;
+
+    if (portalWrap && s.customerId) portalWrap.style.display = 'flex';
+  } catch (e) {
+    el.textContent = e.name === 'AbortError' ? 'Billing status timed out.' : ('Billing error: ' + e.message);
+  }
+}
+
+async function startStripeCheckout(tier) {
+  const token = localStorage.getItem('auth_token');
+  try {
+    const r = await fetchWithDeadline('/api/billing/create-checkout-session', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier }),
+    });
+    const j = await r.json();
+    if (!r.ok || !j.url) {
+      if (typeof notify === 'function') notify(j.error || j.hint || 'Could not start checkout', 'error');
+      return;
+    }
+    window.location.href = j.url;
+  } catch (e) {
+    if (typeof notify === 'function') notify(e.message || 'Checkout failed', 'error');
+  }
+}
+
+async function openStripeBillingPortal() {
+  const token = localStorage.getItem('auth_token');
+  try {
+    const r = await fetchWithDeadline('/api/billing/create-portal-session', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const j = await r.json();
+    if (!r.ok || !j.url) {
+      if (typeof notify === 'function') notify(j.error || j.hint || 'Customer portal unavailable', 'error');
+      return;
+    }
+    window.location.href = j.url;
+  } catch (e) {
+    if (typeof notify === 'function') notify(e.message || 'Portal failed', 'error');
+  }
 }
 
 // Load team information from localStorage
@@ -4051,6 +4161,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
   const saveBrandVoiceBtn = document.getElementById('saveBrandVoiceBtn');
   if (saveBrandVoiceBtn) saveBrandVoiceBtn.addEventListener('click', saveBrandVoiceSettings);
+
+  const settingsTab = document.getElementById('settingsTab');
+  if (settingsTab) {
+    settingsTab.addEventListener('click', function(e) {
+      const tierBtn = e.target.closest('.billing-tier-btn');
+      if (tierBtn && tierBtn.dataset && tierBtn.dataset.tier) {
+        startStripeCheckout(tierBtn.dataset.tier);
+      }
+    });
+  }
+
+  const openStripePortalBtn = document.getElementById('openStripePortalBtn');
+  if (openStripePortalBtn) openStripePortalBtn.addEventListener('click', openStripeBillingPortal);
 
   console.log('✓ All event listeners attached successfully (CSP-compliant)');
 });

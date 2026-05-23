@@ -32,6 +32,9 @@ const agentPostRoutes = require('./routes/agentPost'); // LangGraph autonomous a
 const ragCaptionRoutes = require('./routes/ragCaption'); // RAG-powered brand voice
 const agentCommentsRoutes = require('./routes/agentComments'); // Multi-agent comment system
 const contentPlannerRoutes = require('./routes/contentPlanner'); // Content planning agent
+const billingRoutes = require('./routes/billing'); // Stripe subscription billing (API)
+const { stripeWebhookHandler } = require('./routes/billingWebhook');
+const { isStripeConfigured, getStripeApiVersion } = require('./services/stripeClient');
 const scheduler = require('./services/scheduler');
 
 const app = express();
@@ -56,6 +59,13 @@ app.use(configureCORS());
 // Cookie parsing (for httpOnly session cookies)
 app.use(cookieParser);
 
+// Stripe webhooks require raw body (must be before express.json)
+app.post(
+  '/api/billing/webhook',
+  express.raw({ type: 'application/json' }),
+  stripeWebhookHandler
+);
+
 // Body parsing
 app.use(express.json({ limit: '10mb' })); // Limit payload size
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -74,6 +84,8 @@ app.use((req, res, next) => {
       req.path.startsWith('/images/') ||
       req.path.startsWith('/files/') ||
       req.path.startsWith('/uploads/') ||
+      req.path === '/api/billing/webhook' ||
+      req.originalUrl === '/api/billing/webhook' ||
       req.path.endsWith('.svg') ||
       req.path.endsWith('.ico') ||
       req.path.endsWith('.png') ||
@@ -113,6 +125,7 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 // Authentication routes (no global rate limiting - applied per-route in authApi.js)
 app.use('/api/auth', authApiRoutes);
+app.use('/api/billing', billingRoutes);
 app.use('/auth', authRoutes); // OAuth routes (Facebook/Instagram)
 
 // AI-powered routes (AI usage rate limiting)
@@ -167,9 +180,15 @@ app.get('/terms', (req, res) => {
 
 // Health check endpoint (used by dashboard Analytics to explain stuck "pending" posts)
 app.get('/health', (req, res) => {
+  const wh = !!(process.env.STRIPE_WEBHOOK_SECRET && String(process.env.STRIPE_WEBHOOK_SECRET).trim());
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
+    stripe: {
+      secretKeyConfigured: isStripeConfigured(),
+      webhookSecretConfigured: wh,
+      apiVersion: getStripeApiVersion(),
+    },
     scheduler: scheduler.isRunning,
     publishing: {
       autoStartScheduler: process.env.AUTO_START_SCHEDULER === 'true',
