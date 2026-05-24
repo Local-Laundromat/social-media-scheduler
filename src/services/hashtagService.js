@@ -3,7 +3,7 @@
  * AI-powered hashtag recommendations using OpenAI
  */
 
-const { getOpenAI } = require('./openai');
+const OpenAI = require('openai');
 
 class HashtagService {
   constructor() {
@@ -17,10 +17,16 @@ class HashtagService {
   initialize() {
     if (!this.openai) {
       try {
-        this.openai = getOpenAI();
-        this.isConfigured = !!this.openai;
+        const apiKey = process.env.OPENAI_API_KEY;
+        if (!apiKey) {
+          console.warn('OpenAI API key not configured for hashtag suggestions');
+          this.isConfigured = false;
+          return;
+        }
+        this.openai = new OpenAI({ apiKey });
+        this.isConfigured = true;
       } catch (error) {
-        console.warn('OpenAI not configured for hashtag suggestions');
+        console.warn('OpenAI not configured for hashtag suggestions:', error.message);
         this.isConfigured = false;
       }
     }
