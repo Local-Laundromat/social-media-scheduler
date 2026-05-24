@@ -7,6 +7,7 @@ const { deleteFromPlatforms, getPlatformTokens } = require('../services/deletePo
 const { authenticateApiKey, optionalApiKey } = require('../middleware/auth');
 const { applyPostPlatformAccountFilter } = require('../lib/postPlatformAccountFilter');
 const hashtagService = require('../services/hashtagService');
+const bestTimeService = require('../services/bestTimeService');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -912,6 +913,119 @@ router.post('/hashtags/popular', optionalApiKey, async (req, res) => {
     });
   } catch (err) {
     console.error('❌ Popular hashtags error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== BEST TIME TO POST ANALYTICS =====
+
+/**
+ * GET /api/analytics/best-times - Analyze historical data to find best times to post
+ *
+ * Query params:
+ * {
+ *   user_id: string (required) - User ID to analyze
+ *   platform: string (optional) - Filter by platform (instagram, facebook, twitter, etc.)
+ *   days: number (optional) - Number of days to analyze (default: 90)
+ * }
+ *
+ * Response:
+ * {
+ *   success: boolean
+ *   bestTimes: Array<{
+ *     dayOfWeek: number,
+ *     dayName: string,
+ *     hour: number,
+ *     avgEngagement: number,
+ *     postCount: number
+ *   }>
+ *   heatmapData: Array<{
+ *     day: number,
+ *     dayName: string,
+ *     hour: number,
+ *     engagement: number,
+ *     postCount: number,
+ *     hasData: boolean
+ *   }>
+ *   insights: string[]
+ *   totalPosts: number
+ *   platform: string
+ *   daysAnalyzed: number
+ * }
+ */
+router.get('/analytics/best-times', optionalApiKey, async (req, res) => {
+  try {
+    const { user_id, platform, days = 90 } = req.query;
+
+    if (!user_id) {
+      return res.status(400).json({
+        error: 'user_id is required',
+        message: 'Please provide a user_id to analyze posting times'
+      });
+    }
+
+    console.log(`📊 Analyzing best times for user: ${user_id}, platform: ${platform || 'all'}, days: ${days}`);
+
+    const result = await bestTimeService.analyzeBestTimes(user_id, platform, parseInt(days));
+
+    if (!result.success) {
+      return res.status(500).json({
+        error: result.error,
+        bestTimes: [],
+        heatmapData: [],
+        insights: []
+      });
+    }
+
+    console.log(`✅ Found ${result.bestTimes.length} optimal time slots from ${result.totalPosts} posts`);
+
+    res.json(result);
+  } catch (err) {
+    console.error('❌ Best times analysis error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/analytics/recommended-times - Get recommended posting times
+ *
+ * Query params:
+ * {
+ *   user_id: string (required) - User ID
+ *   platform: string (optional) - Platform to get recommendations for
+ *   count: number (optional) - Number of recommendations (default: 5)
+ * }
+ *
+ * Response:
+ * {
+ *   times: Array<{
+ *     dayOfWeek: number,
+ *     dayName: string,
+ *     hour: number,
+ *     hourFormatted: string,
+ *     avgEngagement: number,
+ *     confidence: string (low/medium/high)
+ *   }>
+ * }
+ */
+router.get('/analytics/recommended-times', optionalApiKey, async (req, res) => {
+  try {
+    const { user_id, platform, count = 5 } = req.query;
+
+    if (!user_id) {
+      return res.status(400).json({
+        error: 'user_id is required',
+        message: 'Please provide a user_id to get recommended times'
+      });
+    }
+
+    console.log(`🎯 Getting ${count} recommended times for user: ${user_id}, platform: ${platform || 'all'}`);
+
+    const times = await bestTimeService.getRecommendedTimes(user_id, platform, parseInt(count));
+
+    res.json({ times });
+  } catch (err) {
+    console.error('❌ Recommended times error:', err);
     res.status(500).json({ error: err.message });
   }
 });

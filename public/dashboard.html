@@ -1239,6 +1239,12 @@
         grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)) !important;
       }
     }
+
+    /* Spinner animation for loading states */
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
@@ -2139,6 +2145,17 @@
               </div>
             </div>
           </div>
+
+          <!-- Best Time to Post Analytics -->
+          <div id="analytics-section" style="background: white; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 24px;">
+            <div id="best-time-container">
+              <!-- Best time analytics will be loaded here by bestTime.js -->
+              <div style="text-align: center; padding: 40px; color: #6b7280;">
+                <div style="width: 40px; height: 40px; margin: 0 auto 16px; border: 3px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <p style="margin: 0; font-size: 14px;">Loading analytics...</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Posts Tab -->
@@ -2698,6 +2715,7 @@
   <script src="/js/brands.js?v=1.0"></script>
   <script src="/js/teams.js?v=1.0"></script>
   <script src="/js/hashtags.js?v=1.0"></script>
+  <script src="/js/bestTime.js?v=1.0"></script>
 
   <!-- Brand Modals -->
   <div id="brandModal" class="modal">
