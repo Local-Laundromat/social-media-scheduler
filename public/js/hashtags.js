@@ -13,25 +13,25 @@ function initHashtagSuggestions() {
   const captionTextarea = document.getElementById('caption');
   if (!captionTextarea) return;
 
-  // Create hashtag suggestion button
-  const hashtagBtn = document.createElement('button');
-  hashtagBtn.type = 'button';
-  hashtagBtn.className = 'btn btn-secondary';
-  hashtagBtn.id = 'getHashtagsBtn';
-  hashtagBtn.innerHTML = '🏷️ Get Hashtag Suggestions';
-  hashtagBtn.style.cssText = 'margin-top: 8px; margin-bottom: 12px;';
+  // Hook up existing hashtag button if it exists
+  const existingButtons = document.querySelectorAll('.ai-caption-btn');
+  existingButtons.forEach(btn => {
+    if (btn.textContent.includes('Add Hashtags') || btn.textContent.includes('#️⃣')) {
+      btn.addEventListener('click', getHashtagSuggestions);
+      btn.id = 'getHashtagsBtn';
+    }
+  });
 
-  // Insert button after caption textarea
-  captionTextarea.parentNode.insertBefore(hashtagBtn, captionTextarea.nextSibling);
+  // Create hashtag results container if it doesn't exist
+  let hashtagContainer = document.getElementById('hashtagSuggestions');
+  if (!hashtagContainer) {
+    hashtagContainer = document.createElement('div');
+    hashtagContainer.id = 'hashtagSuggestions';
+    hashtagContainer.style.cssText = 'display: none; margin-top: 12px; padding: 16px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px;';
 
-  // Create hashtag results container
-  const hashtagContainer = document.createElement('div');
-  hashtagContainer.id = 'hashtagSuggestions';
-  hashtagContainer.style.cssText = 'display: none; margin-top: 12px; padding: 16px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px;';
-  hashtagBtn.parentNode.insertBefore(hashtagContainer, hashtagBtn.nextSibling);
-
-  // Add click handler
-  hashtagBtn.addEventListener('click', getHashtagSuggestions);
+    // Insert after caption textarea
+    captionTextarea.parentNode.insertBefore(hashtagContainer, captionTextarea.nextSibling);
+  }
 }
 
 async function getHashtagSuggestions() {
@@ -46,9 +46,9 @@ async function getHashtagSuggestions() {
     return;
   }
 
-  // Get selected platforms
+  // Get selected platforms (check both "platform" and "platforms" for compatibility)
   const platforms = [];
-  document.querySelectorAll('input[name="platforms"]:checked').forEach(cb => {
+  document.querySelectorAll('input[name="platform"]:checked, input[name="platforms"]:checked').forEach(cb => {
     platforms.push(cb.value);
   });
 
