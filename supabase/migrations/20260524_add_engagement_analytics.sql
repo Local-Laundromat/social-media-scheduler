@@ -41,13 +41,8 @@ BEGIN
     RAISE NOTICE 'Created index idx_posts_user_analytics';
   END IF;
 
-  -- Index on platform for platform-specific analytics
-  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_posts_platform_analytics') THEN
-    CREATE INDEX idx_posts_platform_analytics
-      ON posts(platform, status, scheduled_time)
-      WHERE status = 'posted';
-    RAISE NOTICE 'Created index idx_posts_platform_analytics';
-  END IF;
+  -- Note: Skipping platform index since 'platforms' is an array column
+  -- Platform filtering in queries will use the user_id index and filter in application code
 END $$;
 
 -- Add comments for documentation (safe to re-run)
