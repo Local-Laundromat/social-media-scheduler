@@ -2697,6 +2697,7 @@
   <script src="/js/reviews.js?v=1.1"></script>
   <script src="/js/brands.js?v=1.0"></script>
   <script src="/js/teams.js?v=1.0"></script>
+  <script src="/js/hashtags.js?v=1.0"></script>
 
   <!-- Brand Modals -->
   <div id="brandModal" class="modal">
@@ -2832,6 +2833,33 @@
     .brand-actions {
       display: flex;
       gap: 8px;
+    }
+
+    /* Hashtag Chips */
+    .hashtag-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .hashtag-chip {
+      display: inline-block;
+      padding: 6px 12px;
+      background: #eff6ff;
+      color: #1e40af;
+      border: 1px solid #3b82f6;
+      border-radius: 16px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .hashtag-chip:hover {
+      background: #3b82f6;
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
     }
 
     .empty-state {

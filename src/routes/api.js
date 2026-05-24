@@ -6,6 +6,7 @@ const webhookService = require('../services/webhooks');
 const { deleteFromPlatforms, getPlatformTokens } = require('../services/deletePost');
 const { authenticateApiKey, optionalApiKey } = require('../middleware/auth');
 const { applyPostPlatformAccountFilter } = require('../lib/postPlatformAccountFilter');
+const hashtagService = require('../services/hashtagService');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -815,6 +816,102 @@ router.get('/webhook-logs', async (req, res) => {
 
     res.json({ logs: logs || [] });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== AI HASHTAG SUGGESTIONS =====
+
+/**
+ * POST /api/hashtags/suggest - Get AI-powered hashtag suggestions
+ *
+ * Request body:
+ * {
+ *   caption: string (required) - The post caption to analyze
+ *   platform: string (optional) - Target platform (instagram, twitter, facebook, etc.)
+ *   count: number (optional) - Number of hashtags to generate (default: 15)
+ * }
+ *
+ * Response:
+ * {
+ *   hashtags: {
+ *     high: string[] - High volume hashtags (100k+ posts)
+ *     medium: string[] - Medium volume hashtags (10k-100k posts)
+ *     niche: string[] - Niche hashtags (<10k posts)
+ *   },
+ *   raw: string[] - All hashtags in a single array
+ *   platform: string - Platform used for suggestions
+ *   maxHashtags: number - Maximum hashtags allowed on this platform
+ * }
+ */
+router.post('/hashtags/suggest', optionalApiKey, async (req, res) => {
+  try {
+    const { caption, platform = 'instagram', count = 15 } = req.body;
+
+    if (!caption || caption.trim().length === 0) {
+      return res.status(400).json({
+        error: 'Caption is required',
+        message: 'Please provide a caption to analyze for hashtag suggestions'
+      });
+    }
+
+    console.log(`🏷️ Generating hashtag suggestions for platform: ${platform}`);
+
+    const result = await hashtagService.suggestHashtags(caption, platform, count);
+
+    if (result.error) {
+      return res.status(500).json({
+        error: result.error,
+        hashtags: { high: [], medium: [], niche: [] },
+        raw: []
+      });
+    }
+
+    console.log(`✅ Generated ${result.raw.length} hashtags for ${platform}`);
+
+    res.json(result);
+  } catch (err) {
+    console.error('❌ Hashtag suggestion error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/hashtags/popular - Get popular hashtags for a topic
+ *
+ * Request body:
+ * {
+ *   topic: string (required) - Topic or niche to get hashtags for
+ *   count: number (optional) - Number of hashtags (default: 10)
+ * }
+ *
+ * Response:
+ * {
+ *   topic: string
+ *   hashtags: string[]
+ * }
+ */
+router.post('/hashtags/popular', optionalApiKey, async (req, res) => {
+  try {
+    const { topic, count = 10 } = req.body;
+
+    if (!topic || topic.trim().length === 0) {
+      return res.status(400).json({
+        error: 'Topic is required',
+        message: 'Please provide a topic to get popular hashtags'
+      });
+    }
+
+    console.log(`🔍 Getting popular hashtags for topic: ${topic}`);
+
+    const hashtags = await hashtagService.getPopularHashtagsForTopic(topic, count);
+
+    res.json({
+      topic,
+      hashtags
+    });
+  } catch (err) {
+    console.error('❌ Popular hashtags error:', err);
     res.status(500).json({ error: err.message });
   }
 });
