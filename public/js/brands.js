@@ -7,6 +7,11 @@
 let brands = [];
 let currentBrand = null;
 
+/** Matches dashboard.js / supabase-client — session lives under `auth_token`. */
+function getAuthToken() {
+  return localStorage.getItem('auth_token') || localStorage.getItem('sb-access-token');
+}
+
 // ============================================
 // INITIALIZE
 // ============================================
@@ -20,7 +25,7 @@ async function initBrands() {
 // ============================================
 async function loadBrands() {
   try {
-    const token = localStorage.getItem('sb-access-token');
+    const token = getAuthToken();
     if (!token) {
       throw new Error('Not authenticated');
     }
@@ -162,7 +167,7 @@ async function viewBrand(brandId) {
     }
 
     // Load brand's social accounts
-    const token = localStorage.getItem('sb-access-token');
+    const token = getAuthToken();
     const response = await fetch(`/api/brands/${brandId}/accounts`, {
       headers: {
         'Authorization': `Bearer ${token}`
@@ -282,7 +287,12 @@ async function saveBrand(event) {
   };
 
   try {
-    const token = localStorage.getItem('sb-access-token');
+    const token = getAuthToken();
+    if (!token) {
+      showNotification('Please sign in again to save brands.', 'error');
+      return;
+    }
+
     const url = currentBrand
       ? `/api/brands/${currentBrand.id}`
       : '/api/brands';
@@ -320,7 +330,7 @@ async function deleteBrand(brandId) {
   }
 
   try {
-    const token = localStorage.getItem('sb-access-token');
+    const token = getAuthToken();
     const response = await fetch(`/api/brands/${brandId}`, {
       method: 'DELETE',
       headers: {
@@ -474,7 +484,7 @@ async function populateBrandSelector() {
   if (!brandSelect) return;
 
   try {
-    const token = localStorage.getItem('sb-access-token');
+    const token = getAuthToken();
     if (!token) return;
 
     const response = await fetch('/api/brands', {
@@ -522,7 +532,7 @@ async function handleBrandSelection() {
   }
 
   try {
-    const token = localStorage.getItem('sb-access-token');
+    const token = getAuthToken();
     const response = await fetch(`/api/brands/${brandId}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
