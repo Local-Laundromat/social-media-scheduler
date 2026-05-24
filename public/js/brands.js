@@ -357,6 +357,17 @@ function setupEventListeners() {
     brandForm.addEventListener('submit', saveBrand);
   }
 
+  // Hook up all "New Brand" buttons with onclick handlers
+  const newBrandButtons = document.querySelectorAll('button[onclick*="showCreateBrandModal"]');
+  newBrandButtons.forEach(button => {
+    // Remove inline onclick to avoid conflicts
+    button.removeAttribute('onclick');
+    button.addEventListener('click', (e) => {
+      e.preventDefault();
+      showCreateBrandModal();
+    });
+  });
+
   // Close modals on outside click
   window.addEventListener('click', (event) => {
     if (event.target.classList.contains('modal')) {
@@ -471,10 +482,26 @@ async function handleBrandSelection() {
 
 // Call on page load
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', populateBrandSelector);
+  document.addEventListener('DOMContentLoaded', () => {
+    populateBrandSelector();
+    setupEventListeners();
+  });
 } else {
   populateBrandSelector();
+  setupEventListeners();
 }
+
+// Also watch for when brands tab becomes visible
+document.addEventListener('DOMContentLoaded', () => {
+  const observer = new MutationObserver(() => {
+    setupEventListeners();
+  });
+
+  const brandsTab = document.getElementById('brandsTab');
+  if (brandsTab) {
+    observer.observe(brandsTab, { childList: true, subtree: true });
+  }
+});
 
 // Export functions for global access
 window.initBrands = initBrands;
