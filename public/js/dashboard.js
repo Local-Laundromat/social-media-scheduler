@@ -644,9 +644,17 @@ function populateAccountSelectors() {
 async function populateBrandFilterDropdown() {
   try {
     const token = localStorage.getItem('auth_token');
+
+    // EMERGENCY FIX: Add timeout to prevent browser freeze
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+
     const response = await fetch('/api/brands', {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) return;
 
@@ -689,7 +697,12 @@ async function populateBrandFilterDropdown() {
       });
     }
   } catch (error) {
-    console.error('Error loading brands for filters:', error);
+    if (error.name === 'AbortError') {
+      console.warn('Brand filter timed out - brands API is hanging');
+      // Don't show error to user, just skip populating filters
+    } else {
+      console.error('Error loading brands for filters:', error);
+    }
   }
 }
 

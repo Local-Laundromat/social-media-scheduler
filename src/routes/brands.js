@@ -15,8 +15,23 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 });
 
 /** PostgREST filter: user's personal brands OR brands owned by user's teams */
-function brandAccessOrFilter(userId) {
-  return `user_id.eq.${userId},team_id.in.(select team_id from team_members where user_id='${userId}')`;
+// NOTE: PostgREST .in() doesn't support subqueries, so we fetch team IDs first
+async function getBrandAccessFilter(userId) {
+  // Get user's teams first
+  const { data: teamMemberships } = await supabase
+    .from('team_members')
+    .select('team_id')
+    .eq('user_id', userId);
+
+  const teamIds = (teamMemberships || []).map(tm => tm.team_id).filter(Boolean);
+
+  // Build filter: personal brands OR team brands
+  if (teamIds.length > 0) {
+    return `user_id.eq.${userId},team_id.in.(${teamIds.join(',')})`;
+  } else {
+    // User has no teams, only show personal brands
+    return `user_id.eq.${userId}`;
+  }
 }
 
 /** When `brand_profile_stats` view is missing, return rows shaped like the view for the UI */
@@ -39,10 +54,12 @@ function augmentBrandProfileRows(rows) {
  * fall back to `brand_profiles` so POST/create still flows end-to-end.
  */
 async function listBrandsWithFallback(userId) {
+  const filter = await getBrandAccessFilter(userId);
+
   const stats = await supabase
     .from('brand_profile_stats')
     .select('*')
-    .or(brandAccessOrFilter(userId))
+    .or(filter)
     .eq('is_active', true)
     .order('created_at', { ascending: false });
 
@@ -55,7 +72,7 @@ async function listBrandsWithFallback(userId) {
   const inclusive = await supabase
     .from('brand_profiles')
     .select('*')
-    .or(brandAccessOrFilter(userId))
+    .or(filter)
     .eq('is_active', true)
     .order('created_at', { ascending: false });
 
@@ -80,11 +97,13 @@ async function listBrandsWithFallback(userId) {
 }
 
 async function getBrandWithFallback(userId, brandId) {
+  const filter = await getBrandAccessFilter(userId);
+
   const stats = await supabase
     .from('brand_profile_stats')
     .select('*')
     .eq('id', brandId)
-    .or(brandAccessOrFilter(userId))
+    .or(filter)
     .maybeSingle();
 
   if (!stats.error && stats.data) {
@@ -99,7 +118,7 @@ async function getBrandWithFallback(userId, brandId) {
     .from('brand_profiles')
     .select('*')
     .eq('id', brandId)
-    .or(brandAccessOrFilter(userId))
+    .or(filter)
     .maybeSingle();
 
   if (!inclusive.error && inclusive.data) {
@@ -347,11 +366,12 @@ router.get('/:id/accounts', authenticate, async (req, res) => {
     const brandId = req.params.id;
 
     // Verify user can access this brand
+    const filter = await getBrandAccessFilter(userId);
     const { data: brand } = await supabase
       .from('brand_profiles')
       .select('id')
       .eq('id', brandId)
-      .or(`user_id.eq.${userId},team_id.in.(select team_id from team_members where user_id='${userId}')`)
+      .or(filter)
       .single();
 
     if (!brand) {

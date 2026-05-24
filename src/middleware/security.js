@@ -66,6 +66,7 @@ function configureHelmet() {
           "https://cdn.jsdelivr.net",
           "https://static.cloudflareinsights.com"
         ],
+        scriptSrcAttr: ["'unsafe-inline'"], // Allow inline event handlers (onclick, etc.)
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:", "https:", "blob:"],

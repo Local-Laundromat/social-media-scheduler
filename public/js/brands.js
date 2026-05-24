@@ -1,7 +1,10 @@
 /**
  * Brand Profiles Management
  * Handles creating, editing, and managing brand profiles
+ * VERSION: 2.2 - Using dashboard's styled notifications
  */
+
+console.log('🔵 [brands.js v2.2] Loading NOW - timestamp:', new Date().toISOString());
 
 // State
 let brands = [];
@@ -30,14 +33,23 @@ async function loadBrands() {
       throw new Error('Not authenticated');
     }
 
+    // Add timeout to prevent freezing (10 seconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     const response = await fetch('/api/brands', {
       headers: {
         'Authorization': `Bearer ${token}`
-      }
+      },
+      signal: controller.signal
     });
 
+    clearTimeout(timeoutId);
+
     if (!response.ok) {
-      throw new Error('Failed to load brands');
+      const errorText = await response.text();
+      console.error('API error:', errorText);
+      throw new Error(`Failed to load brands (${response.status})`);
     }
 
     const data = await response.json();
@@ -45,7 +57,20 @@ async function loadBrands() {
     renderBrandsList();
   } catch (error) {
     console.error('Error loading brands:', error);
-    showNotification('Failed to load brands', 'error');
+
+    // Provide helpful error messages
+    if (error.name === 'AbortError') {
+      showBrandNotification('Request timed out. The brands list may be slow to load. Try refreshing.', 'error');
+    } else if (error.message.includes('401') || error.message.includes('Not authenticated')) {
+      showBrandNotification('Please log in again', 'error');
+      setTimeout(() => window.location.href = '/login', 2000);
+    } else {
+      showBrandNotification('Failed to load brands. Check console for details.', 'error');
+    }
+
+    // Still render empty list so UI isn't broken
+    brands = [];
+    renderBrandsList();
   }
 }
 
@@ -107,8 +132,8 @@ function renderBrandsList() {
     </div>
   `).join('');
 
-  // Set up click handlers for the newly rendered buttons
-  setupEventListeners();
+  // Set up click handlers for the newly rendered buttons (only once per render)
+  attachBrandActionListeners();
 }
 
 // ============================================
@@ -119,21 +144,39 @@ function showCreateBrandModal() {
   currentBrand = null;
   const modal = document.getElementById('brandModal');
   const form = document.getElementById('brandForm');
+  const modalTitle = document.getElementById('modalTitle');
 
   if (!modal) {
     console.error('[brands.js] brandModal not found in DOM');
+    showBrandNotification('Error: Brand modal not found. Please refresh the page.', 'error');
     return;
   }
   if (!form) {
     console.error('[brands.js] brandForm not found in DOM');
+    showBrandNotification('Error: Brand form not found. Please refresh the page.', 'error');
     return;
   }
 
-  document.getElementById('modalTitle').textContent = 'Create New Brand';
-  form.reset();
+  if (modalTitle) {
+    modalTitle.textContent = 'Create New Brand';
+  }
+
+  try {
+    form.reset();
+  } catch (e) {
+    console.error('[brands.js] Error resetting form:', e);
+  }
 
   modal.style.display = 'block';
   console.log('[brands.js] Modal should now be visible');
+
+  // Focus the first input field
+  setTimeout(() => {
+    const brandNameInput = document.getElementById('brandName');
+    if (brandNameInput) {
+      brandNameInput.focus();
+    }
+  }, 100);
 }
 
 // ============================================
@@ -163,7 +206,7 @@ async function editBrand(brandId) {
     modal.style.display = 'block';
   } catch (error) {
     console.error('Error editing brand:', error);
-    showNotification('Failed to load brand details', 'error');
+    showBrandNotification('Failed to load brand details', 'error');
   }
 }
 
@@ -193,7 +236,7 @@ async function viewBrand(brandId) {
     showBrandDetailsModal(brand, data.accounts);
   } catch (error) {
     console.error('Error viewing brand:', error);
-    showNotification('Failed to load brand details', 'error');
+    showBrandNotification('Failed to load brand details', 'error');
   }
 }
 
@@ -300,7 +343,7 @@ async function saveBrand(event) {
   try {
     const token = getAuthToken();
     if (!token) {
-      showNotification('Please sign in again to save brands.', 'error');
+      showBrandNotification('Please sign in again to save brands.', 'error');
       return;
     }
 
@@ -335,12 +378,12 @@ async function saveBrand(event) {
       throw new Error(errMsg);
     }
 
-    showNotification(currentBrand ? 'Brand updated successfully' : 'Brand created successfully', 'success');
+    showBrandNotification(currentBrand ? 'Brand updated successfully' : 'Brand created successfully', 'success');
     closeModal('brandModal');
     await loadBrands();
   } catch (error) {
     console.error('Error saving brand:', error);
-    showNotification(error.message || 'Failed to save brand', 'error');
+    showBrandNotification(error.message || 'Failed to save brand', 'error');
   }
 }
 
@@ -365,11 +408,11 @@ async function deleteBrand(brandId) {
       throw new Error('Failed to delete brand');
     }
 
-    showNotification('Brand deleted successfully', 'success');
+    showBrandNotification('Brand deleted successfully', 'success');
     await loadBrands();
   } catch (error) {
     console.error('Error deleting brand:', error);
-    showNotification('Failed to delete brand', 'error');
+    showBrandNotification('Failed to delete brand', 'error');
   }
 }
 
@@ -384,33 +427,38 @@ function closeModal(modalId) {
 }
 
 // ============================================
-// SETUP EVENT LISTENERS
+// SETUP EVENT LISTENERS (called once on init)
 // ============================================
+let listenersAttached = false;
+
 function setupEventListeners() {
+  if (listenersAttached) {
+    console.log('[brands.js] Event listeners already attached, skipping');
+    return;
+  }
+
   console.log('[brands.js] setupEventListeners called');
 
-  // Brand form submit
+  // Brand form submit (only attach once)
   const brandForm = document.getElementById('brandForm');
   if (brandForm) {
-    // Remove existing listener to avoid duplicates
-    brandForm.removeEventListener('submit', saveBrand);
     brandForm.addEventListener('submit', saveBrand);
     console.log('[brands.js] Form listener attached');
   }
 
-  // Hook up brand action buttons (view, edit, delete) using data attributes
+  listenersAttached = true;
+}
+
+// Attach listeners to brand action buttons (called after each render)
+function attachBrandActionListeners() {
   const brandActionButtons = document.querySelectorAll('.brand-action-btn');
   console.log(`[brands.js] Found ${brandActionButtons.length} brand action buttons`);
 
   brandActionButtons.forEach(button => {
-    // Remove any existing listeners by cloning
-    const newButton = button.cloneNode(true);
-    button.parentNode?.replaceChild(newButton, button);
-
-    newButton.addEventListener('click', (e) => {
+    button.addEventListener('click', (e) => {
       e.preventDefault();
-      const action = newButton.getAttribute('data-action');
-      const brandId = parseInt(newButton.getAttribute('data-brand-id'));
+      const action = button.getAttribute('data-action');
+      const brandId = parseInt(button.getAttribute('data-brand-id'));
 
       console.log(`[brands.js] Action clicked: ${action} for brand ${brandId}`);
 
@@ -443,11 +491,12 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-function showNotification(message, type = 'info') {
-  // Reuse existing notification system if available
-  if (typeof window.showNotification === 'function') {
-    window.showNotification(message, type);
+function showBrandNotification(message, type = 'info') {
+  // Use dashboard's styled notification system
+  if (typeof window.notify === 'function') {
+    window.notify(message, type);
   } else {
+    // Fallback to console + alert if notify not loaded yet
     console.log(`[${type.toUpperCase()}] ${message}`);
     alert(message);
   }
@@ -464,11 +513,18 @@ async function populateBrandSelector() {
     const token = getAuthToken();
     if (!token) return;
 
+    // Add timeout to prevent freezing (5 seconds for selector)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
     const response = await fetch('/api/brands', {
       headers: {
         'Authorization': `Bearer ${token}`
-      }
+      },
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) return;
 
@@ -486,7 +542,11 @@ async function populateBrandSelector() {
       brandSelect.appendChild(option);
     });
   } catch (error) {
-    console.error('Error loading brands for selector:', error);
+    if (error.name === 'AbortError') {
+      console.warn('Brand selector timed out - brands API is slow');
+    } else {
+      console.error('Error loading brands for selector:', error);
+    }
   }
 }
 
@@ -538,28 +598,21 @@ async function handleBrandSelection() {
   }
 }
 
-// Call on page load
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    populateBrandSelector();
-    setupEventListeners();
-  });
-} else {
-  populateBrandSelector();
-  setupEventListeners();
-}
+// DISABLED: This was causing browser freezes on page load
+// The brands API is hanging, which freezes the entire page
+// Will be called manually when brands tab is opened instead
+console.log('[brands.js] Auto-init disabled to prevent freeze');
 
-// Also watch for when brands tab becomes visible
-document.addEventListener('DOMContentLoaded', () => {
-  const observer = new MutationObserver(() => {
-    setupEventListeners();
-  });
-
-  const brandsTab = document.getElementById('brandsTab');
-  if (brandsTab) {
-    observer.observe(brandsTab, { childList: true, subtree: true });
-  }
-});
+// Call on page load - COMMENTED OUT TO FIX FREEZE
+// if (document.readyState === 'loading') {
+//   document.addEventListener('DOMContentLoaded', () => {
+//     populateBrandSelector();
+//     setupEventListeners();
+//   });
+// } else {
+//   populateBrandSelector();
+//   setupEventListeners();
+// }
 
 // Export functions for global access
 window.initBrands = initBrands;
@@ -571,4 +624,6 @@ window.closeModal = closeModal;
 window.populateBrandSelector = populateBrandSelector;
 window.handleBrandSelection = handleBrandSelection;
 
-console.log('[brands.js] Script loaded. showCreateBrandModal available:', typeof window.showCreateBrandModal);
+console.log('🟢 [brands.js v2.2] Script fully loaded!');
+console.log('🟢 [brands.js v2.2] showCreateBrandModal available:', typeof window.showCreateBrandModal);
+console.log('🟢 [brands.js v2.2] Using dashboard notify system:', typeof window.notify);
