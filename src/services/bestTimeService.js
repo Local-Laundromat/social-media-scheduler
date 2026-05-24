@@ -3,7 +3,7 @@
  * Analyzes historical post performance to recommend optimal posting times
  */
 
-const { supabase } = require('../config/supabase');
+const { supabase } = require('../database/supabase');
 
 class BestTimeService {
   /**
