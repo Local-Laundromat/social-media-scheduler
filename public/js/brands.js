@@ -115,14 +115,25 @@ function renderBrandsList() {
 // SHOW CREATE BRAND MODAL
 // ============================================
 function showCreateBrandModal() {
+  console.log('[brands.js] showCreateBrandModal called');
   currentBrand = null;
   const modal = document.getElementById('brandModal');
   const form = document.getElementById('brandForm');
+
+  if (!modal) {
+    console.error('[brands.js] brandModal not found in DOM');
+    return;
+  }
+  if (!form) {
+    console.error('[brands.js] brandForm not found in DOM');
+    return;
+  }
 
   document.getElementById('modalTitle').textContent = 'Create New Brand';
   form.reset();
 
   modal.style.display = 'block';
+  console.log('[brands.js] Modal should now be visible');
 }
 
 // ============================================
@@ -376,39 +387,21 @@ function closeModal(modalId) {
 // SETUP EVENT LISTENERS
 // ============================================
 function setupEventListeners() {
+  console.log('[brands.js] setupEventListeners called');
+
   // Brand form submit
   const brandForm = document.getElementById('brandForm');
   if (brandForm) {
     // Remove existing listener to avoid duplicates
     brandForm.removeEventListener('submit', saveBrand);
     brandForm.addEventListener('submit', saveBrand);
+    console.log('[brands.js] Form listener attached');
   }
-
-  // Hook up all "New Brand" buttons
-  const newBrandButtons = document.querySelectorAll('button[onclick*="showCreateBrandModal"]');
-  newBrandButtons.forEach(button => {
-    button.removeAttribute('onclick');
-    button.addEventListener('click', (e) => {
-      e.preventDefault();
-      showCreateBrandModal();
-    });
-  });
-
-  // Hook up all modal close buttons
-  const closeButtons = document.querySelectorAll('[onclick*="closeModal"]');
-  closeButtons.forEach(button => {
-    const modalId = button.getAttribute('onclick')?.match(/closeModal\('([^']+)'\)/)?.[1];
-    if (modalId) {
-      button.removeAttribute('onclick');
-      button.addEventListener('click', (e) => {
-        e.preventDefault();
-        closeModal(modalId);
-      });
-    }
-  });
 
   // Hook up brand action buttons (view, edit, delete) using data attributes
   const brandActionButtons = document.querySelectorAll('.brand-action-btn');
+  console.log(`[brands.js] Found ${brandActionButtons.length} brand action buttons`);
+
   brandActionButtons.forEach(button => {
     // Remove any existing listeners by cloning
     const newButton = button.cloneNode(true);
@@ -419,6 +412,8 @@ function setupEventListeners() {
       const action = newButton.getAttribute('data-action');
       const brandId = parseInt(newButton.getAttribute('data-brand-id'));
 
+      console.log(`[brands.js] Action clicked: ${action} for brand ${brandId}`);
+
       if (action === 'view') {
         viewBrand(brandId);
       } else if (action === 'edit') {
@@ -427,36 +422,6 @@ function setupEventListeners() {
         deleteBrand(brandId);
       }
     });
-  });
-
-  // Also handle old-style onclick buttons (for backwards compatibility)
-  const onclickButtons = document.querySelectorAll('button[onclick*="Brand"]');
-  onclickButtons.forEach(button => {
-    const onclick = button.getAttribute('onclick');
-    if (!onclick) return;
-
-    const viewMatch = onclick.match(/viewBrand\((\d+)\)/);
-    const editMatch = onclick.match(/editBrand\((\d+)\)/);
-    const deleteMatch = onclick.match(/deleteBrand\((\d+)\)/);
-
-    button.removeAttribute('onclick');
-
-    if (viewMatch) {
-      button.addEventListener('click', (e) => {
-        e.preventDefault();
-        viewBrand(parseInt(viewMatch[1]));
-      });
-    } else if (editMatch) {
-      button.addEventListener('click', (e) => {
-        e.preventDefault();
-        editBrand(parseInt(editMatch[1]));
-      });
-    } else if (deleteMatch) {
-      button.addEventListener('click', (e) => {
-        e.preventDefault();
-        deleteBrand(parseInt(deleteMatch[1]));
-      });
-    }
   });
 }
 
@@ -605,3 +570,5 @@ window.deleteBrand = deleteBrand;
 window.closeModal = closeModal;
 window.populateBrandSelector = populateBrandSelector;
 window.handleBrandSelection = handleBrandSelection;
+
+console.log('[brands.js] Script loaded. showCreateBrandModal available:', typeof window.showCreateBrandModal);
