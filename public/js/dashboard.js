@@ -1035,6 +1035,14 @@ function switchTab(tabName) {
       loadReviews();
       dataCache.lastLoaded.reviews = now;
     }
+  } else if (tabName === 'brands') {
+    const cacheAge = now - (dataCache.lastLoaded.brands || 0);
+    if (!dataCache.brands || cacheAge > cacheExpiry) {
+      if (typeof initBrands === 'function') {
+        initBrands();
+      }
+      dataCache.lastLoaded.brands = now;
+    }
   }
 }
 
