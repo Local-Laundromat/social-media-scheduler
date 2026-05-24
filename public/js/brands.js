@@ -89,18 +89,21 @@ function renderBrandsList() {
       </div>
 
       <div class="brand-actions">
-        <button onclick="viewBrand(${brand.id})" class="btn btn-secondary btn-sm">
+        <button data-action="view" data-brand-id="${brand.id}" class="btn btn-secondary btn-sm brand-action-btn">
           View Details
         </button>
-        <button onclick="editBrand(${brand.id})" class="btn btn-secondary btn-sm">
+        <button data-action="edit" data-brand-id="${brand.id}" class="btn btn-secondary btn-sm brand-action-btn">
           Edit
         </button>
-        <button onclick="deleteBrand(${brand.id})" class="btn btn-danger btn-sm">
+        <button data-action="delete" data-brand-id="${brand.id}" class="btn btn-danger btn-sm brand-action-btn">
           Delete
         </button>
       </div>
     </div>
   `).join('');
+
+  // Set up click handlers for the newly rendered buttons
+  setupEventListeners();
 }
 
 // ============================================
@@ -351,21 +354,87 @@ function closeModal(modalId) {
 // SETUP EVENT LISTENERS
 // ============================================
 function setupEventListeners() {
-  // Brand form
+  // Brand form submit
   const brandForm = document.getElementById('brandForm');
   if (brandForm) {
+    // Remove existing listener to avoid duplicates
+    brandForm.removeEventListener('submit', saveBrand);
     brandForm.addEventListener('submit', saveBrand);
   }
 
-  // Hook up all "New Brand" buttons with onclick handlers
+  // Hook up all "New Brand" buttons
   const newBrandButtons = document.querySelectorAll('button[onclick*="showCreateBrandModal"]');
   newBrandButtons.forEach(button => {
-    // Remove inline onclick to avoid conflicts
     button.removeAttribute('onclick');
     button.addEventListener('click', (e) => {
       e.preventDefault();
       showCreateBrandModal();
     });
+  });
+
+  // Hook up all modal close buttons
+  const closeButtons = document.querySelectorAll('[onclick*="closeModal"]');
+  closeButtons.forEach(button => {
+    const modalId = button.getAttribute('onclick')?.match(/closeModal\('([^']+)'\)/)?.[1];
+    if (modalId) {
+      button.removeAttribute('onclick');
+      button.addEventListener('click', (e) => {
+        e.preventDefault();
+        closeModal(modalId);
+      });
+    }
+  });
+
+  // Hook up brand action buttons (view, edit, delete) using data attributes
+  const brandActionButtons = document.querySelectorAll('.brand-action-btn');
+  brandActionButtons.forEach(button => {
+    // Remove any existing listeners by cloning
+    const newButton = button.cloneNode(true);
+    button.parentNode?.replaceChild(newButton, button);
+
+    newButton.addEventListener('click', (e) => {
+      e.preventDefault();
+      const action = newButton.getAttribute('data-action');
+      const brandId = parseInt(newButton.getAttribute('data-brand-id'));
+
+      if (action === 'view') {
+        viewBrand(brandId);
+      } else if (action === 'edit') {
+        editBrand(brandId);
+      } else if (action === 'delete') {
+        deleteBrand(brandId);
+      }
+    });
+  });
+
+  // Also handle old-style onclick buttons (for backwards compatibility)
+  const onclickButtons = document.querySelectorAll('button[onclick*="Brand"]');
+  onclickButtons.forEach(button => {
+    const onclick = button.getAttribute('onclick');
+    if (!onclick) return;
+
+    const viewMatch = onclick.match(/viewBrand\((\d+)\)/);
+    const editMatch = onclick.match(/editBrand\((\d+)\)/);
+    const deleteMatch = onclick.match(/deleteBrand\((\d+)\)/);
+
+    button.removeAttribute('onclick');
+
+    if (viewMatch) {
+      button.addEventListener('click', (e) => {
+        e.preventDefault();
+        viewBrand(parseInt(viewMatch[1]));
+      });
+    } else if (editMatch) {
+      button.addEventListener('click', (e) => {
+        e.preventDefault();
+        editBrand(parseInt(editMatch[1]));
+      });
+    } else if (deleteMatch) {
+      button.addEventListener('click', (e) => {
+        e.preventDefault();
+        deleteBrand(parseInt(deleteMatch[1]));
+      });
+    }
   });
 
   // Close modals on outside click
