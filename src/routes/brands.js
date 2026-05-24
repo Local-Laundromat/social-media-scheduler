@@ -14,6 +14,129 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: { autoRefreshToken: false, persistSession: false }
 });
 
+/** PostgREST filter: user's personal brands OR brands owned by user's teams */
+function brandAccessOrFilter(userId) {
+  return `user_id.eq.${userId},team_id.in.(select team_id from team_members where user_id='${userId}')`;
+}
+
+/** When `brand_profile_stats` view is missing, return rows shaped like the view for the UI */
+function augmentBrandProfileRows(rows) {
+  return (rows || []).map((bp) => ({
+    ...bp,
+    facebook_accounts_count: bp.facebook_accounts_count ?? 0,
+    instagram_accounts_count: bp.instagram_accounts_count ?? 0,
+    tiktok_accounts_count: bp.tiktok_accounts_count ?? 0,
+    total_social_accounts: bp.total_social_accounts ?? 0,
+    posts_count: bp.posts_count ?? 0,
+    scheduled_posts_count: bp.scheduled_posts_count ?? 0,
+    posted_posts_count: bp.posted_posts_count ?? 0,
+    failed_posts_count: bp.failed_posts_count ?? 0
+  }));
+}
+
+/**
+ * Prefer `brand_profile_stats`; if migrations are incomplete that view/query may fail —
+ * fall back to `brand_profiles` so POST/create still flows end-to-end.
+ */
+async function listBrandsWithFallback(userId) {
+  const stats = await supabase
+    .from('brand_profile_stats')
+    .select('*')
+    .or(brandAccessOrFilter(userId))
+    .eq('is_active', true)
+    .order('created_at', { ascending: false });
+
+  if (!stats.error) {
+    return { data: stats.data || [], error: null };
+  }
+
+  console.warn('[api/brands] brand_profile_stats unavailable; using brand_profiles:', stats.error.message || stats.error);
+
+  const inclusive = await supabase
+    .from('brand_profiles')
+    .select('*')
+    .or(brandAccessOrFilter(userId))
+    .eq('is_active', true)
+    .order('created_at', { ascending: false });
+
+  if (!inclusive.error) {
+    return { data: augmentBrandProfileRows(inclusive.data), error: null };
+  }
+
+  console.warn('[api/brands] team/subquery fetch failed; solo user fallback:', inclusive.error.message || inclusive.error);
+
+  const solo = await supabase
+    .from('brand_profiles')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false });
+
+  if (!solo.error) {
+    return { data: augmentBrandProfileRows(solo.data), error: null };
+  }
+
+  return { data: null, error: solo.error };
+}
+
+async function getBrandWithFallback(userId, brandId) {
+  const stats = await supabase
+    .from('brand_profile_stats')
+    .select('*')
+    .eq('id', brandId)
+    .or(brandAccessOrFilter(userId))
+    .maybeSingle();
+
+  if (!stats.error && stats.data) {
+    return { data: stats.data, error: null };
+  }
+
+  if (stats.error) {
+    console.warn('[api/brands] brand_profile_stats lookup failed; using brand_profiles:', stats.error.message || stats.error);
+  }
+
+  const inclusive = await supabase
+    .from('brand_profiles')
+    .select('*')
+    .eq('id', brandId)
+    .or(brandAccessOrFilter(userId))
+    .maybeSingle();
+
+  if (!inclusive.error && inclusive.data) {
+    return { data: augmentBrandProfileRows([inclusive.data])[0], error: null };
+  }
+
+  if (inclusive.error) {
+    console.warn('[api/brands] team/subquery lookup failed; solo:', inclusive.error.message || inclusive.error);
+  }
+
+  const solo = await supabase
+    .from('brand_profiles')
+    .select('*')
+    .eq('id', brandId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!solo.error && solo.data) {
+    return { data: augmentBrandProfileRows([solo.data])[0], error: null };
+  }
+
+  return { data: null, error: solo.error || inclusive.error || stats.error };
+}
+
+/** Include Supabase/Postgres details in logs and JSON when create/update fails */
+function supabaseMutationError(status, message, sbError, res) {
+  const hint = sbError?.hint || sbError?.details || '';
+  console.error(`${message}`, sbError);
+  const body = {
+    error: message,
+    details: sbError?.message || String(sbError)
+  };
+  if (hint) body.hint = hint;
+  if (sbError?.code) body.code = sbError.code;
+  return res.status(status).json(body);
+}
+
 // Middleware to verify authentication
 const authenticate = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -39,17 +162,15 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Get brands owned by user OR their team
-    const { data: brands, error } = await supabase
-      .from('brand_profile_stats')
-      .select('*')
-      .or(`user_id.eq.${userId},team_id.in.(select team_id from team_members where user_id='${userId}')`)
-      .eq('is_active', true)
-      .order('created_at', { ascending: false });
+    const { data: brands, error } = await listBrandsWithFallback(userId);
 
     if (error) {
       console.error('Error fetching brands:', error);
-      return res.status(500).json({ error: 'Failed to fetch brands' });
+      return res.status(500).json({
+        error: 'Failed to fetch brands',
+        details: error.message || String(error),
+        ...(error.code ? { code: error.code } : {})
+      });
     }
 
     res.json({ brands: brands || [] });
@@ -67,15 +188,9 @@ router.get('/:id', authenticate, async (req, res) => {
     const userId = req.user.id;
     const brandId = req.params.id;
 
-    const { data: brand, error } = await supabase
-      .from('brand_profile_stats')
-      .select('*')
-      .eq('id', brandId)
-      .or(`user_id.eq.${userId},team_id.in.(select team_id from team_members where user_id='${userId}')`)
-      .single();
+    const { data: brand, error } = await getBrandWithFallback(userId, brandId);
 
-    if (error) {
-      console.error('Error fetching brand:', error);
+    if (error || !brand) {
       return res.status(404).json({ error: 'Brand not found' });
     }
 
@@ -124,8 +239,7 @@ router.post('/', authenticate, async (req, res) => {
       .single();
 
     if (error) {
-      console.error('Error creating brand:', error);
-      return res.status(500).json({ error: 'Failed to create brand' });
+      return supabaseMutationError(500, 'Failed to create brand', error, res);
     }
 
     res.status(201).json({ brand });
@@ -178,8 +292,7 @@ router.put('/:id', authenticate, async (req, res) => {
       .single();
 
     if (error) {
-      console.error('Error updating brand:', error);
-      return res.status(500).json({ error: 'Failed to update brand' });
+      return supabaseMutationError(500, 'Failed to update brand', error, res);
     }
 
     res.json({ brand });

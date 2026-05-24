@@ -309,7 +309,19 @@ async function saveBrand(event) {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to save brand');
+      let errMsg = `Could not save brand (${response.status})`;
+      try {
+        const body = await response.json();
+        const main = body.error || body.message;
+        const detail = body.details || body.hint || '';
+        errMsg = main || errMsg;
+        if (detail && detail !== main) {
+          errMsg = main ? `${main}: ${detail}` : detail;
+        }
+      } catch (_) {
+        /* ignore non-JSON error body */
+      }
+      throw new Error(errMsg);
     }
 
     showNotification(currentBrand ? 'Brand updated successfully' : 'Brand created successfully', 'success');
@@ -317,7 +329,7 @@ async function saveBrand(event) {
     await loadBrands();
   } catch (error) {
     console.error('Error saving brand:', error);
-    showNotification('Failed to save brand', 'error');
+    showNotification(error.message || 'Failed to save brand', 'error');
   }
 }
 
