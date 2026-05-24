@@ -436,14 +436,16 @@ function setupEventListeners() {
       });
     }
   });
-
-  // Close modals on outside click
-  window.addEventListener('click', (event) => {
-    if (event.target.classList.contains('modal')) {
-      event.target.style.display = 'none';
-    }
-  });
 }
+
+// Close modal overlays when clicking the dimmed backdrop (register once;
+// repeating this inside setupEventListeners stacked many handlers.)
+function closeModalOnBackdropClick(event) {
+  if (event.target.classList && event.target.classList.contains('modal')) {
+    event.target.style.display = 'none';
+  }
+}
+window.addEventListener('click', closeModalOnBackdropClick);
 
 // ============================================
 // UTILITY FUNCTIONS

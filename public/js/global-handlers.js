@@ -237,36 +237,38 @@ function showStyledConfirm(message, onConfirm, onCancel) {
 // GLOBAL EVENT DELEGATION
 // ============================================
 
-document.addEventListener('DOMContentLoaded', function() {
-  // Use event delegation on document body
-  document.body.addEventListener('click', function(e) {
+/**
+ * Runs HTML inline handlers in environments where onclick attributes behave
+ * unreliably, without stripping them (stripping broke repeat clicks —
+ * collapses/modals/buttons appeared "dead" after the first use).
+ *
+ * Runs in CAPTURE phase and stops propagation so the browser never runs the
+ * same handler twice from the attribute.
+ */
+document.addEventListener(
+  'click',
+  function (e) {
     const target = e.target.closest('[onclick]');
     if (!target) return;
 
     const onclickAttr = target.getAttribute('onclick');
     if (!onclickAttr) return;
 
-    // Prevent default if it's a button or link
     if (target.tagName === 'BUTTON' || target.tagName === 'A') {
       e.preventDefault();
     }
 
-    // Extract function name and parameters
-    try {
-      // Remove the onclick attribute to prevent double execution
-      target.removeAttribute('onclick');
+    e.stopPropagation();
 
-      // Execute the function
+    try {
       const func = new Function('event', onclickAttr);
       func.call(target, e);
-
-      // Add it back for future reference
-      target.setAttribute('data-onclick-backup', onclickAttr);
     } catch (error) {
       console.error('Error executing onclick:', error, onclickAttr);
     }
-  });
-});
+  },
+  true
+);
 
 // ============================================
 // REPLACE NATIVE ALERT/CONFIRM
@@ -299,4 +301,4 @@ window.showStyledNotification = showStyledNotification;
 window.showStyledConfirm = showStyledConfirm;
 window.showNotification = showStyledNotification; // Alias for compatibility
 
-console.log('✓ Global handlers initialized - All onclick issues fixed!');
+console.log('✓ Global handlers initialized');
