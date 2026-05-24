@@ -234,43 +234,6 @@ function showStyledConfirm(message, onConfirm, onCancel) {
 }
 
 // ============================================
-// GLOBAL EVENT DELEGATION
-// ============================================
-
-/**
- * Runs HTML inline handlers in environments where onclick attributes behave
- * unreliably, without stripping them (stripping broke repeat clicks —
- * collapses/modals/buttons appeared "dead" after the first use).
- *
- * Runs in CAPTURE phase and stops propagation so the browser never runs the
- * same handler twice from the attribute.
- */
-document.addEventListener(
-  'click',
-  function (e) {
-    const target = e.target.closest('[onclick]');
-    if (!target) return;
-
-    const onclickAttr = target.getAttribute('onclick');
-    if (!onclickAttr) return;
-
-    if (target.tagName === 'BUTTON' || target.tagName === 'A') {
-      e.preventDefault();
-    }
-
-    e.stopPropagation();
-
-    try {
-      const func = new Function('event', onclickAttr);
-      func.call(target, e);
-    } catch (error) {
-      console.error('Error executing onclick:', error, onclickAttr);
-    }
-  },
-  true
-);
-
-// ============================================
 // REPLACE NATIVE ALERT/CONFIRM
 // ============================================
 
